@@ -267,6 +267,7 @@ sind immer da.
 | Kern: Modell, JSON, Krypto, `PRSYNC2`, Merge, Team-QR | steht |
 | Oberfläche: Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
 | Amtlicher Export: Liste und Fotos als ZIP | steht |
+| Flyer-Touren ansehen (Aufzeichnen bleibt Android) | steht |
 | Testvektoren und Tests auf beiden Seiten | steht |
 | Auf einem Mac übersetzt, App gebaut, Tests grün | seit `add5eb3` |
 
@@ -278,8 +279,15 @@ Testvektor, den die Kotlin-Seite ebenfalls liest.
 **Auf einem echten iPhone gelaufen ist die App noch nicht.** Der CI baut für den Simulator und
 ohne Signierung; Kamera, Standort und der Teilen-Dialog sind damit übersetzt, aber nicht erprobt.
 
-Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, Flyer-Touren, Handywechsel-Backup und
+Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, das Aufzeichnen von Flyer-Touren und
 der Abgleich über den Relay-Server.
+
+**Handywechsel-Backup steht bewusst nicht auf dieser Liste.** Android braucht `PRBACKUP2`, weil
+sein Auto-Backup den verschlüsselten Gerätestand nicht mitnimmt. Auf iOS liegt alles unter
+„Application Support" und wandert mit dem iCloud-Backup auf das neue Gerät — dafür eigenen Code zu
+schreiben hieße, eine Plattformfunktion nachzubauen. Wer kein iCloud-Backup nutzt, kommt über das
+Sync-Paket und den Team-QR-Code an seine Daten. Sollte sich das als Lücke erweisen, ist
+`PRBACKUP2` der Weg; der Schlüsselaustausch müsste dann ohne Nearby auskommen.
 
 ## Der amtliche Export
 

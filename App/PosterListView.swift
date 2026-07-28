@@ -50,6 +50,13 @@ struct PosterListView: View {
                     }
                     .pickerStyle(.menu)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        FlyerTourenView()
+                    } label: {
+                        Label("Flyer-Touren", systemImage: "figure.walk")
+                    }
+                }
             }
         }
     }
