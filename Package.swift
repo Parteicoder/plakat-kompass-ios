@@ -3,7 +3,10 @@ import PackageDescription
 
 let package = Package(
     name: "PlakatKompass",
-    platforms: [.iOS(.v16)],
+    // macOS muss mit dabei stehen, obwohl es keine Mac-App gibt: `swift test` uebersetzt den
+    // Kern fuer macOS. Ohne diese Zeile gilt dort die uralte Voreinstellung, und dann sind
+    // CryptoKit (ab 10.15) und .completeFileProtection (ab 11) nicht verfuegbar.
+    platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
         .library(name: "PlakatKompassCore", targets: ["PlakatKompassCore"])
     ],

@@ -10,6 +10,10 @@ name: Swift Test
 #
 # BEWUSST NICHT selbst gehostet: An einem oeffentlichen Repo kann jeder forken, einen Pull
 # Request oeffnen und damit fremden Code auf dem eigenen Rechner ausfuehren lassen.
+#
+# macos-15 statt macos-14, weil dort Xcode 16 liegt. XcodeGen schreibt inzwischen Projekte im
+# Format 77, das Xcode 15.4 auf macos-14 nicht oeffnen kann - der Lauf scheiterte daran mit
+# "future Xcode project file format (77)".
 
 on:
   push:
@@ -25,7 +29,7 @@ concurrency:
 jobs:
   kern:
     name: Kern uebersetzen und testen
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout
@@ -46,7 +50,7 @@ jobs:
 
   app:
     name: iOS-App bauen
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout

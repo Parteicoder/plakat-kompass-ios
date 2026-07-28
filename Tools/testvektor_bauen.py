@@ -7,9 +7,14 @@ Kotlin- noch mit dem Swift-Code. Wuerde eine der beiden Seiten ihn erzeugen, wue
 Test nur bestaetigen, dass diese Seite mit sich selbst uebereinstimmt. So muessen beide
 gegen etwas Drittes bestehen.
 
-Alles ist fest verdrahtet, auch der IV. Ein Sync-Paket im Betrieb bekommt selbstverstaendlich
-einen frischen Zufalls-IV; fuer einen Vektor waere das nutzlos, weil die Datei sich bei jedem
-Lauf aendern wuerde.
+Alles ist fest verdrahtet, auch der IV UND die Zeitstempel im ZIP. Ein Sync-Paket im Betrieb
+bekommt selbstverstaendlich einen frischen Zufalls-IV; fuer einen Vektor waere das nutzlos, weil
+die Datei sich bei jedem Lauf aendern wuerde.
+
+Die ZIP-Zeitstempel sind dabei die unauffaellige Falle: zipfile schreibt ohne Zutun die aktuelle
+Uhrzeit und das Erzeugersystem in jeden Eintrag. Dadurch aendert sich das ZIP bei jedem Lauf,
+also auch das Chiffrat - und das faellt erst auf, wenn zwei Rechner verschiedene Dateien
+erzeugen. Genau so ist es passiert.
 
     python3 Tools/testvektor_bauen.py
 
@@ -148,11 +153,24 @@ def foto_bytes() -> bytes:
     return bytes((i * 7 + 11) % 256 for i in range(2048))
 
 
+# Fester Zeitstempel fuer jeden ZIP-Eintrag: 14.11.2023, 22:13:20 UTC.
+ZIP_ZEIT = (2023, 11, 14, 22, 13, 20)
+
+
+def eintrag(name: str) -> zipfile.ZipInfo:
+    """Ein ZIP-Eintrag ohne alles, was sich zwischen zwei Laeufen aendern koennte."""
+    zi = zipfile.ZipInfo(name, date_time=ZIP_ZEIT)
+    zi.compress_type = zipfile.ZIP_DEFLATED
+    zi.external_attr = 0o644 << 16
+    zi.create_system = 3  # Unix - Voreinstellung ist sonst 0 auf Windows und 3 auf Linux
+    return zi
+
+
 def baue() -> bytes:
     puffer = io.BytesIO()
-    with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("snapshot.json", json.dumps(snapshot(), indent=2, ensure_ascii=False))
-        zf.writestr(f"photos/{FOTO_NAME}", foto_bytes())
+    with zipfile.ZipFile(puffer, "w") as zf:
+        zf.writestr(eintrag("snapshot.json"), json.dumps(snapshot(), indent=2, ensure_ascii=False))
+        zf.writestr(eintrag(f"photos/{FOTO_NAME}"), foto_bytes())
     klartext = puffer.getvalue()
 
     schluessel = hashlib.sha256(TEAM_SECRET.encode("utf-8")).digest()  # ROHE 32 Byte
@@ -162,6 +180,11 @@ def baue() -> bytes:
 
 def pruefe(paket: bytes) -> None:
     """Ein Vektor, den niemand gegengelesen hat, ist keiner."""
+    # Zuerst das, was uns schon einmal auf die Fuesse gefallen ist: Zwei Laeufe muessen
+    # dieselbe Datei ergeben. Sonst erzeugen zwei Rechner verschiedene Vektoren, und die
+    # Tests auf beiden Plattformen pruefen gegen Verschiedenes.
+    assert baue() == paket, "Zwei Laeufe ergeben verschiedene Dateien - irgendwo steckt noch Zufall"
+
     assert paket[:8] == MAGIC, "Magic stimmt nicht"
     schluessel = hashlib.sha256(TEAM_SECRET.encode("utf-8")).digest()
     klartext = AESGCM(schluessel).decrypt(paket[8:20], paket[20:], MAGIC)

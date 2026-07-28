@@ -105,7 +105,7 @@ public struct TeamInvite: Equatable, Sendable {
         [
             "PLAKATRADAR", "4", teamId, teamName, leaderName, leaderDeviceId, teamSecret
         ]
-        .map(packeBase64Url)
+        .map(Self.packeBase64Url)
         .joined(separator: "|")
     }
 
