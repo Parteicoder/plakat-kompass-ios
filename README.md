@@ -3,7 +3,7 @@
 [![CI Status](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/ci-status.yml/badge.svg)](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/ci-status.yml)
 [![Swift Test](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/swift-test.yml/badge.svg)](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/swift-test.yml)
 
-iOS-Fassung von [Plakat Kompass](https://github.com/Parteicoder/plakat-radar-intern). Die App
+iOS-Fassung von **Plakat Kompass**. Die App
 erfasst Wahlplakate mit Foto und Standort, verwaltet ihren Zustand bis zur Abnahme und gleicht sich
 mit den Geräten des Teams ab.
 
@@ -31,14 +31,18 @@ Für iOS heißt das: Es ist **kein Netzwerkcode nötig**, kein Bonjour, kein eig
 gesamte Schnittstelle zwischen den beiden Apps ist das unten beschriebene Dateiformat. Wer es
 byteweise trifft, ist kompatibel; wer daneben liegt, ist es nicht.
 
-Ein Abgleich über einen eigenen Relay-Server ist als späterer Zusatzweg vorgesehen
-([Backend](https://github.com/Parteicoder/plakat-kompass-backend)), aber nicht Voraussetzung.
+Ein Abgleich über einen eigenen Relay-Server ist als späterer Zusatzweg vorgesehen, aber nicht
+Voraussetzung.
 
 ## Das Sync-Paket, `PRSYNC2`
 
-Maßgeblich ist der Android-Quelltext
-`app/src/main/java/de/bsw/plakatradar/sync/SyncBundleCodec.kt`. Weicht dieses Dokument davon ab,
-gilt der Quelltext.
+Die Android-App ist nicht öffentlich. Dieses Dokument ist deshalb die vollständige und
+maßgebliche Beschreibung des Formats — es ist aus `sync/SyncBundleCodec.kt` der Android-Fassung
+abgeleitet, aber es setzt nichts voraus, was man dort nachschlagen müsste.
+
+Wer prüfen will, ob eine eigene Umsetzung stimmt, braucht den Quelltext auch gar nicht: Unter
+`Tests/Vektoren/` liegt ein vollständiges Paket mit bekanntem Schlüssel. Wer es öffnet und die
+Werte aus `sync-vektor-1.json` herausbekommt, ist kompatibel.
 
 ### Aufbau der Datei
 
@@ -102,7 +106,7 @@ Vorbild ist `core/SyncMerge.kt`, `verify()`.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "teamId": "…",
   "teamName": "…",
   "senderDeviceId": "…",
@@ -126,21 +130,33 @@ Einrückung 2, das ist Bequemlichkeit beim Lesen, keine Vorschrift.
 
 ## Aufbau des Projekts
 
-Der Kern — Datenmodell, Zusammenführen, JSON, `PRSYNC2`, Krypto — wird **nicht** in Swift
-nachgebaut, sondern als **Kotlin-Multiplatform-Modul** aus dem Android-Repo geteilt und hier als
-`XCFramework` eingebunden. Grund: Das Einzige, was zwischen den Plattformen übereinstimmen muss,
-ist genau dieser Code. Zweimal geschrieben läuft er früher oder später auseinander, und zwar
-stillschweigend — man merkt es erst, wenn im Feld Daten fehlen.
+```
+Sources/PlakatKompassCore/   Datenmodell, JSON, Krypto, PRSYNC2, Merge, Team-QR, Persistenz
+App/                         SwiftUI: Erfassen, Liste, Karte, Abgleich, Team
+Tests/                       Kreuztests gegen den Testvektor
+Tools/                       Erzeuger des Testvektors
+```
 
-Nativ in Swift entsteht alles darüber: Oberfläche in SwiftUI, Kamera, Standort, Karte über MapKit,
-Teilen und Empfangen über die Systemdialoge.
+Der Kern ist in Swift geschrieben, nicht mit Android geteilt. Ursprünglich war ein gemeinsames
+Kotlin-Multiplatform-Modul geplant — das hätte die Formatlogik zu buchstäblich demselben Code
+gemacht und ein Auseinanderlaufen unmöglich. Dagegen sprach, dass die Android-App dafür in Module
+umgebaut werden müsste und jeder iOS-Bau dann von einem erzeugten `XCFramework` abhinge.
+
+Der Preis dieser Entscheidung ist real: Dieselbe Logik steht zweimal, in zwei Sprachen. Genau
+deshalb sind die Testvektoren im nächsten Abschnitt keine Kür, sondern das, was die Entscheidung
+überhaupt vertretbar macht.
 
 ## Gegen das Auseinanderlaufen
 
-Im Repo liegen **Testvektoren**: feste Eingaben mit erwarteten Bytes. Die Kotlin-Tests und die
-Swift-Tests lesen dieselben Dateien. Dazu ein kreuzweiser Durchlauf — ein von Kotlin erzeugtes
-Paket wird von Swift entschlüsselt und umgekehrt. Weicht eine Seite ab, wird der Build rot statt
-des Nutzers im Feld ratlos.
+Im Repo liegt ein **Testvektor**: ein vollständiges Paket mit festen Werten, erzeugt von
+`Tools/testvektor_bauen.py` — **weder von der Swift- noch von der Kotlin-Seite**.
+
+Das ist der Punkt. Käme er von einer der beiden, bestätigte der Test nur, dass diese Seite mit
+sich selbst übereinstimmt; das ist der häufigste Weg, sich eine grüne Prüfung zu bauen, die nichts
+bedeutet. So müssen beide gegen etwas Drittes bestehen.
+
+Dieselbe Datei liegt in beiden Repos. Weicht eine Seite ab, wird der Build rot statt des Nutzers
+im Feld ratlos.
 
 ## Der Team-QR-Code
 
