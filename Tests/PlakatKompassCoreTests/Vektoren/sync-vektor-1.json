@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 2,
+  "teamId": "11111111-2222-3333-4444-555555555555",
+  "teamName": "Testvektor-Team",
+  "senderDeviceId": "aaaaaaaa-0000-0000-0000-000000000001",
+  "senderName": "Android-Testgeraet",
+  "teamSecretHash": "aeb6e8ff7b1de0baa25837d24bc0115bc586d2cde902afe67857862e7986cf36",
+  "devices": [
+    {
+      "deviceId": "aaaaaaaa-0000-0000-0000-000000000001",
+      "displayName": "Android-Testgeraet",
+      "role": "LEADER",
+      "joinedAt": 1700000000000,
+      "approved": true,
+      "blocked": false
+    },
+    {
+      "deviceId": "bbbbbbbb-0000-0000-0000-000000000002",
+      "displayName": "iPhone-Testgeraet",
+      "role": "MEMBER",
+      "joinedAt": 1700000100000,
+      "approved": true,
+      "blocked": false
+    }
+  ],
+  "posters": [
+    {
+      "id": "poster-0001",
+      "teamId": "11111111-2222-3333-4444-555555555555",
+      "latitude": 51.46,
+      "longitude": 12.633,
+      "addressHint": "Bahnhofstrasse 1",
+      "type": "LAMP_POST",
+      "status": "HANGING",
+      "localPhotoFileName": "poster-testvektor-0001.jpg",
+      "createdByDeviceId": "aaaaaaaa-0000-0000-0000-000000000001",
+      "createdByName": "Android-Testgeraet",
+      "createdAt": 1700000200000,
+      "updatedAt": 1700000200000,
+      "plannedRemovalAt": 1701209800000,
+      "officialNote": "Umlaut-Probe: Grosse Strasse, Aeschylos, weiss",
+      "internalNote": ""
+    },
+    {
+      "id": "poster-0002",
+      "teamId": "11111111-2222-3333-4444-555555555555",
+      "latitude": 51.461,
+      "longitude": 12.634,
+      "addressHint": "",
+      "type": "TRIANGLE_STAND",
+      "status": "DAMAGED",
+      "localPhotoFileName": "",
+      "createdByDeviceId": "bbbbbbbb-0000-0000-0000-000000000002",
+      "createdByName": "iPhone-Testgeraet",
+      "createdAt": 1700000300000,
+      "updatedAt": 1700000400000,
+      "plannedRemovalAt": null,
+      "officialNote": "",
+      "internalNote": "nur intern"
+    }
+  ],
+  "deletedPosters": [
+    {
+      "posterId": "poster-0003",
+      "teamId": "11111111-2222-3333-4444-555555555555",
+      "deletedByDeviceId": "aaaaaaaa-0000-0000-0000-000000000001",
+      "deletedByName": "Android-Testgeraet",
+      "deletedAt": 1700000500000
+    }
+  ],
+  "events": [
+    {
+      "id": "event-0001",
+      "posterId": "poster-0001",
+      "teamId": "11111111-2222-3333-4444-555555555555",
+      "actorDeviceId": "aaaaaaaa-0000-0000-0000-000000000001",
+      "actorName": "Android-Testgeraet",
+      "action": "erfasst",
+      "createdAt": 1700000200000
+    }
+  ],
+  "flyerTours": [
+    {
+      "id": "tour-0001",
+      "teamId": "11111111-2222-3333-4444-555555555555",
+      "name": "Testtour",
+      "status": "FINISHED",
+      "points": [
+        {
+          "latitude": 51.46,
+          "longitude": 12.633,
+          "createdAt": 1700000600000
+        },
+        {
+          "latitude": 51.4605,
+          "longitude": 12.6335,
+          "createdAt": 1700000660000
+        }
+      ],
+      "createdByDeviceId": "aaaaaaaa-0000-0000-0000-000000000001",
+      "createdByName": "Android-Testgeraet",
+      "startedAt": 1700000600000,
+      "updatedAt": 1700000700000,
+      "finishedAt": 1700000700000
+    }
+  ],
+  "createdAt": 1700000800000
+}

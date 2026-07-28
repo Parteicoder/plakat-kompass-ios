@@ -1,0 +1,62 @@
+name: CI Status
+
+# Laeuft auf GitHubs Runnern. Bei einem oeffentlichen Repo sind die kostenlos, auch die Macs.
+#
+# BEWUSST NICHT selbst gehostet: An einem oeffentlichen Repo kann jeder forken, einen Pull
+# Request oeffnen und damit fremden Code auf dem eigenen Rechner ausfuehren lassen. GitHub raet
+# in der eigenen Dokumentation davon ab. Die Voreinstellung "Freigabe bei Erstbeitragenden"
+# greift nur beim allerersten Mal und ist kein Ersatz.
+#
+# Uebersetzt wird hier nichts - das macht "Swift Test" auf einem Mac. Geprueft wird die Stelle,
+# an der die Vertraeglichkeit zwischen Android und iOS haengt: der Testvektor.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-status-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testvektor:
+    name: Testvektor
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: cryptography installieren
+        run: pip install --quiet cryptography
+
+      - name: Testvektor erzeugen und gegenpruefen
+        # Das Skript prueft sich selbst: Rueckweg identisch, falscher Schluessel scheitert,
+        # veraendertes Byte scheitert. Schlaegt eines davon fehl, bricht es ab.
+        run: python3 Tools/testvektor_bauen.py
+
+      - name: Eingecheckter Vektor muss unveraendert sein
+        # Wenn das Skript eine andere Datei erzeugt als die im Repo, ist eine von beiden
+        # veraltet - und dann pruefen die Kotlin- und die Swift-Tests gegen verschiedene
+        # Vorlagen, ohne dass es sonst irgendwo auffiele.
+        run: |
+          if ! git diff --quiet -- Tests/PlakatKompassCoreTests/Vektoren; then
+            echo "Der erzeugte Vektor weicht vom eingecheckten ab:"
+            git --no-pager diff --stat -- Tests/PlakatKompassCoreTests/Vektoren
+            exit 1
+          fi
+          echo "Vektor stimmt mit dem eingecheckten ueberein."
+
+      - name: Muss mit dem Android-Repo uebereinstimmen
+        run: |
+          echo "SHA-256 des Vektors:"
+          sha256sum Tests/PlakatKompassCoreTests/Vektoren/sync-vektor-1.prsync
+          echo "Gegenstueck: app/src/test/resources/vektoren/sync-vektor-1.prsync im Android-Repo."

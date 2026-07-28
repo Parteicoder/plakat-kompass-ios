@@ -1,0 +1,72 @@
+name: Swift Test
+
+# Uebersetzt den Kern, laesst die Tests laufen und baut die App.
+#
+# Braucht einen Mac. Daran fuehrt kein Weg vorbei: CryptoKit, UIKit und MapKit gibt es nur auf
+# Apple-Plattformen, und iOS-Binaerdateien erzeugt ausschliesslich Xcode.
+#
+# Bei einem oeffentlichen Repo sind GitHubs Mac-Runner kostenlos - der zehnfache Faktor auf
+# macOS-Minuten gilt nur fuer private Repos. Ein eigener Mac ist also nicht noetig.
+#
+# BEWUSST NICHT selbst gehostet: An einem oeffentlichen Repo kann jeder forken, einen Pull
+# Request oeffnen und damit fremden Code auf dem eigenen Rechner ausfuehren lassen.
+#
+# macos-15 statt macos-14, weil dort Xcode 16 liegt. XcodeGen schreibt inzwischen Projekte im
+# Format 77, das Xcode 15.4 auf macos-14 nicht oeffnen kann - der Lauf scheiterte daran mit
+# "future Xcode project file format (77)".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: swift-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kern:
+    name: Kern uebersetzen und testen
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Xcode-Fassung anzeigen
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Kern uebersetzen
+        run: swift build
+
+      - name: Tests
+        # Hier laufen die Kreuztests gegen den Testvektor: Der Kern muss ein Paket lesen
+        # koennen, das weder von ihm noch von der Kotlin-Seite erzeugt wurde.
+        run: swift test
+
+  app:
+    name: iOS-App bauen
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: App bauen, ohne Signierung
+        # CODE_SIGNING_ALLOWED=NO, weil im CI kein Entwicklerzertifikat liegt und auch keines
+        # hingehoert. Zum Uebersetzen wird es nicht gebraucht, nur zum Installieren.
+        run: |
+          xcodebuild build \
+            -project PlakatKompass.xcodeproj \
+            -scheme PlakatKompass \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO

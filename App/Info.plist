@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Plakat Kompass</string>
+
+	<!-- Ohne diese Texte stuerzt die App beim ersten Zugriff ab, statt zu fragen. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Für jedes Plakat wird ein Foto aufgenommen, damit das Team und die Verwaltung den Zustand nachvollziehen können.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Der Standort wird beim Erfassen gespeichert, damit das Plakat auf der Karte wiedergefunden und rechtzeitig abgenommen werden kann.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Wird nur gebraucht, wenn statt der Kamera ein vorhandenes Foto gewählt wird.</string>
+
+	<!--
+	  Der Kern des Android-iOS-Abgleichs: Damit taucht Plakat Kompass in "Öffnen mit" auf,
+	  wenn ein Sync-Paket aus einem Messenger, aus Mail oder per AirDrop hereinkommt.
+	  Die Endung .prsync und der Typ entsprechen dem, was die Android-App verschickt.
+	-->
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>de.bsw.plakatradar.sync</string>
+			<key>UTTypeDescription</key>
+			<string>Plakat Kompass Sync-Paket</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>prsync</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.plakatradar.sync</string>
+					<string>application/octet-stream</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Plakat Kompass Sync-Paket</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>de.bsw.plakatradar.sync</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
