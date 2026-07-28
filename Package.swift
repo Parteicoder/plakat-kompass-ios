@@ -17,11 +17,8 @@ let package = Package(
         .target(
             name: "PlakatKompassCore",
             dependencies: ["ZIPFoundation"]
-        ),
-        .testTarget(
-            name: "PlakatKompassCoreTests",
-            dependencies: ["PlakatKompassCore"],
-            resources: [.copy("Vektoren")]
         )
+        // Das Testziel kommt zusammen mit den Testvektoren. Es hier schon einzutragen,
+        // bevor Tests/ existiert, laesst jedes `swift build` sofort scheitern.
     ]
 )
