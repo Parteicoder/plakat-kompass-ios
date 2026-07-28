@@ -266,17 +266,39 @@ sind immer da.
 |---|---|
 | Kern: Modell, JSON, Krypto, `PRSYNC2`, Merge, Team-QR | steht |
 | Oberfläche: Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
+| Amtlicher Export: Liste und Fotos als ZIP | steht |
 | Testvektoren und Tests auf beiden Seiten | steht |
-| **Auf einem Mac übersetzt** | **noch nie** |
+| Auf einem Mac übersetzt, App gebaut, Tests grün | seit `add5eb3` |
 
-Der letzte Punkt ist kein Nebensatz. Der gesamte Swift-Code ist gegen den Android-Quelltext
-geschrieben, aber durch keinen Compiler gelaufen. Der erste `swift test` wird Fehler zeigen. Die
-wahrscheinlichsten Stellen: die ZIPFoundation-Schnittstelle (0.9.x liefert `Archive(…)` optional,
-neuere Fassungen werfen) und `URL: @retroactive Identifiable`, das Swift 6 braucht — bei 5.9 muss
-das Attribut weg.
+Der letzte Punkt war lange der wunde: Der Swift-Code war gegen den Android-Quelltext geschrieben
+und durch keinen Compiler gelaufen. Seit der CI auf `macos-15` läuft, ist das erledigt — `swift
+build`, `swift test` und `xcodebuild` für den Simulator sind grün, und der Swift-Test liest den
+Testvektor, den die Kotlin-Seite ebenfalls liest.
 
-Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, Flyer-Touren, amtlicher CSV-Export,
-Handywechsel-Backup und der Abgleich über den Relay-Server.
+**Auf einem echten iPhone gelaufen ist die App noch nicht.** Der CI baut für den Simulator und
+ohne Signierung; Kamera, Standort und der Teilen-Dialog sind damit übersetzt, aber nicht erprobt.
+
+Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, Flyer-Touren, Handywechsel-Backup und
+der Abgleich über den Relay-Server.
+
+## Der amtliche Export
+
+Ein ZIP mit `plakatliste.csv` und `fotos/plakat_001.jpg…`, gedacht für die Stadtverwaltung.
+Gegenstück zu `core/OfficialExport.kt`.
+
+Anders als ein Sync-Paket ist es **unverschlüsselt** und muss Android nicht Byte für Byte
+entsprechen — es geht ans Rathaus, nie an ein Teamgerät. Interne Bemerkungen stehen nicht darin.
+
+Drei Eigenheiten der CSV sind Absicht und sehen ohne Erklärung nach Fehlern aus:
+
+- **BOM am Dateianfang**, sonst zeigt älteres Excel aus Umlauten Buchstabensalat.
+- **`sep=;` als erste Zeile**, sonst zerlegt Excel Überschriften wie „Aktueller Status" an den
+  Leerzeichen.
+- **Zellen, die mit `=`, `+`, `-`, `@`, Tab oder CR beginnen, bekommen ein Apostroph davor.**
+  Excel und LibreOffice würden sie sonst als Formel ausführen. Standortbeschreibung, Bemerkung
+  und Kommune sind Freitext und können per Abgleich von einem fremden Gerät stammen — das ist der
+  einzige Weg, auf dem aus dieser App heraus fremder Inhalt auf einem Verwaltungsrechner landet.
+  Echte Zahlen bleiben ausgenommen, damit ein Längengrad `-12.34` in der Tabelle rechnen kann.
 
 ## Lizenz
 

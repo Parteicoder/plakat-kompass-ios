@@ -164,6 +164,32 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Export für die Verwaltung
+
+    /// Baut die Plakatliste samt Fotos als ZIP und legt sie als Datei ab, die der Teilen-Dialog
+    /// verschicken kann.
+    ///
+    /// Anders als ein Sync-Paket ist das **unverschlüsselt** — es geht an die Stadtverwaltung,
+    /// nicht an ein Teamgerät. Der Team-Schlüssel und die internen Bemerkungen sind deshalb auch
+    /// nicht darin: `OfficialExport` schreibt nur die Spalten, die im Rathaus etwas zu suchen haben.
+    func erzeugeVerwaltungsExport(kommune: String) -> URL? {
+        do {
+            let daten = try OfficialExport.zipData(
+                state: state,
+                municipality: kommune.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Kommune" : kommune,
+                photoURL: { [repo] name in repo.photoURL(name) }
+            )
+            let ziel = FileManager.default.temporaryDirectory
+                .appendingPathComponent(ExportNames.authorityZipName(municipality: kommune))
+            try daten.write(to: ziel, options: .atomic)
+            return ziel
+        } catch {
+            fehler = error.localizedDescription
+            return nil
+        }
+    }
+
     // MARK: - Team
 
     /// Legt ein Team an. Das Geheimnis verlässt das Gerät nur als Hash im Sync-Paket.

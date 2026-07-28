@@ -41,6 +41,8 @@ struct SyncView: View {
                         """)
                     }
 
+                    VerwaltungsExport(teilenDatei: $teilenDatei)
+
                     if model.state.role == .LEADER {
                         Section {
                             TeamQrView()
@@ -89,6 +91,37 @@ struct SyncView: View {
                     model.fehler = fehler.localizedDescription
                 }
             }
+        }
+    }
+}
+
+/// Die Plakatliste für die Stadtverwaltung.
+///
+/// Der Kommunenname bleibt gespeichert: Wer für eine Gemeinde plakatiert, exportiert über Wochen
+/// immer wieder für dieselbe, und ihn jedes Mal neu einzutippen wäre nur Reibung.
+private struct VerwaltungsExport: View {
+    @EnvironmentObject private var model: AppModel
+    @AppStorage("kommune") private var kommune = ""
+    @Binding var teilenDatei: URL?
+
+    var body: some View {
+        Section {
+            TextField("Kommune", text: $kommune)
+                .textInputAutocapitalization(.words)
+            Button {
+                teilenDatei = model.erzeugeVerwaltungsExport(kommune: kommune)
+            } label: {
+                Label("Liste für die Verwaltung", systemImage: "doc.text")
+            }
+            .disabled(model.state.posters.isEmpty)
+        } header: {
+            Text("Amtlicher Export")
+        } footer: {
+            Text("""
+            Ein ZIP mit der Plakatliste als Tabelle und allen Fotos. Anders als das Sync-Paket ist \
+            es unverschlüsselt — es geht an die Verwaltung, nicht an ein Teamgerät. Interne \
+            Bemerkungen stehen nicht darin.
+            """)
         }
     }
 }
