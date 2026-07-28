@@ -16,8 +16,10 @@ name: PlakatKompass
 
 options:
   bundleIdPrefix: de.bsw
+  # Muss mit der Zahl in Package.swift zusammenpassen. iOS 17 schliesst iPhone X, 8 und 8 Plus
+  # aus - Geraete von 2017. Ab dem iPhone XS von 2018 laeuft alles.
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
   createIntermediateGroups: true
 
 packages:

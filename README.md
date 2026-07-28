@@ -186,6 +186,12 @@ QR-Code er einmal gesehen hat.
 Xcode auf einem Mac. Das gilt auch für den geteilten Kotlin-Kern: Seine iOS-Binärdateien lassen
 sich ausschließlich dort erzeugen.
 
+**Mindestens iOS 17.** Damit fallen iPhone X, 8 und 8 Plus heraus — Geräte von 2017. Ab dem
+iPhone XS von 2018 läuft die App. Die Alternative wäre iOS 16 gewesen, dann müssten Karte, Liste
+und Leerzustand auf die alten Schnittstellen zurück (`Map(coordinateRegion:)` statt
+`Map(position:)`, kein `ContentUnavailableView`, kein `.topBarLeading`). Die Zahl steht an zwei
+Stellen und muss dort zusammenpassen: `Package.swift` und `project.yml`.
+
 ```bash
 brew install xcodegen     # einmalig
 xcodegen generate
