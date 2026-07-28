@@ -268,6 +268,7 @@ sind immer da.
 | Oberfläche: Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
 | Amtlicher Export: Liste und Fotos als ZIP | steht |
 | Flyer-Touren ansehen (Aufzeichnen bleibt Android) | steht |
+| App-Icon und Startbildschirm | steht, Icon hochgerechnet |
 | Testvektoren und Tests auf beiden Seiten | steht |
 | Auf einem Mac übersetzt, App gebaut, Tests grün | seit `add5eb3` |
 
@@ -279,8 +280,8 @@ Testvektor, den die Kotlin-Seite ebenfalls liest.
 **Auf einem echten iPhone gelaufen ist die App noch nicht.** Der CI baut für den Simulator und
 ohne Signierung; Kamera, Standort und der Teilen-Dialog sind damit übersetzt, aber nicht erprobt.
 
-Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, das Aufzeichnen von Flyer-Touren und
-der Abgleich über den Relay-Server.
+Noch nicht gebaut: Sozialdaten, das Aufzeichnen von Flyer-Touren und der Abgleich über den
+Relay-Server.
 
 **Handywechsel-Backup steht bewusst nicht auf dieser Liste.** Android braucht `PRBACKUP2`, weil
 sein Auto-Backup den verschlüsselten Gerätestand nicht mitnimmt. Auf iOS liegt alles unter
@@ -288,6 +289,25 @@ sein Auto-Backup den verschlüsselten Gerätestand nicht mitnimmt. Auf iOS liegt
 schreiben hieße, eine Plattformfunktion nachzubauen. Wer kein iCloud-Backup nutzt, kommt über das
 Sync-Paket und den Team-QR-Code an seine Daten. Sollte sich das als Lücke erweisen, ist
 `PRBACKUP2` der Weg; der Schlüsselaustausch müsste dann ohne Nearby auskommen.
+
+## App-Icon
+
+Dieselbe Kompassrose wie auf Android, aus `mipmap-xxxhdpi/ic_launcher.png` des Android-Repos
+umgerechnet mit `Tools/appicon_bauen.py`. Das Skript ist da, weil die Umrechnung nicht
+offensichtlich ist: Android bringt seine abgerundeten Ecken als Grafik mit, iOS legt später
+seine eigene Maske darüber, und blieben die weißen Ecken stehen, sähe man nach dem Maskieren
+einen hellen Rand um die cremefarbene Fläche.
+
+**Die Auflösung ist die Schwachstelle.** Die größte im Android-Repo vorhandene Fassung des
+Kompass-Motivs misst 192 × 192; ein Vektor existiert nicht mehr, er wurde beim Wechsel vom
+alten Motiv entfernt. Der App Store verlangt 1024 × 1024, also wird um gut das Fünffache
+hochgerechnet, und das sieht man. Für Entwicklung und TestFlight reicht es, für eine
+Veröffentlichung nicht. Sobald die Originaldatei auftaucht, gehört sie ins Skript — dann fällt
+der Vergrößerungsschritt weg und der Rest bleibt.
+
+Der Startbildschirm hat bewusst weder Logo noch Schriftzug: Apples Richtlinie will einen, der
+wie die erste Seite der App aussieht, damit der Start kurz wirkt. Ein leerer `UILaunchScreen`
+nimmt die Systemhintergrundfarbe und wechselt von allein zwischen hell und dunkel.
 
 ## Der amtliche Export
 
