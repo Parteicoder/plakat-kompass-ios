@@ -1,22 +1,15 @@
 name: Swift Test
 
-# Der Workflow, der den Kern wirklich uebersetzt und die Tests laufen laesst.
+# Uebersetzt den Kern, laesst die Tests laufen und baut die App.
 #
-# Braucht einen Mac. Es gibt keinen Weg daran vorbei: CryptoKit, UIKit und MapKit gibt es nur
-# auf Apple-Plattformen, und iOS-Binaerdateien erzeugt ausschliesslich Xcode.
+# Braucht einen Mac. Daran fuehrt kein Weg vorbei: CryptoKit, UIKit und MapKit gibt es nur auf
+# Apple-Plattformen, und iOS-Binaerdateien erzeugt ausschliesslich Xcode.
 #
-# Zwei Moeglichkeiten:
+# Bei einem oeffentlichen Repo sind GitHubs Mac-Runner kostenlos - der zehnfache Faktor auf
+# macOS-Minuten gilt nur fuer private Repos. Ein eigener Mac ist also nicht noetig.
 #
-#   1. Eigener Mac als Runner. Dann in "runs-on" die self-hosted-Zeile nehmen.
-#      Einrichten wie beim Windows-Runner: Repo > Settings > Actions > Runners > New runner,
-#      macOS waehlen, die drei gezeigten Befehle im Terminal ausfuehren. Danach einmal
-#      `xcode-select --install` und Xcode aus dem App Store.
-#
-#   2. GitHubs eigene Mac-Runner (macos-14). Kein eigener Rechner noetig, aber in einem
-#      privaten Repo zaehlen macOS-Minuten zehnfach. Fuer ein paar Laeufe am Tag ist das
-#      unerheblich, bei jedem Push kann es ins Geld gehen.
-#
-# Voreingestellt ist Moeglichkeit 2, damit es ohne Mac ueberhaupt anspringt.
+# BEWUSST NICHT selbst gehostet: An einem oeffentlichen Repo kann jeder forken, einen Pull
+# Request oeffnen und damit fremden Code auf dem eigenen Rechner ausfuehren lassen.
 
 on:
   push:
@@ -33,8 +26,6 @@ jobs:
   kern:
     name: Kern uebersetzen und testen
     runs-on: macos-14
-    # Eigener Mac stattdessen:
-    # runs-on: [self-hosted, macOS]
 
     steps:
       - name: Checkout
@@ -56,7 +47,6 @@ jobs:
   app:
     name: iOS-App bauen
     runs-on: macos-14
-    # runs-on: [self-hosted, macOS]
 
     steps:
       - name: Checkout

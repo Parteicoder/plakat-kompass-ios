@@ -215,29 +215,28 @@ Handywechsel-Backup kommen danach.
 
 ## Wo man sieht, ob es grün ist
 
-Zwei Abzeichen oben im Dokument, beide klickbar.
+Zwei Abzeichen oben im Dokument, beide klickbar. Beide laufen auf GitHubs Runnern — bei einem
+öffentlichen Repo sind die kostenlos, **auch die Macs**. Der zehnfache Faktor auf macOS-Minuten
+gilt nur für private Repos. Ein eigener Rechner ist also nicht nötig.
 
-**CI Status** läuft auf dem selbst gehosteten Windows-Runner — demselben wie im Android-Repo. Er
-erzeugt den Testvektor neu, lässt das Skript sich selbst gegenprüfen und vergleicht das Ergebnis
-mit der eingecheckten Datei. Weicht sie ab, wird er rot: Dann prüfen die Kotlin- und die
-Swift-Tests gegen verschiedene Vorlagen, und der Kreuztest ist wertlos.
+**CI Status** (`ubuntu-latest`) erzeugt den Testvektor neu, lässt das Skript sich selbst
+gegenprüfen und vergleicht das Ergebnis mit der eingecheckten Datei. Weicht sie ab, wird der Lauf
+rot — und genau das ist der Fall, der sonst niemandem auffiele: Dann prüfen der Kotlin- und der
+Swift-Test gegen **verschiedene Vorlagen**, und der ganze Kreuztest ist wertlos.
 
-**Übersetzt wird dort nichts.** Der Kern benutzt CryptoKit, die App UIKit und MapKit — Apple-
-Bibliotheken, die es unter Windows nicht gibt. Swift für Windows existiert und hilft hier nichts.
+**Swift Test** (`macos-14`) übersetzt den Kern, lässt `swift test` laufen und baut die App über
+XcodeGen. Das braucht einen Mac, daran führt kein Weg vorbei: CryptoKit, UIKit und MapKit gibt es
+nur auf Apple-Plattformen.
 
-**Swift Test** übersetzt den Kern und baut die App. Das braucht einen Mac, daran führt kein Weg
-vorbei. Voreingestellt sind GitHubs Mac-Runner, damit der Workflow ohne eigenen Rechner
-anspringt; in einem privaten Repo zählen macOS-Minuten allerdings zehnfach. Wer einen eigenen Mac
-hat, tauscht in `swift-test.yml` eine Zeile:
+### Warum hier kein selbst gehosteter Runner steht
 
-```yaml
-runs-on: macos-14
-# wird zu
-runs-on: [self-hosted, macOS]
-```
+An einem **öffentlichen** Repo kann jeder forken, einen Pull Request öffnen und damit fremden Code
+auf dem eigenen Rechner ausführen lassen. GitHub rät in der eigenen Dokumentation davon ab. Die
+Voreinstellung „Freigabe bei Erstbeitragenden" greift nur beim allerersten Mal und ist kein
+Ersatz.
 
-Einrichten wie beim Windows-Runner: Settings → Actions → Runners → New runner, macOS wählen, die
-drei gezeigten Befehle im Terminal ausführen. Dazu Xcode aus dem App Store.
+Solange das Repo öffentlich ist, gibt es dafür auch keinen Grund: GitHubs Runner kosten nichts und
+sind immer da.
 
 ## Stand
 
