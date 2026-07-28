@@ -139,15 +139,94 @@ Swift-Tests lesen dieselben Dateien. Dazu ein kreuzweiser Durchlauf — ein von 
 Paket wird von Swift entschlüsselt und umgekehrt. Weicht eine Seite ab, wird der Build rot statt
 des Nutzers im Feld ratlos.
 
-## Erste Version
+## Der Team-QR-Code
 
-Erfassen, Liste, Karte, Abgleich. Sozialdaten, Flyer-Touren, amtlicher Export und
-Handywechsel-Backup kommen danach.
+Die zweite Nahtstelle zu Android, und die, ohne die gar nichts geht: Er ist der einzige Weg, wie
+zwei Geräte an dasselbe Team-Geheimnis kommen.
 
-## Voraussetzung zum Bauen
+Felder mit `|` verbunden, jedes einzeln **Base64-URL ohne Padding**, UTF-8:
+
+```
+Version 4 (stabil):  PLAKATRADAR | 4 | teamId | teamName | leaderName | leaderDeviceId | teamSecret
+Version 5 (rollend): … | 5 | … | teamKey | sequence | createdAt | expiresAt     (60 Sekunden gültig)
+Version 3 (alt):     … | 3 | … | teamSecret | createdAt | expiresAt
+Version 2:           wird abgewiesen
+```
+
+Geschrieben wird immer Version 4, damit ein Android-Gerät den Code eines iPhones lesen kann.
+
+Das „ohne Padding" ist die Stelle, an der eine Nachbildung typischerweise danebenliegt:
+Foundation liefert Standard-Base64 mit `=`, `+` und `/`. Es müssen `-`, `_` und kein `=` sein.
+
+**Wer beitritt, ist noch nicht dabei.** Das eigene Gerät trägt sich als *nicht freigegeben* ein;
+die Freigabe erteilt die Teamleitung. Sonst könnte sich jeder in ein Team schreiben, dessen
+QR-Code er einmal gesehen hat.
+
+## Bauen
 
 Xcode auf einem Mac. Das gilt auch für den geteilten Kotlin-Kern: Seine iOS-Binärdateien lassen
 sich ausschließlich dort erzeugen.
+
+```bash
+brew install xcodegen     # einmalig
+xcodegen generate
+open PlakatKompass.xcodeproj
+```
+
+In Xcode unter „Signing & Capabilities" das eigene Team wählen — die Team-ID gehört nicht ins Repo.
+
+Wer XcodeGen nicht will: in Xcode ein iOS-App-Projekt anlegen, `App/` hineinziehen, das Package
+als lokale Abhängigkeit einbinden und `App/Info.plist` übernehmen. `project.yml` sagt, welche
+Einstellungen dabei nötig sind.
+
+Nur den Kern prüfen, ohne App:
+
+```bash
+swift test
+```
+
+## Testvektoren
+
+`Tests/Vektoren/sync-vektor-1.prsync` ist ein vollständiges Sync-Paket mit festen Werten.
+
+Erzeugt hat es `Tools/testvektor_bauen.py` — **weder die Swift- noch die Kotlin-Seite**. Das ist
+der Punkt: Käme der Vektor von einer der beiden, bestätigte der Test nur, dass diese Seite mit
+sich selbst übereinstimmt. So müssen beide gegen etwas Drittes bestehen.
+
+Dieselbe Datei liegt im Android-Repo unter `app/src/test/resources/vektoren/` und wird dort von
+`PrsyncTestvektorTest` gelesen.
+
+Neu erzeugen (ändert die Datei, also nur mit Grund):
+
+```bash
+python3 Tools/testvektor_bauen.py
+```
+
+Das Skript prüft sich selbst: Rückweg identisch, falscher Schlüssel scheitert, verändertes Byte
+scheitert.
+
+## Erste Version
+
+Erfassen, Liste, Karte, Abgleich, Team-Beitritt. Sozialdaten, Flyer-Touren, amtlicher Export und
+Handywechsel-Backup kommen danach.
+
+## Stand
+
+| | |
+|---|---|
+| Kern: Modell, JSON, Krypto, `PRSYNC2`, Merge, Team-QR | steht |
+| Oberfläche: Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
+| Testvektoren und Tests auf beiden Seiten | steht |
+| **Auf einem Mac übersetzt** | **noch nie** |
+
+Der letzte Punkt ist kein Nebensatz. Der gesamte Swift-Code ist gegen den Android-Quelltext
+geschrieben, aber durch keinen Compiler gelaufen. Der erste `swift test` wird Fehler zeigen. Die
+wahrscheinlichsten Stellen: die ZIPFoundation-Schnittstelle (0.9.x liefert `Archive(…)` optional,
+neuere Fassungen werfen) und `URL: @retroactive Identifiable`, das Swift 6 braucht — bei 5.9 muss
+das Attribut weg.
+
+Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, Flyer-Touren, amtlicher CSV-Export,
+Handywechsel-Backup und der Abgleich über den Relay-Server.
 
 ## Lizenz
 

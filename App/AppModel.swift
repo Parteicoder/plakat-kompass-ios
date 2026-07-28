@@ -183,6 +183,62 @@ final class AppModel: ObservableObject {
         meldung = "Team „\(name)“ angelegt."
     }
 
+    /// Tritt einem Team über den QR-Code des Teamleiters bei.
+    ///
+    /// Ohne diesen Weg gäbe es keinen Android-iOS-Abgleich: Er ist die einzige Stelle, an der
+    /// zwei Geräte an dasselbe Team-Geheimnis kommen.
+    func tritTeamBei(qrInhalt: String) {
+        do {
+            let einladung = try TeamInvite.decode(qrInhalt)
+            guard einladung.istNochGueltig else {
+                fehler = "Dieser Team-QR-Code ist abgelaufen. Bitte den Teamleiter um einen neuen bitten."
+                return
+            }
+            try speichere(state.beigetreten(mit: einladung))
+            meldung = "Team „\(einladung.teamName)“ beigetreten."
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
+    /// Der eigene Einladungscode — nur sinnvoll, wenn dieses Gerät die Teamleitung hat.
+    func einladungFuerQr() -> String? {
+        guard state.role == .LEADER,
+              let teamId = state.teamId,
+              let teamSecret = state.teamSecret
+        else { return nil }
+        return TeamInvite(
+            teamId: teamId,
+            teamName: state.teamName ?? "Plakat-Team",
+            leaderName: state.deviceName,
+            leaderDeviceId: state.deviceId,
+            teamSecret: teamSecret
+        ).encodeForQr()
+    }
+
+    /// Gibt ein wartendes Gerät frei. Nur die Teamleitung darf das.
+    func gibFrei(_ geraet: DeviceRecord) {
+        guard state.role == .LEADER,
+              let index = state.devices.firstIndex(where: { $0.deviceId == geraet.deviceId })
+        else { return }
+        var neu = state
+        neu.devices[index].approved = true
+        neu.devices[index].blocked = false
+        try? speichere(neu)
+        meldung = "\(geraet.displayName) freigegeben."
+    }
+
+    func sperre(_ geraet: DeviceRecord) {
+        guard state.role == .LEADER,
+              let index = state.devices.firstIndex(where: { $0.deviceId == geraet.deviceId })
+        else { return }
+        var neu = state
+        neu.devices[index].blocked = true
+        neu.devices[index].approved = false
+        try? speichere(neu)
+        meldung = "\(geraet.displayName) gesperrt."
+    }
+
     private func speichere(_ neu: LocalTeamState) throws {
         try repo.save(neu)
         state = neu

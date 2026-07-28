@@ -1,0 +1,12 @@
+Testvektor fuer PRSYNC2
+=======================
+
+Team-Geheimnis : testvektor-team-geheimnis-0123456789abcdef
+Schluessel     : SHA-256 davon, die ROHEN 32 Byte
+IV             : 000102030405060708090a0b  (fest, damit die Datei reproduzierbar ist)
+AAD            : die 8 Magic-Bytes
+Paketgroesse   : 1360 Byte
+SHA-256 Paket  : e6d13aae01fd3ce06fb711cf722ba845f776be52ad2279defe63bb6ea8263d08
+
+Erzeugt von Tools/testvektor_bauen.py - absichtlich weder von der Kotlin-
+noch von der Swift-Seite, damit beide gegen etwas Drittes bestehen muessen.

@@ -7,7 +7,7 @@ struct SyncView: View {
 
     @State private var teilenDatei: URL?
     @State private var importDialogOffen = false
-    @State private var teamNameEingabe = ""
+    @State private var teamDialogOffen = false
 
     var body: some View {
         NavigationStack {
@@ -41,56 +41,42 @@ struct SyncView: View {
                         """)
                     }
 
+                    if model.state.role == .LEADER {
+                        Section {
+                            TeamQrView()
+                        } header: {
+                            Text("Andere aufnehmen")
+                        }
+                    }
+
                     Section("Teamgeräte") {
                         if model.state.devices.isEmpty {
                             Text("Noch keine anderen Geräte.").foregroundStyle(.secondary)
                         }
                         ForEach(model.state.devices, id: \.deviceId) { geraet in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(geraet.displayName)
-                                    Text(geraet.role == .LEADER ? "Teamleiter" : "Mitglied")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if geraet.blocked {
-                                    Text("gesperrt").font(.caption).foregroundStyle(.red)
-                                } else if !geraet.approved {
-                                    Text("wartet").font(.caption).foregroundStyle(.orange)
-                                }
-                            }
+                            GeraeteZeile(geraet: geraet)
                         }
                     }
                 } else {
                     Section {
-                        TextField("Teamname", text: $teamNameEingabe)
-                        Button("Team anlegen") {
-                            model.legeTeamAn(name: teamNameEingabe.isEmpty ? "Mein Team" : teamNameEingabe)
+                        Button {
+                            teamDialogOffen = true
+                        } label: {
+                            Label("Team beitreten oder anlegen", systemImage: "person.2.badge.plus")
                         }
                     } header: {
                         Text("Noch kein Team")
                     } footer: {
                         Text("""
-                        Wer einem bestehenden Team beitreten will, braucht dessen Schlüssel. \
-                        Der Beitritt über den QR-Code des Teamleiters kommt als Nächstes.
+                        Ohne Team lässt sich nichts erfassen und kein Paket öffnen: Der Team-Schlüssel \
+                        ist das, womit ein Sync-Paket ver- und entschlüsselt wird.
                         """)
-                    }
-
-                    Section {
-                        Button {
-                            importDialogOffen = true
-                        } label: {
-                            Label("Sync-Paket öffnen", systemImage: "square.and.arrow.down")
-                        }
-                    } footer: {
-                        Text("Ohne Team-Schlüssel lässt sich ein Paket nicht entschlüsseln.")
                     }
                 }
             }
             .navigationTitle("Abgleich")
-            .sheet(item: $teilenDatei) { datei in
-                TeilenDialog(dateien: [datei])
-            }
+            .sheet(isPresented: $teamDialogOffen) { TeamBeitrittView() }
+            .sheet(item: $teilenDatei) { datei in TeilenDialog(dateien: [datei]) }
             .fileImporter(
                 isPresented: $importDialogOffen,
                 allowedContentTypes: [.data],
@@ -101,6 +87,37 @@ struct SyncView: View {
                     if let erste = urls.first { model.importiereSyncPaket(von: erste) }
                 case .failure(let fehler):
                     model.fehler = fehler.localizedDescription
+                }
+            }
+        }
+    }
+}
+
+private struct GeraeteZeile: View {
+    @EnvironmentObject private var model: AppModel
+    let geraet: DeviceRecord
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(geraet.displayName)
+                Text(geraet.role == .LEADER ? "Teamleiter" : "Mitglied")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if geraet.blocked {
+                Text("gesperrt").font(.caption).foregroundStyle(.red)
+            } else if !geraet.approved {
+                Text("wartet").font(.caption).foregroundStyle(.orange)
+            }
+        }
+        .swipeActions {
+            if model.state.role == .LEADER && geraet.deviceId != model.state.deviceId {
+                if !geraet.approved || geraet.blocked {
+                    Button("Freigeben") { model.gibFrei(geraet) }.tint(.green)
+                }
+                if !geraet.blocked {
+                    Button("Sperren", role: .destructive) { model.sperre(geraet) }
                 }
             }
         }
