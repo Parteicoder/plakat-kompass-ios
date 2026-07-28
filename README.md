@@ -41,7 +41,7 @@ maßgebliche Beschreibung des Formats — es ist aus `sync/SyncBundleCodec.kt` d
 abgeleitet, aber es setzt nichts voraus, was man dort nachschlagen müsste.
 
 Wer prüfen will, ob eine eigene Umsetzung stimmt, braucht den Quelltext auch gar nicht: Unter
-`Tests/Vektoren/` liegt ein vollständiges Paket mit bekanntem Schlüssel. Wer es öffnet und die
+`Tests/PlakatKompassCoreTests/Vektoren/` liegt ein vollständiges Paket mit bekanntem Schlüssel. Wer es öffnet und die
 Werte aus `sync-vektor-1.json` herausbekommt, ist kompatibel.
 
 ### Aufbau der Datei
@@ -206,7 +206,7 @@ swift test
 
 ## Testvektoren
 
-`Tests/Vektoren/sync-vektor-1.prsync` ist ein vollständiges Sync-Paket mit festen Werten.
+`Tests/PlakatKompassCoreTests/Vektoren/sync-vektor-1.prsync` ist ein vollständiges Sync-Paket mit festen Werten.
 
 Erzeugt hat es `Tools/testvektor_bauen.py` — **weder die Swift- noch die Kotlin-Seite**. Das ist
 der Punkt: Käme der Vektor von einer der beiden, bestätigte der Test nur, dass diese Seite mit

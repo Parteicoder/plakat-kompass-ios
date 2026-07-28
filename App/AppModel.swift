@@ -1,6 +1,7 @@
 import Foundation
 import PlakatKompassCore
 import SwiftUI
+import UIKit
 
 /// Der Zustand der App an einer Stelle — das Gegenstück zu `PlakatRadarViewModel` auf Android.
 @MainActor
@@ -18,7 +19,8 @@ final class AppModel: ObservableObject {
 
     init() {
         do {
-            let repo = try LocalRepository.standard()
+            // AppModel ist @MainActor, hier ist UIDevice.current.name erlaubt.
+            let repo = try LocalRepository.standard(geraeteName: UIDevice.current.name)
             self.repo = repo
             self.state = repo.load()
         } catch {

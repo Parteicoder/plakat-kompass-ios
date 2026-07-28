@@ -48,9 +48,9 @@ jobs:
         # veraltet - und dann pruefen die Kotlin- und die Swift-Tests gegen verschiedene
         # Vorlagen, ohne dass es sonst irgendwo auffiele.
         run: |
-          if ! git diff --quiet -- Tests/Vektoren; then
+          if ! git diff --quiet -- Tests/PlakatKompassCoreTests/Vektoren; then
             echo "Der erzeugte Vektor weicht vom eingecheckten ab:"
-            git --no-pager diff --stat -- Tests/Vektoren
+            git --no-pager diff --stat -- Tests/PlakatKompassCoreTests/Vektoren
             exit 1
           fi
           echo "Vektor stimmt mit dem eingecheckten ueberein."
@@ -58,5 +58,5 @@ jobs:
       - name: Muss mit dem Android-Repo uebereinstimmen
         run: |
           echo "SHA-256 des Vektors:"
-          sha256sum Tests/Vektoren/sync-vektor-1.prsync
+          sha256sum Tests/PlakatKompassCoreTests/Vektoren/sync-vektor-1.prsync
           echo "Gegenstueck: app/src/test/resources/vektoren/sync-vektor-1.prsync im Android-Repo."

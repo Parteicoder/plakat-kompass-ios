@@ -18,7 +18,8 @@ erzeugen. Genau so ist es passiert.
 
     python3 Tools/testvektor_bauen.py
 
-Schreibt nach Tests/Vektoren/.
+Schreibt nach Tests/PlakatKompassCoreTests/Vektoren/ - SwiftPM sucht Ressourcen
+relativ zum Zielverzeichnis, nicht relativ zu Tests/.
 """
 
 import hashlib
@@ -30,7 +31,7 @@ import zipfile
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 HIER = os.path.dirname(os.path.abspath(__file__))
-ZIEL = os.path.join(HIER, "..", "Tests", "Vektoren")
+ZIEL = os.path.join(HIER, "..", "Tests", "PlakatKompassCoreTests", "Vektoren")
 
 MAGIC = b"PRSYNC2\n"
 TEAM_SECRET = "testvektor-team-geheimnis-0123456789abcdef"

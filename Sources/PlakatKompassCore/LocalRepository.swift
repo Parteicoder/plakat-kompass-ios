@@ -10,21 +10,31 @@ public final class LocalRepository {
 
     private let ordner: URL
     private let statusDatei: URL
+    private let geraeteName: String
     public let photosDir: URL
 
-    public init(ordner: URL) throws {
+    /// [geraeteName] kommt von der App, nicht von hier.
+    ///
+    /// `UIDevice.current.name` ist an den Hauptthread gebunden; von einer beliebigen Stelle im
+    /// Kern aus gelesen ist das ein Fehler, und zwar einer, der nur beim Bauen fuer iOS auffaellt.
+    /// Grundsaetzlicher: Der Kern hat in UIKit nichts verloren - er soll auch ohne laufen.
+    public init(ordner: URL, geraeteName: String = "iPhone") throws {
         self.ordner = ordner
+        self.geraeteName = geraeteName
         self.statusDatei = ordner.appendingPathComponent("teamstate.json")
         self.photosDir = ordner.appendingPathComponent("photos", isDirectory: true)
         try FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: photosDir, withIntermediateDirectories: true)
     }
 
-    public static func standard() throws -> LocalRepository {
+    public static func standard(geraeteName: String = "iPhone") throws -> LocalRepository {
         let basis = try FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         )
-        return try LocalRepository(ordner: basis.appendingPathComponent("PlakatKompass", isDirectory: true))
+        return try LocalRepository(
+            ordner: basis.appendingPathComponent("PlakatKompass", isDirectory: true),
+            geraeteName: geraeteName
+        )
     }
 
     // MARK: - Laden und speichern
@@ -46,18 +56,7 @@ public final class LocalRepository {
     }
 
     private func neuerStand() -> LocalTeamState {
-        LocalTeamState(
-            deviceId: UUID().uuidString,
-            deviceName: geraeteName()
-        )
-    }
-
-    private func geraeteName() -> String {
-        #if canImport(UIKit)
-        return UIDeviceName.aktuell
-        #else
-        return "iPhone"
-        #endif
+        LocalTeamState(deviceId: UUID().uuidString, deviceName: geraeteName)
     }
 
     // MARK: - Fotos
@@ -141,10 +140,3 @@ public final class LocalRepository {
         )
     }
 }
-
-#if canImport(UIKit)
-import UIKit
-enum UIDeviceName {
-    @MainActor static var aktuell: String { UIDevice.current.name }
-}
-#endif
