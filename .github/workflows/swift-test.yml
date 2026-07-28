@@ -1,0 +1,78 @@
+name: Swift Test
+
+# Der Workflow, der den Kern wirklich uebersetzt und die Tests laufen laesst.
+#
+# Braucht einen Mac. Es gibt keinen Weg daran vorbei: CryptoKit, UIKit und MapKit gibt es nur
+# auf Apple-Plattformen, und iOS-Binaerdateien erzeugt ausschliesslich Xcode.
+#
+# Zwei Moeglichkeiten:
+#
+#   1. Eigener Mac als Runner. Dann in "runs-on" die self-hosted-Zeile nehmen.
+#      Einrichten wie beim Windows-Runner: Repo > Settings > Actions > Runners > New runner,
+#      macOS waehlen, die drei gezeigten Befehle im Terminal ausfuehren. Danach einmal
+#      `xcode-select --install` und Xcode aus dem App Store.
+#
+#   2. GitHubs eigene Mac-Runner (macos-14). Kein eigener Rechner noetig, aber in einem
+#      privaten Repo zaehlen macOS-Minuten zehnfach. Fuer ein paar Laeufe am Tag ist das
+#      unerheblich, bei jedem Push kann es ins Geld gehen.
+#
+# Voreingestellt ist Moeglichkeit 2, damit es ohne Mac ueberhaupt anspringt.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: swift-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kern:
+    name: Kern uebersetzen und testen
+    runs-on: macos-14
+    # Eigener Mac stattdessen:
+    # runs-on: [self-hosted, macOS]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Xcode-Fassung anzeigen
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Kern uebersetzen
+        run: swift build
+
+      - name: Tests
+        # Hier laufen die Kreuztests gegen den Testvektor: Der Kern muss ein Paket lesen
+        # koennen, das weder von ihm noch von der Kotlin-Seite erzeugt wurde.
+        run: swift test
+
+  app:
+    name: iOS-App bauen
+    runs-on: macos-14
+    # runs-on: [self-hosted, macOS]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: App bauen, ohne Signierung
+        # CODE_SIGNING_ALLOWED=NO, weil im CI kein Entwicklerzertifikat liegt und auch keines
+        # hingehoert. Zum Uebersetzen wird es nicht gebraucht, nur zum Installieren.
+        run: |
+          xcodebuild build \
+            -project PlakatKompass.xcodeproj \
+            -scheme PlakatKompass \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO

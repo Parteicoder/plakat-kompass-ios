@@ -1,5 +1,8 @@
 # Plakat Kompass für iOS
 
+[![CI Status](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/ci-status.yml/badge.svg)](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/ci-status.yml)
+[![Swift Test](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/swift-test.yml/badge.svg)](https://github.com/Parteicoder/plakat-kompass-ios/actions/workflows/swift-test.yml)
+
 iOS-Fassung von [Plakat Kompass](https://github.com/Parteicoder/plakat-radar-intern). Die App
 erfasst Wahlplakate mit Foto und Standort, verwaltet ihren Zustand bis zur Abnahme und gleicht sich
 mit den Geräten des Teams ab.
@@ -209,6 +212,32 @@ scheitert.
 
 Erfassen, Liste, Karte, Abgleich, Team-Beitritt. Sozialdaten, Flyer-Touren, amtlicher Export und
 Handywechsel-Backup kommen danach.
+
+## Wo man sieht, ob es grün ist
+
+Zwei Abzeichen oben im Dokument, beide klickbar.
+
+**CI Status** läuft auf dem selbst gehosteten Windows-Runner — demselben wie im Android-Repo. Er
+erzeugt den Testvektor neu, lässt das Skript sich selbst gegenprüfen und vergleicht das Ergebnis
+mit der eingecheckten Datei. Weicht sie ab, wird er rot: Dann prüfen die Kotlin- und die
+Swift-Tests gegen verschiedene Vorlagen, und der Kreuztest ist wertlos.
+
+**Übersetzt wird dort nichts.** Der Kern benutzt CryptoKit, die App UIKit und MapKit — Apple-
+Bibliotheken, die es unter Windows nicht gibt. Swift für Windows existiert und hilft hier nichts.
+
+**Swift Test** übersetzt den Kern und baut die App. Das braucht einen Mac, daran führt kein Weg
+vorbei. Voreingestellt sind GitHubs Mac-Runner, damit der Workflow ohne eigenen Rechner
+anspringt; in einem privaten Repo zählen macOS-Minuten allerdings zehnfach. Wer einen eigenen Mac
+hat, tauscht in `swift-test.yml` eine Zeile:
+
+```yaml
+runs-on: macos-14
+# wird zu
+runs-on: [self-hosted, macOS]
+```
+
+Einrichten wie beim Windows-Runner: Settings → Actions → Runners → New runner, macOS wählen, die
+drei gezeigten Befehle im Terminal ausführen. Dazu Xcode aus dem App Store.
 
 ## Stand
 

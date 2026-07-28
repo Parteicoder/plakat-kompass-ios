@@ -1,0 +1,70 @@
+name: CI Status
+
+# Läuft auf dem selbst gehosteten Windows-Runner, demselben wie im Android-Repo.
+#
+# Warum hier NICHT gebaut wird: Der Kern benutzt CryptoKit, die App UIKit und MapKit. Das sind
+# Apple-Bibliotheken, die es unter Windows nicht gibt. Swift fuer Windows existiert, hilft hier
+# aber nichts. Uebersetzt wird deshalb im Workflow "Swift Test", der einen Mac braucht.
+#
+# Was hier laeuft, ist trotzdem die Pruefung, auf die es beim Zusammenspiel mit Android ankommt:
+# Der Testvektor muss sich erzeugen und wieder oeffnen lassen, falsche Schluessel muessen
+# scheitern, und die eingecheckte Datei muss byteweise die sein, die das Skript erzeugt.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-status-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testvektor:
+    name: Testvektor
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python und cryptography bereitstellen
+        shell: pwsh
+        run: |
+          $py = if (Get-Command python -ErrorAction SilentlyContinue) { "python" }
+                elseif (Get-Command python3 -ErrorAction SilentlyContinue) { "python3" }
+                else { throw "Kein Python gefunden. Einmalig installieren: winget install Python.Python.3.12" }
+          echo "PY=$py" >> $env:GITHUB_ENV
+          & $py -m pip install --quiet --disable-pip-version-check cryptography
+
+      - name: Testvektor erzeugen und gegenpruefen
+        shell: pwsh
+        run: |
+          # Das Skript prueft sich selbst: Rueckweg identisch, falscher Schluessel scheitert,
+          # veraendertes Byte scheitert. Schlaegt eines davon fehl, bricht es ab.
+          & $env:PY Tools/testvektor_bauen.py
+
+      - name: Eingecheckter Vektor muss unveraendert sein
+        shell: pwsh
+        run: |
+          # Wenn das Skript eine andere Datei erzeugt als die im Repo, ist eine der beiden
+          # veraltet - und die Tests auf beiden Plattformen pruefen dann gegen Verschiedenes.
+          $aenderungen = git status --porcelain Tests/Vektoren
+          if ($aenderungen) {
+            Write-Host "Der erzeugte Vektor weicht vom eingecheckten ab:"
+            Write-Host $aenderungen
+            git --no-pager diff --stat Tests/Vektoren
+            exit 1
+          }
+          Write-Host "Vektor stimmt mit dem eingecheckten ueberein."
+
+      - name: Vektor liegt auch im Android-Repo
+        shell: pwsh
+        run: |
+          # Nur ein Hinweis, kein Fehler: Die Datei muss in beiden Repos dieselbe sein, sonst
+          # pruefen Kotlin- und Swift-Tests gegen verschiedene Vorlagen.
+          $hash = (Get-FileHash Tests/Vektoren/sync-vektor-1.prsync -Algorithm SHA256).Hash.ToLower()
+          Write-Host "SHA-256 des Vektors: $hash"
+          Write-Host "Muss mit app/src/test/resources/vektoren/sync-vektor-1.prsync im Android-Repo uebereinstimmen."
