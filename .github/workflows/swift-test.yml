@@ -83,9 +83,15 @@ jobs:
         # App nicht in "Oeffnen mit" auftaucht und der Abgleich mit Android nicht zustande
         # kommt.
         run: |
-          PLIST=$(find build/Build/Products -name Info.plist -path '*PlakatKompass.app*' | head -1)
-          if [ -z "$PLIST" ]; then
-            echo "Keine Info.plist im gebauten Bundle gefunden."
+          # Das Muster muss auf den GANZEN Pfad passen und Info.plist direkt in
+          # PlakatKompass.app verlangen. Ein blosses "-name Info.plist -path '*PlakatKompass.app*'"
+          # trifft auch die Plists der eingebetteten Ressourcenbuendel - beim ersten Lauf hier
+          # ZIPFoundation_ZIPFoundation.bundle/Info.plist, in der die gesuchten Schluessel
+          # natuerlich fehlen. Der Schritt schlug fehl, obwohl die App in Ordnung war.
+          PLIST=$(find build/Build/Products -path '*/PlakatKompass.app/Info.plist')
+          if [ "$(echo "$PLIST" | grep -c .)" -ne 1 ]; then
+            echo "Erwartet wurde genau eine Info.plist, gefunden:"
+            echo "$PLIST"
             exit 1
           fi
           echo "Geprueft wird: $PLIST"
