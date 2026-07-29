@@ -44,7 +44,17 @@ final class AppModel: ObservableObject {
         RemovalDeadlinePolicy.countDueOrOverdue(state.posters)
     }
 
-    var istImTeam: Bool { state.teamId != nil && state.teamSecret != nil }
+    /// Eingerichtet: Es lässt sich erfassen. Gilt auch für „allein loslegen".
+    ///
+    /// Bis zum Solo-Modus gab es dafür nur ein einziges `istImTeam`, das beides bedeutete —
+    /// erfassen dürfen und abgleichen können. Solange man ohne Team gar nichts konnte, fiel das
+    /// zusammen. Jetzt nicht mehr, und ein Name für zwei Bedeutungen wird irgendwann an der
+    /// falschen Stelle geprüft.
+    var istEingerichtet: Bool { state.teamId != nil }
+
+    /// Abgleichen geht nur mit Team-Geheimnis: Ohne das lässt sich kein Paket ver- oder
+    /// entschlüsseln.
+    var kannAbgleichen: Bool { state.teamId != nil && state.teamSecret != nil }
 
     func photoURL(_ name: String) -> URL { repo.photoURL(name) }
 
@@ -226,6 +236,39 @@ final class AppModel: ObservableObject {
         try? speichere(neu)
         meldung = "Team „\(name)“ angelegt."
     }
+
+    /// Loslegen ohne Team. Gegenstück zu `enterWithoutQr` auf Android.
+    ///
+    /// Nicht jeder plakatiert im Verbund. Wer allein für seine Gemeinde unterwegs ist, brauchte
+    /// bis hierhin trotzdem erst ein Team — und stand damit vor einer Hürde, die für ihn keinen
+    /// Zweck hat.
+    ///
+    /// Die Team-Kennung ist `offline-<Geräte-ID>`, das Geheimnis bleibt **leer**. Damit greift
+    /// alles Weitere von allein richtig: Erfassen, Liste, Karte und der amtliche Export
+    /// funktionieren, ein Sync-Paket lässt sich nicht erzeugen (`erzeugeSyncPaket` verlangt das
+    /// Geheimnis) und keines annehmen (`SyncMerge.verify` ebenso). Es braucht dafür keine
+    /// einzige Sonderbehandlung.
+    func losOhneTeam(name: String) {
+        let sauber = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sauber.isEmpty else {
+            fehler = "Bitte einen Namen eingeben."
+            return
+        }
+        var neu = state
+        neu.deviceName = sauber
+        neu.role = .MEMBER
+        neu.teamId = "offline-\(state.deviceId)"
+        neu.teamName = "Ohne Team"
+        neu.teamSecret = nil
+        neu.devices = [
+            DeviceRecord(deviceId: state.deviceId, displayName: sauber, role: .MEMBER, approved: true)
+        ]
+        try? speichere(neu)
+        meldung = "Los geht's. Für den Abgleich mit anderen später einem Team beitreten."
+    }
+
+    /// Ohne Team-Geheimnis geht kein Abgleich — aber alles andere schon.
+    var istOhneTeamUnterwegs: Bool { state.teamId != nil && state.teamSecret == nil }
 
     /// Tritt einem Team über den QR-Code des Teamleiters bei.
     ///

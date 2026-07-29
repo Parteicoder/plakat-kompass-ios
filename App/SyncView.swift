@@ -12,7 +12,7 @@ struct SyncView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if model.istImTeam {
+                if model.istEingerichtet {
                     Section("Team") {
                         LabeledContent("Name", value: model.state.teamName ?? "—")
                         LabeledContent("Dieses Gerät", value: model.state.deviceName)
@@ -20,43 +20,71 @@ struct SyncView: View {
                         LabeledContent("Plakate", value: "\(model.state.posters.count)")
                     }
 
-                    Section {
-                        Button {
-                            teilenDatei = model.erzeugeSyncPaket()
-                        } label: {
-                            Label("Sync-Paket teilen", systemImage: "square.and.arrow.up")
+                    // Wer allein losgelegt hat, hat kein Team-Geheimnis. Der Abgleich waere
+                    // technisch unmoeglich, deshalb steht hier der Weg dorthin statt eines
+                    // ausgegrauten Knopfes, der nicht erklaert, warum er nicht geht.
+                    if !model.kannAbgleichen {
+                        Section {
+                            Button {
+                                teamDialogOffen = true
+                            } label: {
+                                Label("Einem Team beitreten", systemImage: "person.2.badge.plus")
+                            }
+                        } header: {
+                            Text("Abgleich")
+                        } footer: {
+                            Text("""
+                            Du bist ohne Team unterwegs. Erfassen, Liste, Karte und die Liste für \
+                            die Verwaltung funktionieren vollständig — nur der Abgleich mit anderen \
+                            Geräten braucht den Team-Schlüssel. Die bereits erfassten Plakate \
+                            bleiben beim Beitritt erhalten.
+                            """)
                         }
-                        Button {
-                            importDialogOffen = true
-                        } label: {
-                            Label("Sync-Paket öffnen", systemImage: "square.and.arrow.down")
-                        }
-                    } header: {
-                        Text("Abgleich")
-                    } footer: {
-                        Text("""
-                        Das Paket ist verschlüsselt und lässt sich nur mit dem Team-Schlüssel öffnen. \
-                        Es kann deshalb bedenkenlos über einen Messenger verschickt werden. \
-                        Android und iPhone verstehen dasselbe Format.
-                        """)
                     }
 
+                    if model.kannAbgleichen {
+                        Section {
+                            Button {
+                                teilenDatei = model.erzeugeSyncPaket()
+                            } label: {
+                                Label("Sync-Paket teilen", systemImage: "square.and.arrow.up")
+                            }
+                            Button {
+                                importDialogOffen = true
+                            } label: {
+                                Label("Sync-Paket öffnen", systemImage: "square.and.arrow.down")
+                            }
+                        } header: {
+                            Text("Abgleich")
+                        } footer: {
+                            Text("""
+                            Das Paket ist verschlüsselt und lässt sich nur mit dem Team-Schlüssel \
+                            öffnen. Es kann deshalb bedenkenlos über einen Messenger verschickt \
+                            werden. Android und iPhone verstehen dasselbe Format.
+                            """)
+                        }
+                    }
+
+                    // Der amtliche Export braucht kein Team: Die Liste geht ans Rathaus, nicht
+                    // an ein anderes Geraet.
                     VerwaltungsExport(teilenDatei: $teilenDatei)
 
-                    if model.state.role == .LEADER {
-                        Section {
-                            TeamQrView()
-                        } header: {
-                            Text("Andere aufnehmen")
+                    if model.kannAbgleichen {
+                        if model.state.role == .LEADER {
+                            Section {
+                                TeamQrView()
+                            } header: {
+                                Text("Andere aufnehmen")
+                            }
                         }
-                    }
 
-                    Section("Teamgeräte") {
-                        if model.state.devices.isEmpty {
-                            Text("Noch keine anderen Geräte.").foregroundStyle(.secondary)
-                        }
-                        ForEach(model.state.devices, id: \.deviceId) { geraet in
-                            GeraeteZeile(geraet: geraet)
+                        Section("Teamgeräte") {
+                            if model.state.devices.isEmpty {
+                                Text("Noch keine anderen Geräte.").foregroundStyle(.secondary)
+                            }
+                            ForEach(model.state.devices, id: \.deviceId) { geraet in
+                                GeraeteZeile(geraet: geraet)
+                            }
                         }
                     }
                 } else {
@@ -64,14 +92,14 @@ struct SyncView: View {
                         Button {
                             teamDialogOffen = true
                         } label: {
-                            Label("Team beitreten oder anlegen", systemImage: "person.2.badge.plus")
+                            Label("Loslegen", systemImage: "person.2.badge.plus")
                         }
                     } header: {
-                        Text("Noch kein Team")
+                        Text("Noch nicht eingerichtet")
                     } footer: {
                         Text("""
-                        Ohne Team lässt sich nichts erfassen und kein Paket öffnen: Der Team-Schlüssel \
-                        ist das, womit ein Sync-Paket ver- und entschlüsselt wird.
+                        Einem Team beitreten, ein eigenes gründen — oder allein loslegen, wenn du \
+                        ohne Team plakatierst. Erst danach lässt sich erfassen.
                         """)
                     }
                 }
