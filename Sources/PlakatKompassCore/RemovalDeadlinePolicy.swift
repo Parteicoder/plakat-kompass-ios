@@ -74,6 +74,26 @@ public enum RemovalDeadlinePolicy {
         }
     }
 
+    /// Höchstzahl aufbewahrter Ereignisse. Gegenstück zu `core/EventHistoryPolicy.kt`.
+    ///
+    /// Jede Aktion legt einen Eintrag an, und entfernt wurde nie etwas. Weil der **komplette**
+    /// Stand bei jeder Änderung als JSON geschrieben wird, wurde jedes Speichern über eine
+    /// Kampagne hinweg langsamer — das war auf Android die Ursache dafür, dass sich die App „mit
+    /// der Zeit" träge anfühlte.
+    ///
+    /// Der Deckel verliert keine fachliche Information: Löschungen hängen an den Grabsteinen,
+    /// nicht an dieser Liste. Und weil die Auswahl deterministisch ist (neueste zuerst), landen
+    /// alle Teamgeräte nach einem Abgleich auf derselben Auswahl, statt sich gegenseitig
+    /// aufzuschaukeln.
+    public static let maxEvents = 1_000
+
+    public static func withCappedEvents(_ state: LocalTeamState) -> LocalTeamState {
+        guard state.events.count > maxEvents else { return state }
+        var neu = state
+        neu.events = Array(state.events.sorted { $0.createdAt > $1.createdAt }.prefix(maxEvents))
+        return neu
+    }
+
     /// Der Text der Erinnerung. Wortgleich mit Android, damit ein Team mit beiden Plattformen
     /// nicht zwei verschiedene Meldungen bespricht.
     public static func reminderText(dueCount: Int) -> (titel: String, text: String)? {

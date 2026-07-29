@@ -102,6 +102,9 @@ final class LocalRepositoryTests: XCTestCase {
         try repo.save(stand)
         let gelesen = try LocalRepository(ordner: ordner, geraeteName: "Testgerät").load()
 
+        // Der Stand ist absichtlich schon "abgeschlossen": Das Plakat mit abgelaufener Frist
+        // steht bereits auf DAMAGED. Sonst wuerde `save` es beim Schreiben umsetzen, und dieser
+        // Test pruefte zwei Dinge auf einmal. Die Fristautomatik hat ihren eigenen Test.
         XCTAssertEqual(gelesen, stand, "Der lokale Stand muss den Weg durch das JSON unveraendert ueberstehen.")
     }
 
@@ -180,6 +183,47 @@ final class LocalRepositoryTests: XCTestCase {
         XCTAssertThrowsError(try repo.toSnapshot(ohneTeam)) { fehler in
             XCTAssertEqual(fehler as? SyncError, .fremdesTeam)
         }
+    }
+
+    func testSpeichernWertetAbgelaufeneFristenAus() throws {
+        let repo = try LocalRepository(ordner: ordner, geraeteName: "Testgerät")
+        var stand = vollerStand()
+        stand.posters[0].plannedRemovalAt = 1000        // laengst vorbei
+        stand.posters[0].status = .HANGING
+
+        try repo.save(stand)
+
+        // Sonst stuende ein ueberfaelliges Plakat weiter auf "Haengt", bis jemand es zufaellig
+        // anfasst - und die Zahl auf der Startseite waere falsch.
+        XCTAssertEqual(repo.load().posters.first { $0.id == "poster-1" }?.status, .DAMAGED)
+    }
+
+    func testSnapshotWertetFristenAusBevorErGebautWird() throws {
+        let repo = try LocalRepository(ordner: ordner, geraeteName: "Testgerät")
+        var stand = vollerStand()
+        stand.posters[0].plannedRemovalAt = 1000
+        stand.posters[0].status = .HANGING
+
+        let snapshot = try repo.toSnapshot(stand)
+
+        // Sonst verschickt ein Geraet, das seit dem Fristablauf nicht neu gestartet wurde, ein
+        // Paket mit veralteten Status - und die Gegenseite uebernimmt "Haengt".
+        XCTAssertEqual(snapshot.posters.first { $0.id == "poster-1" }?.status, .DAMAGED)
+    }
+
+    func testSpeichernDeckeltDieChronik() throws {
+        let repo = try LocalRepository(ordner: ordner, geraeteName: "Testgerät")
+        var stand = vollerStand()
+        stand.events = (0..<(RemovalDeadlinePolicy.maxEvents + 20)).map {
+            PosterEvent(
+                id: "e\($0)", posterId: "p", teamId: "team-1",
+                actorDeviceId: "device-1", actorName: "David", action: "x", createdAt: Int64($0)
+            )
+        }
+
+        try repo.save(stand)
+
+        XCTAssertEqual(repo.load().events.count, RemovalDeadlinePolicy.maxEvents)
     }
 
     func testSnapshotTraegtNurDenHashDesGeheimnisses() throws {

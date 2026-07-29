@@ -41,16 +41,27 @@ public final class LocalRepository {
 
     public func load() -> LocalTeamState {
         guard let data = try? Data(contentsOf: statusDatei),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let gelesen = try? stateFromJson(root)
         else {
             return neuerStand()
         }
-        return (try? stateFromJson(root)) ?? neuerStand()
+        return RemovalDeadlinePolicy.applyToState(gelesen)
     }
 
+    /// Vor dem Schreiben laufen die beiden Regeln, die den Stand gesund halten.
+    ///
+    /// Hier und nicht bei den Aufrufern, weil es sonst irgendwann eine Stelle gibt, die es
+    /// vergisst — auf Android steht es aus demselben Grund in `save`. Beide Regeln sind
+    /// idempotent: Zweimal anwenden ändert nichts mehr, sonst würde `updatedAt` bei jedem
+    /// Speichern neu wandern und das Plakat gäbe sich beim Abgleich ständig als die neuere
+    /// Fassung aus.
     public func save(_ state: LocalTeamState) throws {
+        let gesund = RemovalDeadlinePolicy.withCappedEvents(
+            RemovalDeadlinePolicy.applyToState(state)
+        )
         let data = try JSONSerialization.data(
-            withJSONObject: stateToJson(state), options: [.prettyPrinted, .sortedKeys]
+            withJSONObject: stateToJson(gesund), options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: statusDatei, options: [.atomic, .completeFileProtection])
     }
@@ -303,7 +314,13 @@ public final class LocalRepository {
 
     // MARK: - Ein Sync-Paket aus dem eigenen Stand
 
-    public func toSnapshot(_ s: LocalTeamState) throws -> SyncSnapshot {
+    /// Abgelaufene Fristen werden **vor** dem Bauen ausgewertet.
+    ///
+    /// Sonst verschickt ein Gerät, das seit dem Fristablauf nicht neu gestartet wurde, ein Paket
+    /// mit veralteten Status — und die Gegenseite übernimmt „Hängt" für ein Plakat, das längst
+    /// abgenommen gehört. Auf Android steht dieselbe Zeile in `toSnapshot`.
+    public func toSnapshot(_ zustand: LocalTeamState) throws -> SyncSnapshot {
+        let s = RemovalDeadlinePolicy.applyToState(zustand)
         guard let teamId = s.teamId, let teamSecret = s.teamSecret else {
             throw SyncError.fremdesTeam
         }

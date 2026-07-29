@@ -121,6 +121,53 @@ final class RemovalDeadlineTests: XCTestCase {
         XCTAssertNil(RemovalDeadlinePolicy.removalCountdownText(nil, now: jetzt))
     }
 
+    // MARK: - Deckel auf der Ereignis-Chronik
+
+    private func ereignisse(_ anzahl: Int) -> [PosterEvent] {
+        (0..<anzahl).map {
+            PosterEvent(
+                id: "e\($0)", posterId: "p", teamId: "t",
+                actorDeviceId: "d", actorName: "n", action: "Aktion \($0)",
+                createdAt: Int64($0)
+            )
+        }
+    }
+
+    func testUnterDemDeckelBleibtAllesStehen() {
+        var stand = LocalTeamState(deviceId: "d", deviceName: "n")
+        stand.events = ereignisse(RemovalDeadlinePolicy.maxEvents)
+
+        XCTAssertEqual(RemovalDeadlinePolicy.withCappedEvents(stand), stand)
+    }
+
+    func testUeberDemDeckelBleibenDieNeuesten() {
+        // Ohne Deckel waechst die Chronik ueber eine Kampagne unbegrenzt - und weil der KOMPLETTE
+        // Stand bei jeder Aenderung geschrieben wird, wird jedes Speichern langsamer.
+        var stand = LocalTeamState(deviceId: "d", deviceName: "n")
+        stand.events = ereignisse(RemovalDeadlinePolicy.maxEvents + 50)
+
+        let gedeckelt = RemovalDeadlinePolicy.withCappedEvents(stand)
+
+        XCTAssertEqual(gedeckelt.events.count, RemovalDeadlinePolicy.maxEvents)
+        XCTAssertEqual(gedeckelt.events.first?.createdAt, Int64(RemovalDeadlinePolicy.maxEvents + 49))
+        XCTAssertEqual(gedeckelt.events.last?.createdAt, 50)
+    }
+
+    func testDerDeckelIstDeterministisch() {
+        // Alle Teamgeraete muessen nach einem Abgleich auf dieselbe Auswahl kommen, sonst
+        // schaukeln sie sich gegenseitig auf und der Abgleich kommt nie zur Ruhe.
+        var stand = LocalTeamState(deviceId: "d", deviceName: "n")
+        stand.events = ereignisse(RemovalDeadlinePolicy.maxEvents + 10).shuffled()
+
+        var anders = stand
+        anders.events = stand.events.shuffled()
+
+        XCTAssertEqual(
+            RemovalDeadlinePolicy.withCappedEvents(stand).events.map(\.id),
+            RemovalDeadlinePolicy.withCappedEvents(anders).events.map(\.id)
+        )
+    }
+
     func testErinnerungstext() {
         XCTAssertNil(RemovalDeadlinePolicy.reminderText(dueCount: 0), "Ohne faellige Plakate keine Meldung.")
         XCTAssertEqual(RemovalDeadlinePolicy.reminderText(dueCount: 1)?.titel, "1 Plakat muss abgenommen werden")

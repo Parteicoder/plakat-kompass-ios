@@ -23,9 +23,9 @@ final class AppModel: ObservableObject {
             let repo = try LocalRepository.standard(geraeteName: UIDevice.current.name)
             self.repo = repo
 
-            // Abgelaufene Fristen gleich beim Start auswerten. Ohne diese Zeile stünde ein
-            // überfälliges Plakat weiter auf „Hängt", bis jemand es zufällig anfasst.
-            let geladen = RemovalDeadlinePolicy.applyToState(repo.load())
+            // `load` wertet abgelaufene Fristen schon aus; einmal zurückschreiben, damit der
+            // neue Status auch auf der Platte steht und nicht bei jedem Start neu entsteht.
+            let geladen = repo.load()
             self.state = geladen
             try? repo.save(geladen)
         } catch {
@@ -182,7 +182,11 @@ final class AppModel: ObservableObject {
                 local: state,
                 photoTargetURL: { [repo] name in repo.photoURL(name) }
             )
-            let zusammengefuehrt = try SyncMerge.merge(local: state, incoming: snapshot)
+            // Fristen direkt nach dem Zusammenführen auswerten, nicht erst beim nächsten Start:
+            // Ein hereingekommenes Plakat kann längst überfällig sein.
+            let zusammengefuehrt = RemovalDeadlinePolicy.applyToState(
+                try SyncMerge.merge(local: state, incoming: snapshot)
+            )
             try speichere(zusammengefuehrt)
             meldung = "Paket von \(snapshot.senderName) übernommen."
         } catch {
