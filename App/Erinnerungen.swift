@@ -61,6 +61,48 @@ enum Erinnerungen {
         }
     }
 
+    // MARK: - Pausen
+
+    /// Kennung der Pausen-Erinnerung. Nur eine gleichzeitig.
+    private static let pausenKennung = "pause"
+
+    /// Voreinstellung und Grenzen wie auf Android.
+    static let pausenVorgabeMinuten = 60
+    static let pausenSpanne = 15...240
+
+    /// Erinnert nach der eingestellten Zeit ans Essen und Trinken.
+    ///
+    /// Wer im Sommer vier Stunden mit Leiter und Kabelbindern unterwegs ist, vergisst beides.
+    /// Anders als die Abnahmefrist hat diese Meldung keinen festen Termin — sie hängt daran,
+    /// wann jemand losgezogen ist. Deshalb ein Zeitgeber, kein Kalendereintrag.
+    static func startePause(minuten: Int) async {
+        let zentrale = UNUserNotificationCenter.current()
+        let erlaubt = await zentrale.notificationSettings().authorizationStatus
+        guard erlaubt == .authorized || erlaubt == .provisional else { return }
+
+        beendePause()
+
+        let inhalt = UNMutableNotificationContent()
+        inhalt.title = "Plakat Kompass"
+        inhalt.body = "Kurze Pause? Trink etwas und iss eine Kleinigkeit."
+        inhalt.sound = .default
+
+        let sekunden = Double(min(max(minuten, pausenSpanne.lowerBound), pausenSpanne.upperBound) * 60)
+        try? await zentrale.add(
+            UNNotificationRequest(
+                identifier: pausenKennung,
+                content: inhalt,
+                // Wiederholend: Wer einmal erinnert werden will, will es auch beim zweiten Mal.
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: sekunden, repeats: true)
+            )
+        )
+    }
+
+    static func beendePause() {
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: [pausenKennung])
+    }
+
     /// 9 Uhr am Tag der Frist. Liegt der Zeitpunkt schon hinter uns, wird nichts geplant —
     /// eine Meldung für gestern hilft niemandem, und die Liste zeigt überfällige Plakate ohnehin.
     private static func ausloeser(frist: Int64) -> UNCalendarNotificationTrigger? {

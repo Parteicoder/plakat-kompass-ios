@@ -1,0 +1,122 @@
+import PlakatKompassCore
+import SwiftUI
+import UIKit
+import UserNotifications
+
+/// Einstellungen. Gegenstück zum Bereich „Mehr" auf Android — auf das reduziert, was auf iOS
+/// überhaupt in einer App einstellbar ist.
+///
+/// Vieles, was drüben hier steht, gehört auf iOS in die Systemeinstellungen: Berechtigungen für
+/// Kamera, Ort und Meldungen lassen sich nicht in der App umschalten. Sie hier nachzubauen hieße,
+/// Schalter zu zeigen, die nichts tun. Stattdessen führt ein Verweis dorthin.
+struct EinstellungenView: View {
+    @EnvironmentObject private var model: AppModel
+
+    @AppStorage("pausenErinnerung") private var pausenErinnerung = false
+    @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
+    @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Ans Trinken erinnern", isOn: $pausenErinnerung)
+                if pausenErinnerung {
+                    Stepper(
+                        "Alle \(pausenMinuten) Minuten",
+                        value: $pausenMinuten,
+                        in: Erinnerungen.pausenSpanne,
+                        step: 15
+                    )
+                }
+            } header: {
+                Text("Pausen")
+            } footer: {
+                Text("""
+                Wer im Sommer vier Stunden mit Leiter und Kabelbindern unterwegs ist, vergisst \
+                das Trinken. Die Erinnerung läuft, bis sie hier wieder ausgeschaltet wird.
+                """)
+            }
+
+            Section {
+                LabeledContent("Meldungen") {
+                    Text(meldungenText).foregroundStyle(meldungenErlaubt == .authorized ? .secondary : .orange)
+                }
+                Button("Systemeinstellungen öffnen") {
+                    if let ziel = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(ziel)
+                    }
+                }
+            } header: {
+                Text("Berechtigungen")
+            } footer: {
+                Text("""
+                Kamera, Ort und Meldungen verwaltet iOS. Die App kann sie nicht selbst \
+                umschalten — hier geht es direkt zur richtigen Stelle.
+                """)
+            }
+
+            Section("Dieses Gerät") {
+                LabeledContent("Name", value: model.state.deviceName)
+                LabeledContent("Rolle", value: model.state.role == .LEADER ? "Teamleitung" : "Mitglied")
+                LabeledContent("Team", value: model.state.teamName ?? "—")
+                LabeledContent("Plakate", value: "\(model.state.posters.count)")
+                LabeledContent("Touren", value: "\(model.state.flyerTours.count)")
+            }
+
+            Section {
+                // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
+                // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
+                NavigationLink("Verlauf") { VerlaufView() }
+            }
+        }
+        .navigationTitle("Einstellungen")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { meldungenErlaubt = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
+        .onChange(of: pausenErinnerung) { _, an in
+            Task { an ? await Erinnerungen.startePause(minuten: pausenMinuten) : Erinnerungen.beendePause() }
+        }
+        .onChange(of: pausenMinuten) { _, neu in
+            guard pausenErinnerung else { return }
+            Task { await Erinnerungen.startePause(minuten: neu) }
+        }
+    }
+
+    private var meldungenText: String {
+        switch meldungenErlaubt {
+        case .authorized, .provisional, .ephemeral: return "erlaubt"
+        case .denied: return "abgelehnt"
+        default: return "noch nicht gefragt"
+        }
+    }
+}
+
+/// Wer wann was geändert hat.
+private struct VerlaufView: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        List(model.state.events) { ereignis in
+            VStack(alignment: .leading, spacing: 3) {
+                Text(ereignis.action).font(.subheadline)
+                Text("\(ereignis.actorName) · \(zeit(ereignis.createdAt))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Verlauf")
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay {
+            if model.state.events.isEmpty {
+                Text("Noch nichts passiert.").foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func zeit(_ millis: Int64) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateStyle = .short
+        f.timeStyle = .short
+        return f.string(from: Date(timeIntervalSince1970: Double(millis) / 1000))
+    }
+}

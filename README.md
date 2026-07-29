@@ -265,9 +265,14 @@ sind immer da.
 | | |
 |---|---|
 | Kern: Modell, JSON, Krypto, `PRSYNC2`, Merge, Team-QR | steht |
-| Oberfläche: Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
+| Startseite, Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
+| Allein loslegen, ohne Team | steht |
+| Abnahmefristen: Statusautomatik und Erinnerung | steht |
 | Amtlicher Export: Liste und Fotos als ZIP | steht |
-| Flyer-Touren ansehen (Aufzeichnen bleibt Android) | steht |
+| Flyer-Touren aufzeichnen und ansehen | steht |
+| Sozialdaten aus dem Regionalatlas | steht |
+| Gemeindegrenzen auf der Karte | steht |
+| Team-Schlüssel erneuern, Geräte sperren | steht |
 | App-Icon und Startbildschirm | steht, Icon hochgerechnet |
 | Testvektoren und Tests auf beiden Seiten | steht |
 | Auf einem Mac übersetzt, App gebaut, Tests grün | seit `add5eb3` |
@@ -280,15 +285,28 @@ Testvektor, den die Kotlin-Seite ebenfalls liest.
 **Auf einem echten iPhone gelaufen ist die App noch nicht.** Der CI baut für den Simulator und
 ohne Signierung; Kamera, Standort und der Teilen-Dialog sind damit übersetzt, aber nicht erprobt.
 
-Noch nicht gebaut: Sozialdaten, das Aufzeichnen von Flyer-Touren und der Abgleich über den
-Relay-Server.
+## Was Android kann und iOS nicht — und warum
 
-**Handywechsel-Backup steht bewusst nicht auf dieser Liste.** Android braucht `PRBACKUP2`, weil
-sein Auto-Backup den verschlüsselten Gerätestand nicht mitnimmt. Auf iOS liegt alles unter
-„Application Support" und wandert mit dem iCloud-Backup auf das neue Gerät — dafür eigenen Code zu
-schreiben hieße, eine Plattformfunktion nachzubauen. Wer kein iCloud-Backup nutzt, kommt über das
-Sync-Paket und den Team-QR-Code an seine Daten. Sollte sich das als Lücke erweisen, ist
-`PRBACKUP2` der Weg; der Schlüsselaustausch müsste dann ohne Nearby auskommen.
+Vier Dinge fehlen. Bei dreien ist das keine offene Aufgabe, sondern das Ergebnis.
+
+**Nearby Connections.** Android gleicht per Funk ab, ohne Netz, über Bluetooth und Wi-Fi Direct.
+Diese Schnittstelle gehört zu den Play-Diensten; auf iOS gibt es sie nicht, und es gibt auch
+keinen Client, der ihr Protokoll spricht. Betroffen sind der Funk-Abgleich, der Handywechsel über
+Nearby und die „Teamaufnahme" mit rollendem QR-Code. **Ersatz:** das Sync-Paket als Datei über den
+Teilen-Dialog — Messenger, Mail, AirDrop, Dateien-App. Das braucht Netz oder AirDrop, dafür
+funktioniert es zwischen Android und iPhone in beide Richtungen.
+
+**Offline-Kartenkacheln.** Android nutzt osmdroid und legt die Kacheln selbst ab. MapKit gibt
+seinen Kachelspeicher nicht heraus. Offlinekarten sind auf iOS seit 17 eine Systemfunktion —
+sie in der App nachzubauen hieße, gegen die Plattform zu arbeiten.
+
+**Handywechsel-Backup (`PRBACKUP2`).** Android braucht es, weil sein Auto-Backup den
+verschlüsselten Gerätestand nicht mitnimmt. Auf iOS liegt alles unter „Application Support" und
+wandert mit dem iCloud-Backup auf das neue Gerät. Wer kein iCloud-Backup nutzt, kommt über
+Sync-Paket und Team-QR an seine Daten.
+
+**Relay-Abgleich.** Der einzige Punkt auf dieser Liste, der wirklich noch aussteht. Der Server
+existiert, die iOS-Anbindung nicht.
 
 ## App-Icon
 

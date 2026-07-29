@@ -41,6 +41,13 @@ struct StartView: View {
             }
             .navigationTitle("Plakat Kompass")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        EinstellungenView()
+                    } label: {
+                        Label("Einstellungen", systemImage: "gearshape")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         SozialdatenView()
