@@ -40,6 +40,15 @@ struct StartView: View {
                 .padding(16)
             }
             .navigationTitle("Plakat Kompass")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SozialdatenView()
+                    } label: {
+                        Label("Sozialdaten", systemImage: "chart.bar")
+                    }
+                }
+            }
             .onAppear { standort.starte() }
             .onDisappear { standort.stoppe() }
         }
