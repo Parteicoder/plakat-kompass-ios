@@ -24,6 +24,8 @@ struct RootView: View {
 
     var body: some View {
         TabView {
+            StartView()
+                .tabItem { Label("Start", systemImage: "house") }
             CaptureView()
                 .tabItem { Label("Erfassen", systemImage: "camera") }
             PosterListView()
