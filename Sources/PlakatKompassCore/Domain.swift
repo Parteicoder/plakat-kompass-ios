@@ -60,36 +60,6 @@ public struct DeviceRecord: Equatable, Sendable {
     }
 }
 
-/// Lokaler Eintrag im Geräte-Schlüsselbund. Bleibt im lokalen Stand und wird **nicht** als Teil
-/// eines Sync-Pakets verteilt.
-public struct DeviceKeyRecord: Equatable, Sendable {
-    public var deviceId: String
-    public var displayName: String
-    public var role: MemberRole
-    public var teamSecretHash: String
-    public var keyVersion: Int64
-    public var createdAt: Int64
-    public var active: Bool
-
-    public init(
-        deviceId: String,
-        displayName: String,
-        role: MemberRole,
-        teamSecretHash: String,
-        keyVersion: Int64 = 1,
-        createdAt: Int64 = Date.nowMillis,
-        active: Bool = true
-    ) {
-        self.deviceId = deviceId
-        self.displayName = displayName
-        self.role = role
-        self.teamSecretHash = teamSecretHash
-        self.keyVersion = keyVersion
-        self.createdAt = createdAt
-        self.active = active
-    }
-}
-
 public struct Poster: Equatable, Identifiable, Sendable {
     public var id: String
     public var teamId: String
@@ -253,7 +223,6 @@ public struct LocalTeamState: Equatable, Sendable {
     public var teamName: String?
     public var teamSecret: String?
     public var devices: [DeviceRecord]
-    public var deviceKeyring: [DeviceKeyRecord]
     public var posters: [Poster]
     public var deletedPosters: [PosterTombstone]
     public var events: [PosterEvent]
@@ -267,7 +236,6 @@ public struct LocalTeamState: Equatable, Sendable {
         teamName: String? = nil,
         teamSecret: String? = nil,
         devices: [DeviceRecord] = [],
-        deviceKeyring: [DeviceKeyRecord] = [],
         posters: [Poster] = [],
         deletedPosters: [PosterTombstone] = [],
         events: [PosterEvent] = [],
@@ -280,7 +248,6 @@ public struct LocalTeamState: Equatable, Sendable {
         self.teamName = teamName
         self.teamSecret = teamSecret
         self.devices = devices
-        self.deviceKeyring = deviceKeyring
         self.posters = posters
         self.deletedPosters = deletedPosters
         self.events = events
