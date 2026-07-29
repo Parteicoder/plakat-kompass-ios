@@ -54,6 +54,8 @@
 	<string>Der Standort wird beim Erfassen gespeichert, damit das Plakat auf der Karte wiedergefunden und rechtzeitig abgenommen werden kann.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Wird nur gebraucht, wenn statt der Kamera ein vorhandenes Foto gewählt wird.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Erinnert am Tag der Abnahmefrist an die betroffenen Plakate.</string>
 
 	<!--
 	  Der Kern des Android-iOS-Abgleichs: Damit taucht Plakat Kompass in "Öffnen mit" auf,

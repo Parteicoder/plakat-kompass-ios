@@ -22,10 +22,26 @@ final class AppModel: ObservableObject {
             // AppModel ist @MainActor, hier ist UIDevice.current.name erlaubt.
             let repo = try LocalRepository.standard(geraeteName: UIDevice.current.name)
             self.repo = repo
-            self.state = repo.load()
+
+            // Abgelaufene Fristen gleich beim Start auswerten. Ohne diese Zeile stünde ein
+            // überfälliges Plakat weiter auf „Hängt", bis jemand es zufällig anfasst.
+            let geladen = RemovalDeadlinePolicy.applyToState(repo.load())
+            self.state = geladen
+            try? repo.save(geladen)
         } catch {
             fatalError("Datenverzeichnis lässt sich nicht anlegen: \(error)")
         }
+    }
+
+    /// Wird beim Start aufgerufen, nicht im `init` — beides braucht `await`.
+    func beimStart() async {
+        await Erinnerungen.frageErlaubnis()
+        await Erinnerungen.planeNeu(fuer: state)
+    }
+
+    /// Wie viele Plakate fällig oder überfällig sind.
+    var faelligeAbnahmen: Int {
+        RemovalDeadlinePolicy.countDueOrOverdue(state.posters)
     }
 
     var istImTeam: Bool { state.teamId != nil && state.teamSecret != nil }
@@ -267,9 +283,13 @@ final class AppModel: ObservableObject {
         meldung = "\(geraet.displayName) gesperrt."
     }
 
+    /// Die einzige Stelle, an der geschrieben wird — und deshalb die einzige, an der die
+    /// Erinnerungen nachgezogen werden müssen. Ein Plakat mit neuer Frist, ein gelöschtes, ein
+    /// per Abgleich hereingekommenes: alles läuft hier durch.
     private func speichere(_ neu: LocalTeamState) throws {
         try repo.save(neu)
         state = neu
+        Task { await Erinnerungen.planeNeu(fuer: neu) }
     }
 }
 
