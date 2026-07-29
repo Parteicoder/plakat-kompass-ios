@@ -44,17 +44,17 @@ final class AppModel: ObservableObject {
         RemovalDeadlinePolicy.countDueOrOverdue(state.posters)
     }
 
-    /// Eingerichtet: Es lässt sich erfassen. Gilt auch für „allein loslegen".
-    ///
-    /// Bis zum Solo-Modus gab es dafür nur ein einziges `istImTeam`, das beides bedeutete —
-    /// erfassen dürfen und abgleichen können. Solange man ohne Team gar nichts konnte, fiel das
-    /// zusammen. Jetzt nicht mehr, und ein Name für zwei Bedeutungen wird irgendwann an der
-    /// falschen Stelle geprüft.
-    var istEingerichtet: Bool { state.teamId != nil }
+    // Die Regeln stehen in `AccessPolicy` im Kern, nicht hier. Sie hier nachzubauen hiesse,
+    // eine zweite Fassung zu pflegen, die von der Android-Seite abweichen kann — und die
+    // Fälle „eigenes Gerät gesperrt" und „noch nicht freigegeben" kannten meine
+    // selbstgebauten Eigenschaften gar nicht.
+    var istEingerichtet: Bool { AccessPolicy.canAddPoster(state) }
+    var kannAbgleichen: Bool { AccessPolicy.canSync(state) }
+    var kannExportieren: Bool { AccessPolicy.canExportForAuthority(state) }
+    var istTeamleitung: Bool { AccessPolicy.canManageTeamSecurity(state) }
 
-    /// Abgleichen geht nur mit Team-Geheimnis: Ohne das lässt sich kein Paket ver- oder
-    /// entschlüsseln.
-    var kannAbgleichen: Bool { state.teamId != nil && state.teamSecret != nil }
+    /// Gesperrte Geräte sollen erfahren, warum plötzlich nichts mehr geht.
+    var istGesperrt: Bool { AccessPolicy.isSelfBlocked(state) }
 
     func photoURL(_ name: String) -> URL { repo.photoURL(name) }
 
@@ -305,25 +305,38 @@ final class AppModel: ObservableObject {
 
     /// Gibt ein wartendes Gerät frei. Nur die Teamleitung darf das.
     func gibFrei(_ geraet: DeviceRecord) {
-        guard state.role == .LEADER,
-              let index = state.devices.firstIndex(where: { $0.deviceId == geraet.deviceId })
-        else { return }
-        var neu = state
-        neu.devices[index].approved = true
-        neu.devices[index].blocked = false
-        try? speichere(neu)
-        meldung = "\(geraet.displayName) freigegeben."
+        do {
+            var neu = try repo.setDeviceBlocked(state, deviceId: geraet.deviceId, blocked: false)
+            if let index = neu.devices.firstIndex(where: { $0.deviceId == geraet.deviceId }) {
+                neu.devices[index].approved = true
+                try speichere(neu)
+            }
+            meldung = "\(geraet.displayName) freigegeben."
+        } catch {
+            fehler = error.localizedDescription
+        }
     }
 
     func sperre(_ geraet: DeviceRecord) {
-        guard state.role == .LEADER,
-              let index = state.devices.firstIndex(where: { $0.deviceId == geraet.deviceId })
-        else { return }
-        var neu = state
-        neu.devices[index].blocked = true
-        neu.devices[index].approved = false
-        try? speichere(neu)
-        meldung = "\(geraet.displayName) gesperrt."
+        do {
+            state = try repo.setDeviceBlocked(state, deviceId: geraet.deviceId, blocked: true)
+            meldung = "\(geraet.displayName) gesperrt."
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
+    /// Erneuert das Team-Geheimnis.
+    ///
+    /// Der Weg für ein verlorenes Telefon. Ein Gerät zu sperren reicht nicht: Wer das alte
+    /// Geheimnis hat, kann weiterhin jedes Paket entschlüsseln, das ihm in die Hände fällt.
+    func erneuereTeamSchluessel() {
+        do {
+            state = try repo.rotateTeamSecret(state)
+            meldung = "Team-Schlüssel erneuert. Alle anderen Geräte brauchen einen neuen QR-Code."
+        } catch {
+            fehler = error.localizedDescription
+        }
     }
 
     /// Die einzige Stelle, an der geschrieben wird — und deshalb die einzige, an der die

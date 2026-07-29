@@ -8,6 +8,7 @@ struct SyncView: View {
     @State private var teilenDatei: URL?
     @State private var importDialogOffen = false
     @State private var teamDialogOffen = false
+    @State private var erneuernBestaetigen = false
 
     var body: some View {
         NavigationStack {
@@ -66,8 +67,24 @@ struct SyncView: View {
                     }
 
                     // Der amtliche Export braucht kein Team: Die Liste geht ans Rathaus, nicht
-                    // an ein anderes Geraet.
-                    VerwaltungsExport(teilenDatei: $teilenDatei)
+                    // an ein anderes Geraet. Ein gesperrtes Geraet ist ausgenommen - wer aus dem
+                    // Team geworfen wurde, soll nicht in dessen Namen bei der Gemeinde auftreten.
+                    if model.kannExportieren {
+                        VerwaltungsExport(teilenDatei: $teilenDatei)
+                    }
+
+                    if model.istGesperrt {
+                        Section {
+                            Text("""
+                            Dieses Gerät wurde von der Teamleitung gesperrt. Abgleich und Export \
+                            sind deshalb nicht möglich. Die bereits erfassten Plakate bleiben \
+                            gespeichert.
+                            """)
+                            .foregroundStyle(.secondary)
+                        } header: {
+                            Text("Gesperrt")
+                        }
+                    }
 
                     if model.kannAbgleichen {
                         if model.state.role == .LEADER {
@@ -84,6 +101,25 @@ struct SyncView: View {
                             }
                             ForEach(model.state.devices, id: \.deviceId) { geraet in
                                 GeraeteZeile(geraet: geraet)
+                            }
+                        }
+
+                        if model.istTeamleitung {
+                            Section {
+                                Button(role: .destructive) {
+                                    erneuernBestaetigen = true
+                                } label: {
+                                    Label("Team-Schlüssel erneuern", systemImage: "key.horizontal")
+                                }
+                            } header: {
+                                Text("Wenn ein Gerät verloren ging")
+                            } footer: {
+                                Text("""
+                                Ein Gerät zu sperren reicht bei Verlust oder Diebstahl nicht: Wer den \
+                                alten Schlüssel hat, kann weiterhin jedes Paket öffnen, das ihm in die \
+                                Hände fällt. Nach dem Erneuern müssen alle anderen Geräte einen neuen \
+                                QR-Code scannen.
+                                """)
                             }
                         }
                     }
@@ -105,6 +141,16 @@ struct SyncView: View {
                 }
             }
             .navigationTitle("Abgleich")
+            .confirmationDialog(
+                "Team-Schlüssel wirklich erneuern?",
+                isPresented: $erneuernBestaetigen,
+                titleVisibility: .visible
+            ) {
+                Button("Erneuern", role: .destructive) { model.erneuereTeamSchluessel() }
+                Button("Abbrechen", role: .cancel) {}
+            } message: {
+                Text("Alle anderen Geräte im Team können danach erst wieder abgleichen, wenn sie einen neuen QR-Code gescannt haben.")
+            }
             .sheet(isPresented: $teamDialogOffen) { TeamBeitrittView() }
             .sheet(item: $teilenDatei) { datei in TeilenDialog(dateien: [datei]) }
             .fileImporter(

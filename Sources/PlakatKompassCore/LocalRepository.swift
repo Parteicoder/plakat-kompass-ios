@@ -120,6 +120,87 @@ public final class LocalRepository {
         )
     }
 
+    // MARK: - Teamsicherheit
+
+    /// Erneuert das Team-Geheimnis. Gegenstück zu `rotateTeamSecret` auf Android.
+    ///
+    /// Das ist die Antwort auf ein verlorenes oder gestohlenes Telefon. Ein Gerät zu sperren
+    /// reicht dafür nicht: Wer das alte Geheimnis hat, kann weiterhin jedes Paket des Teams
+    /// entschlüsseln, das ihm in die Hände fällt. Erst ein neues Geheimnis macht die alten
+    /// Pakete für ihn wertlos.
+    ///
+    /// Der Preis ist unvermeidlich und muss in der Oberfläche stehen: **Alle anderen Geräte
+    /// müssen einen neuen QR-Code scannen.** Wer das nicht tut, kann nicht mehr abgleichen.
+    public func rotateTeamSecret(_ state: LocalTeamState) throws -> LocalTeamState {
+        guard AccessPolicy.canManageTeamSecurity(state) else {
+            throw SyncError.nichtErlaubt("Nur die Teamleitung kann den Team-Schlüssel erneuern.")
+        }
+        guard let teamId = state.teamId else { throw SyncError.fremdesTeam }
+
+        var neu = state
+        neu.teamSecret = neuesGeheimnis()
+        neu.events.insert(
+            PosterEvent(
+                posterId: "TEAM",
+                teamId: teamId,
+                actorDeviceId: state.deviceId,
+                actorName: state.deviceName,
+                action: "Team-Schlüssel erneuert. Teammitglieder müssen einen neuen Teamleiter-QR scannen."
+            ),
+            at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    /// Sperrt ein Gerät oder gibt es wieder frei.
+    ///
+    /// Das eigene Gerät ist ausgenommen: Wer sich selbst sperrt, kommt an den eigenen Schlüssel
+    /// nicht mehr heran und hat kein Mittel, das rückgängig zu machen.
+    public func setDeviceBlocked(
+        _ state: LocalTeamState, deviceId: String, blocked: Bool
+    ) throws -> LocalTeamState {
+        guard AccessPolicy.canManageTeamSecurity(state) else {
+            throw SyncError.nichtErlaubt("Nur die Teamleitung kann Geräte sperren oder freigeben.")
+        }
+        guard deviceId != state.deviceId else {
+            throw SyncError.nichtErlaubt("Das eigene Gerät lässt sich nicht sperren.")
+        }
+        guard let teamId = state.teamId,
+              let index = state.devices.firstIndex(where: { $0.deviceId == deviceId })
+        else { throw SyncError.fremdesTeam }
+
+        var neu = state
+        neu.devices[index].blocked = blocked
+        neu.devices[index].approved = blocked ? false : neu.devices[index].approved
+        let name = neu.devices[index].displayName.isEmpty
+            ? String(deviceId.prefix(8))
+            : neu.devices[index].displayName
+        neu.events.insert(
+            PosterEvent(
+                posterId: "TEAM",
+                teamId: teamId,
+                actorDeviceId: state.deviceId,
+                actorName: state.deviceName,
+                action: blocked ? "Gerät gesperrt: \(name)" : "Gerät entsperrt: \(name)"
+            ),
+            at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    /// 32 Byte aus der Systemquelle, hexadezimal.
+    ///
+    /// Android setzt hier zwei UUIDs aneinander. Gleich lang, aber UUIDv4 liefert nur 122
+    /// nutzbare Bits je Stück; hier stehen 256 echte Zufallsbits. Das Format ist frei — das
+    /// Geheimnis geht nur als Hash ins Paket und wird sonst nirgends verglichen.
+    private func neuesGeheimnis() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
     // MARK: - Ein Sync-Paket aus dem eigenen Stand
 
     public func toSnapshot(_ s: LocalTeamState) throws -> SyncSnapshot {
