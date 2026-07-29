@@ -285,6 +285,27 @@ Testvektor, den die Kotlin-Seite ebenfalls liest.
 **Auf einem echten iPhone gelaufen ist die App noch nicht.** Der CI baut für den Simulator und
 ohne Signierung; Kamera, Standort und der Teilen-Dialog sind damit übersetzt, aber nicht erprobt.
 
+## Was das Gerät verlässt
+
+Kurz: die Fotos und Standorte **nicht**. Es gibt keinen Server der Entwickler.
+
+| Wohin | Was | Wann |
+|---|---|---|
+| Empfänger nach Wahl | verschlüsseltes Sync-Paket | nur wenn jemand „teilen" antippt |
+| Stadtverwaltung | ZIP mit Liste und Fotos, unverschlüsselt | nur beim amtlichen Export |
+| Regionalatlas (Statistische Ämter) | ungefähre Position, auf 3 Nachkommastellen gerundet | nur im Bereich Sozialdaten |
+| Overpass (OpenStreetMap) | ungefähre Position, auf 2 Nachkommastellen gerundet | nur mit eingeschaltetem Grenzen-Schalter |
+
+Die beiden Abfragen beantworten die Anfrage und behalten nichts, was der App zuzuordnen wäre.
+Gerundet wird nicht aus Vorsicht allein, sondern weil sonst jedes Zittern der Ortung eine neue
+Abfrage auslöst — 100 Meter ändern am Gebiet ohnehin nichts.
+
+`App/PrivacyInfo.xcprivacy` sagt dasselbe maschinenlesbar. Apple verlangt die Datei seit Frühjahr
+2024 beim Einreichen und prüft sie gegen den tatsächlichen Code: kein Tracking, nichts erhoben,
+und als einzige begründungspflichtige Schnittstelle `UserDefaults` (hinter jedem `@AppStorage`).
+Ein CI-Schritt prüft, dass sie im gebauten Bundle landet — fehlt sie, fiele das sonst erst beim
+Einreichen auf.
+
 ## Was Android kann und iOS nicht — und warum
 
 Vier Dinge fehlen. Bei dreien ist das keine offene Aufgabe, sondern das Ergebnis.

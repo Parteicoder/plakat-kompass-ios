@@ -36,6 +36,14 @@ targets:
           # Die Plist wird ueber INFOPLIST_FILE eingebunden. Zusaetzlich als Ressource
           # mitzukopieren waere eine zweite, unbenutzte Fassung im fertigen Bundle.
           - "Info.plist"
+          # Wird unten ausdruecklich als Ressource eingehaengt.
+          - "PrivacyInfo.xcprivacy"
+      # Das Datenschutz-Manifest MUSS im Bundle landen, sonst weist der App Store die App
+      # zurueck. Ausdruecklich als Ressource, statt sich darauf zu verlassen, dass XcodeGen
+      # eine unbekannte Endung richtig einsortiert - ein Manifest, das still nicht mitkommt,
+      # faellt erst beim Einreichen auf.
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: PlakatKompassCore
         product: PlakatKompassCore

@@ -98,8 +98,9 @@ jobs:
 
           fehlt=0
           for schluessel in NSCameraUsageDescription NSLocationWhenInUseUsageDescription \
-                            NSPhotoLibraryUsageDescription CFBundleDocumentTypes \
-                            UTImportedTypeDeclarations CFBundleDisplayName; do
+                            NSLocationAlwaysAndWhenInUseUsageDescription NSPhotoLibraryUsageDescription \
+                            CFBundleDocumentTypes UTImportedTypeDeclarations \
+                            UIBackgroundModes CFBundleDisplayName; do
             if ! /usr/libexec/PlistBuddy -c "Print :$schluessel" "$PLIST" >/dev/null 2>&1; then
               echo "FEHLT: $schluessel"
               fehlt=1
@@ -107,4 +108,14 @@ jobs:
               echo "vorhanden: $schluessel"
             fi
           done
+
+          # Das Datenschutz-Manifest muss neben der Info.plist im Bundle liegen. Fehlt es,
+          # weist der App Store die App zurueck - und zwar erst beim Einreichen, nicht hier.
+          if [ -f "$(dirname "$PLIST")/PrivacyInfo.xcprivacy" ]; then
+            echo "vorhanden: PrivacyInfo.xcprivacy"
+          else
+            echo "FEHLT: PrivacyInfo.xcprivacy"
+            fehlt=1
+          fi
+
           exit $fehlt
