@@ -14,6 +14,7 @@ struct PlakatKompassApp: App {
                 // kommt als Datei herein, egal ob aus einem Messenger, aus Mail, per AirDrop
                 // oder aus der Dateien-App.
                 .onOpenURL { url in model.importiereSyncPaket(von: url) }
+                .task { await model.beimStart() }
         }
     }
 }
@@ -23,10 +24,15 @@ struct RootView: View {
 
     var body: some View {
         TabView {
+            StartView()
+                .tabItem { Label("Start", systemImage: "house") }
             CaptureView()
                 .tabItem { Label("Erfassen", systemImage: "camera") }
             PosterListView()
                 .tabItem { Label("Liste", systemImage: "list.bullet") }
+                // Die Zahl der fälligen Abnahmen am Reiter. Wer die App öffnet, soll nicht erst
+                // suchen müssen, ob etwas ansteht.
+                .badge(model.faelligeAbnahmen)
             PosterMapView()
                 .tabItem { Label("Karte", systemImage: "map") }
             SyncView()

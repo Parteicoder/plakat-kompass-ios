@@ -32,22 +32,41 @@ targets:
     platform: iOS
     sources:
       - path: App
+        excludes:
+          # Die Plist wird ueber INFOPLIST_FILE eingebunden. Zusaetzlich als Ressource
+          # mitzukopieren waere eine zweite, unbenutzte Fassung im fertigen Bundle.
+          - "Info.plist"
+          # Wird unten ausdruecklich als Ressource eingehaengt.
+          - "PrivacyInfo.xcprivacy"
+      # Das Datenschutz-Manifest MUSS im Bundle landen, sonst weist der App Store die App
+      # zurueck. Ausdruecklich als Ressource, statt sich darauf zu verlassen, dass XcodeGen
+      # eine unbekannte Endung richtig einsortiert - ein Manifest, das still nicht mitkommt,
+      # faellt erst beim Einreichen auf.
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: PlakatKompassCore
         product: PlakatKompassCore
-    info:
-      path: App/Info.plist
-      properties:
-        CFBundleDisplayName: Plakat Kompass
-        UILaunchScreen:
-          UIColorName: ""
+    # HIER STAND EIN "info:"-BLOCK. Er hat App/Info.plist ERZEUGT und damit die
+    # eingecheckte Fassung ueberschrieben - mitsamt den Berechtigungstexten und den
+    # Dateityp-Angaben. Auf dem Bau-Rechner blieb eine Plist mit zwei Eintraegen uebrig.
+    #
+    # Aufgefallen waere das erst auf einem echten iPhone, und zwar zweimal:
+    # Ohne NSCameraUsageDescription stuerzt die App beim ersten Foto ab, statt zu fragen,
+    # und ohne CFBundleDocumentTypes taucht sie nicht in "Oeffnen mit" auf - womit der
+    # Abgleich zwischen Android und iOS gar nicht erst zustande kaeme.
+    #
+    # Der CI kann das nicht sehen: Eine unvollstaendige Info.plist ist kein Uebersetzungsfehler.
     settings:
       base:
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
         PRODUCT_BUNDLE_IDENTIFIER: de.bsw.plakatkompass
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"          # nur iPhone
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Signierung bleibt bewusst leer: Die Team-ID gehoert nicht ins Repo.
         # In Xcode unter "Signing & Capabilities" das eigene Team waehlen.
         CODE_SIGN_STYLE: Automatic

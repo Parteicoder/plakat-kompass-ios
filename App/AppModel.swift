@@ -22,13 +22,39 @@ final class AppModel: ObservableObject {
             // AppModel ist @MainActor, hier ist UIDevice.current.name erlaubt.
             let repo = try LocalRepository.standard(geraeteName: UIDevice.current.name)
             self.repo = repo
-            self.state = repo.load()
+
+            // `load` wertet abgelaufene Fristen schon aus; einmal zurückschreiben, damit der
+            // neue Status auch auf der Platte steht und nicht bei jedem Start neu entsteht.
+            let geladen = repo.load()
+            self.state = geladen
+            try? repo.save(geladen)
         } catch {
             fatalError("Datenverzeichnis lässt sich nicht anlegen: \(error)")
         }
     }
 
-    var istImTeam: Bool { state.teamId != nil && state.teamSecret != nil }
+    /// Wird beim Start aufgerufen, nicht im `init` — beides braucht `await`.
+    func beimStart() async {
+        await Erinnerungen.frageErlaubnis()
+        await Erinnerungen.planeNeu(fuer: state)
+    }
+
+    /// Wie viele Plakate fällig oder überfällig sind.
+    var faelligeAbnahmen: Int {
+        RemovalDeadlinePolicy.countDueOrOverdue(state.posters)
+    }
+
+    // Die Regeln stehen in `AccessPolicy` im Kern, nicht hier. Sie hier nachzubauen hiesse,
+    // eine zweite Fassung zu pflegen, die von der Android-Seite abweichen kann — und die
+    // Fälle „eigenes Gerät gesperrt" und „noch nicht freigegeben" kannten meine
+    // selbstgebauten Eigenschaften gar nicht.
+    var istEingerichtet: Bool { AccessPolicy.canAddPoster(state) }
+    var kannAbgleichen: Bool { AccessPolicy.canSync(state) }
+    var kannExportieren: Bool { AccessPolicy.canExportForAuthority(state) }
+    var istTeamleitung: Bool { AccessPolicy.canManageTeamSecurity(state) }
+
+    /// Gesperrte Geräte sollen erfahren, warum plötzlich nichts mehr geht.
+    var istGesperrt: Bool { AccessPolicy.isSelfBlocked(state) }
 
     func photoURL(_ name: String) -> URL { repo.photoURL(name) }
 
@@ -156,11 +182,87 @@ final class AppModel: ObservableObject {
                 local: state,
                 photoTargetURL: { [repo] name in repo.photoURL(name) }
             )
-            let zusammengefuehrt = try SyncMerge.merge(local: state, incoming: snapshot)
+            // Fristen direkt nach dem Zusammenführen auswerten, nicht erst beim nächsten Start:
+            // Ein hereingekommenes Plakat kann längst überfällig sein.
+            let zusammengefuehrt = RemovalDeadlinePolicy.applyToState(
+                try SyncMerge.merge(local: state, incoming: snapshot)
+            )
             try speichere(zusammengefuehrt)
             meldung = "Paket von \(snapshot.senderName) übernommen."
         } catch {
             fehler = error.localizedDescription
+        }
+    }
+
+    // MARK: - Flyer-Touren
+
+    /// Die eigene laufende oder pausierte Tour, falls es eine gibt.
+    var offeneTour: FlyerTour? {
+        state.flyerTours.first { $0.createdByDeviceId == state.deviceId && $0.status != .FINISHED }
+    }
+
+    func starteTour(name: String) -> FlyerTour? {
+        do {
+            let neu = try repo.startFlyerTour(state, name: name)
+            state = neu
+            meldung = "Tour gestartet."
+            return offeneTour
+        } catch {
+            fehler = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Wegpunkte kommen im Sekundentakt herein, während man läuft.
+    ///
+    /// Fehler werden hier bewusst **verschluckt**: Eine Fehlermeldung mitten auf der Straße,
+    /// weil eine einzelne Ortung unbrauchbar war, hilft niemandem — die Tour läuft weiter und
+    /// der nächste Punkt kommt in ein paar Sekunden.
+    func merkeWegpunkt(tourId: String, latitude: Double, longitude: Double) {
+        state = (try? repo.addFlyerTrackPoint(
+            state, tourId: tourId, latitude: latitude, longitude: longitude
+        )) ?? state
+    }
+
+    func setzeTourStatus(_ tour: FlyerTour, _ status: FlyerTourStatus) {
+        do {
+            state = try repo.setFlyerTourStatus(state, tour: tour, status: status)
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
+    func loescheTour(_ tour: FlyerTour) {
+        do {
+            state = try repo.deleteFlyerTour(state, tour: tour)
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
+    // MARK: - Export für die Verwaltung
+
+    /// Baut die Plakatliste samt Fotos als ZIP und legt sie als Datei ab, die der Teilen-Dialog
+    /// verschicken kann.
+    ///
+    /// Anders als ein Sync-Paket ist das **unverschlüsselt** — es geht an die Stadtverwaltung,
+    /// nicht an ein Teamgerät. Der Team-Schlüssel und die internen Bemerkungen sind deshalb auch
+    /// nicht darin: `OfficialExport` schreibt nur die Spalten, die im Rathaus etwas zu suchen haben.
+    func erzeugeVerwaltungsExport(kommune: String) -> URL? {
+        do {
+            let daten = try OfficialExport.zipData(
+                state: state,
+                municipality: kommune.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Kommune" : kommune,
+                photoURL: { [repo] name in repo.photoURL(name) }
+            )
+            let ziel = FileManager.default.temporaryDirectory
+                .appendingPathComponent(ExportNames.authorityZipName(municipality: kommune))
+            try daten.write(to: ziel, options: .atomic)
+            return ziel
+        } catch {
+            fehler = error.localizedDescription
+            return nil
         }
     }
 
@@ -184,6 +286,39 @@ final class AppModel: ObservableObject {
         try? speichere(neu)
         meldung = "Team „\(name)“ angelegt."
     }
+
+    /// Loslegen ohne Team. Gegenstück zu `enterWithoutQr` auf Android.
+    ///
+    /// Nicht jeder plakatiert im Verbund. Wer allein für seine Gemeinde unterwegs ist, brauchte
+    /// bis hierhin trotzdem erst ein Team — und stand damit vor einer Hürde, die für ihn keinen
+    /// Zweck hat.
+    ///
+    /// Die Team-Kennung ist `offline-<Geräte-ID>`, das Geheimnis bleibt **leer**. Damit greift
+    /// alles Weitere von allein richtig: Erfassen, Liste, Karte und der amtliche Export
+    /// funktionieren, ein Sync-Paket lässt sich nicht erzeugen (`erzeugeSyncPaket` verlangt das
+    /// Geheimnis) und keines annehmen (`SyncMerge.verify` ebenso). Es braucht dafür keine
+    /// einzige Sonderbehandlung.
+    func losOhneTeam(name: String) {
+        let sauber = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sauber.isEmpty else {
+            fehler = "Bitte einen Namen eingeben."
+            return
+        }
+        var neu = state
+        neu.deviceName = sauber
+        neu.role = .MEMBER
+        neu.teamId = "offline-\(state.deviceId)"
+        neu.teamName = "Ohne Team"
+        neu.teamSecret = nil
+        neu.devices = [
+            DeviceRecord(deviceId: state.deviceId, displayName: sauber, role: .MEMBER, approved: true)
+        ]
+        try? speichere(neu)
+        meldung = "Los geht's. Für den Abgleich mit anderen später einem Team beitreten."
+    }
+
+    /// Ohne Team-Geheimnis geht kein Abgleich — aber alles andere schon.
+    var istOhneTeamUnterwegs: Bool { state.teamId != nil && state.teamSecret == nil }
 
     /// Tritt einem Team über den QR-Code des Teamleiters bei.
     ///
@@ -220,30 +355,47 @@ final class AppModel: ObservableObject {
 
     /// Gibt ein wartendes Gerät frei. Nur die Teamleitung darf das.
     func gibFrei(_ geraet: DeviceRecord) {
-        guard state.role == .LEADER,
-              let index = state.devices.firstIndex(where: { $0.deviceId == geraet.deviceId })
-        else { return }
-        var neu = state
-        neu.devices[index].approved = true
-        neu.devices[index].blocked = false
-        try? speichere(neu)
-        meldung = "\(geraet.displayName) freigegeben."
+        do {
+            var neu = try repo.setDeviceBlocked(state, deviceId: geraet.deviceId, blocked: false)
+            if let index = neu.devices.firstIndex(where: { $0.deviceId == geraet.deviceId }) {
+                neu.devices[index].approved = true
+                try speichere(neu)
+            }
+            meldung = "\(geraet.displayName) freigegeben."
+        } catch {
+            fehler = error.localizedDescription
+        }
     }
 
     func sperre(_ geraet: DeviceRecord) {
-        guard state.role == .LEADER,
-              let index = state.devices.firstIndex(where: { $0.deviceId == geraet.deviceId })
-        else { return }
-        var neu = state
-        neu.devices[index].blocked = true
-        neu.devices[index].approved = false
-        try? speichere(neu)
-        meldung = "\(geraet.displayName) gesperrt."
+        do {
+            state = try repo.setDeviceBlocked(state, deviceId: geraet.deviceId, blocked: true)
+            meldung = "\(geraet.displayName) gesperrt."
+        } catch {
+            fehler = error.localizedDescription
+        }
     }
 
+    /// Erneuert das Team-Geheimnis.
+    ///
+    /// Der Weg für ein verlorenes Telefon. Ein Gerät zu sperren reicht nicht: Wer das alte
+    /// Geheimnis hat, kann weiterhin jedes Paket entschlüsseln, das ihm in die Hände fällt.
+    func erneuereTeamSchluessel() {
+        do {
+            state = try repo.rotateTeamSecret(state)
+            meldung = "Team-Schlüssel erneuert. Alle anderen Geräte brauchen einen neuen QR-Code."
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
+    /// Die einzige Stelle, an der geschrieben wird — und deshalb die einzige, an der die
+    /// Erinnerungen nachgezogen werden müssen. Ein Plakat mit neuer Frist, ein gelöschtes, ein
+    /// per Abgleich hereingekommenes: alles läuft hier durch.
     private func speichere(_ neu: LocalTeamState) throws {
         try repo.save(neu)
         state = neu
+        Task { await Erinnerungen.planeNeu(fuer: neu) }
     }
 }
 

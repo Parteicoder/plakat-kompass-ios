@@ -7,6 +7,12 @@ public enum SyncError: LocalizedError, Equatable {
     case ungueltigeKoordinate(String)
     case zuGross(String)
     case neueresSchema
+    /// Beim Verwaltungs-Export, nicht beim Abgleich — die Meldung landet vor jemandem, der
+    /// gerade eine Liste fürs Rathaus bauen wollte und mit „Sync-Paket" nichts anfangen kann.
+    case exportFehlgeschlagen(String)
+    /// Die Regel steht in `AccessPolicy`. Der Text sagt, wer es dürfte — sonst probiert es
+    /// jemand fünfmal und hält die App für kaputt.
+    case nichtErlaubt(String)
 
     public var errorDescription: String? {
         switch self {
@@ -17,6 +23,8 @@ public enum SyncError: LocalizedError, Equatable {
         case .zuGross(let was): return "\(was) ist zu groß."
         case .neueresSchema:
             return "Sync-Paket stammt aus einer neueren App-Version. Bitte zuerst die App aktualisieren."
+        case .exportFehlgeschlagen(let grund): return "Export für die Verwaltung fehlgeschlagen: \(grund)"
+        case .nichtErlaubt(let grund): return grund
         }
     }
 }

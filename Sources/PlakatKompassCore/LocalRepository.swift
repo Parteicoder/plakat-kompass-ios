@@ -41,16 +41,27 @@ public final class LocalRepository {
 
     public func load() -> LocalTeamState {
         guard let data = try? Data(contentsOf: statusDatei),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let gelesen = try? stateFromJson(root)
         else {
             return neuerStand()
         }
-        return (try? stateFromJson(root)) ?? neuerStand()
+        return RemovalDeadlinePolicy.applyToState(gelesen)
     }
 
+    /// Vor dem Schreiben laufen die beiden Regeln, die den Stand gesund halten.
+    ///
+    /// Hier und nicht bei den Aufrufern, weil es sonst irgendwann eine Stelle gibt, die es
+    /// vergisst — auf Android steht es aus demselben Grund in `save`. Beide Regeln sind
+    /// idempotent: Zweimal anwenden ändert nichts mehr, sonst würde `updatedAt` bei jedem
+    /// Speichern neu wandern und das Plakat gäbe sich beim Abgleich ständig als die neuere
+    /// Fassung aus.
     public func save(_ state: LocalTeamState) throws {
+        let gesund = RemovalDeadlinePolicy.withCappedEvents(
+            RemovalDeadlinePolicy.applyToState(state)
+        )
         let data = try JSONSerialization.data(
-            withJSONObject: stateToJson(state), options: [.prettyPrinted, .sortedKeys]
+            withJSONObject: stateToJson(gesund), options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: statusDatei, options: [.atomic, .completeFileProtection])
     }
@@ -120,9 +131,196 @@ public final class LocalRepository {
         )
     }
 
+    // MARK: - Flyer-Touren
+
+    /// Beginnt eine Tour. Gegenstück zu `startFlyerTour` auf Android.
+    ///
+    /// Nur **eine** offene Tour je Gerät. Zwei gleichzeitig aufzuzeichnen ergibt keinen Sinn —
+    /// man läuft nur einen Weg — und beim Zusammenführen wüsste niemand, welche der beiden die
+    /// Wegpunkte bekommen soll.
+    public func startFlyerTour(_ state: LocalTeamState, name: String) throws -> LocalTeamState {
+        guard let teamId = state.teamId else { throw SyncError.fremdesTeam }
+        guard !state.flyerTours.contains(where: { $0.createdByDeviceId == state.deviceId && $0.status != .FINISHED })
+        else {
+            throw SyncError.nichtErlaubt("Bitte die laufende Flyer-Tour erst beenden oder löschen.")
+        }
+
+        let sauber = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let jetzt = Date.nowMillis
+        let tour = FlyerTour(
+            teamId: teamId,
+            name: sauber.isEmpty ? "Flyer-Tour" : sauber,
+            createdByDeviceId: state.deviceId,
+            createdByName: state.deviceName,
+            startedAt: jetzt,
+            updatedAt: jetzt
+        )
+
+        var neu = state
+        neu.flyerTours.insert(tour, at: 0)
+        neu.events.insert(
+            ereignis(state, tour: tour, text: "Flyer-Tour gestartet: \(tour.name)"), at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    /// Hängt einen Wegpunkt an. Die Koordinate wird geprüft, bevor sie in den Stand kommt —
+    /// ein `NaN` vom Ortungsdienst würde sonst das ganze JSON unschreibbar machen.
+    public func addFlyerTrackPoint(
+        _ state: LocalTeamState, tourId: String, latitude: Double, longitude: Double
+    ) throws -> LocalTeamState {
+        try TeamStateJson.requireValidCoordinate(latitude, longitude, "Flyer-Wegpunkt")
+        guard let index = state.flyerTours.firstIndex(where: { $0.id == tourId }) else {
+            throw SyncError.nichtErlaubt("Flyer-Tour wurde nicht gefunden.")
+        }
+        guard state.flyerTours[index].status == .ACTIVE else {
+            throw SyncError.nichtErlaubt("Flyer-Tour ist nicht aktiv.")
+        }
+
+        var neu = state
+        neu.flyerTours[index].points.append(
+            FlyerTrackPoint(latitude: latitude, longitude: longitude)
+        )
+        neu.flyerTours[index].updatedAt = Date.nowMillis
+        try save(neu)
+        return neu
+    }
+
+    public func setFlyerTourStatus(
+        _ state: LocalTeamState, tour: FlyerTour, status: FlyerTourStatus
+    ) throws -> LocalTeamState {
+        guard let index = state.flyerTours.firstIndex(where: { $0.id == tour.id }) else {
+            throw SyncError.nichtErlaubt("Flyer-Tour wurde nicht gefunden.")
+        }
+        let jetzt = Date.nowMillis
+
+        var neu = state
+        neu.flyerTours[index].status = status
+        neu.flyerTours[index].updatedAt = jetzt
+        if status == .FINISHED { neu.flyerTours[index].finishedAt = jetzt }
+
+        let text: String
+        switch status {
+        case .ACTIVE: text = "Flyer-Tour fortgesetzt: \(tour.name)"
+        case .PAUSED: text = "Flyer-Tour pausiert: \(tour.name)"
+        case .FINISHED: text = "Flyer-Tour beendet: \(tour.name)"
+        }
+        neu.events.insert(ereignis(state, tour: tour, text: text), at: 0)
+        try save(neu)
+        return neu
+    }
+
+    public func deleteFlyerTour(_ state: LocalTeamState, tour: FlyerTour) throws -> LocalTeamState {
+        var neu = state
+        neu.flyerTours.removeAll { $0.id == tour.id }
+        neu.events.insert(
+            ereignis(state, tour: tour, text: "Flyer-Tour gelöscht: \(tour.name)"), at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    private func ereignis(_ state: LocalTeamState, tour: FlyerTour, text: String) -> PosterEvent {
+        PosterEvent(
+            posterId: tour.id,
+            teamId: tour.teamId,
+            actorDeviceId: state.deviceId,
+            actorName: state.deviceName,
+            action: text
+        )
+    }
+
+    // MARK: - Teamsicherheit
+
+    /// Erneuert das Team-Geheimnis. Gegenstück zu `rotateTeamSecret` auf Android.
+    ///
+    /// Das ist die Antwort auf ein verlorenes oder gestohlenes Telefon. Ein Gerät zu sperren
+    /// reicht dafür nicht: Wer das alte Geheimnis hat, kann weiterhin jedes Paket des Teams
+    /// entschlüsseln, das ihm in die Hände fällt. Erst ein neues Geheimnis macht die alten
+    /// Pakete für ihn wertlos.
+    ///
+    /// Der Preis ist unvermeidlich und muss in der Oberfläche stehen: **Alle anderen Geräte
+    /// müssen einen neuen QR-Code scannen.** Wer das nicht tut, kann nicht mehr abgleichen.
+    public func rotateTeamSecret(_ state: LocalTeamState) throws -> LocalTeamState {
+        guard AccessPolicy.canManageTeamSecurity(state) else {
+            throw SyncError.nichtErlaubt("Nur die Teamleitung kann den Team-Schlüssel erneuern.")
+        }
+        guard let teamId = state.teamId else { throw SyncError.fremdesTeam }
+
+        var neu = state
+        neu.teamSecret = neuesGeheimnis()
+        neu.events.insert(
+            PosterEvent(
+                posterId: "TEAM",
+                teamId: teamId,
+                actorDeviceId: state.deviceId,
+                actorName: state.deviceName,
+                action: "Team-Schlüssel erneuert. Teammitglieder müssen einen neuen Teamleiter-QR scannen."
+            ),
+            at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    /// Sperrt ein Gerät oder gibt es wieder frei.
+    ///
+    /// Das eigene Gerät ist ausgenommen: Wer sich selbst sperrt, kommt an den eigenen Schlüssel
+    /// nicht mehr heran und hat kein Mittel, das rückgängig zu machen.
+    public func setDeviceBlocked(
+        _ state: LocalTeamState, deviceId: String, blocked: Bool
+    ) throws -> LocalTeamState {
+        guard AccessPolicy.canManageTeamSecurity(state) else {
+            throw SyncError.nichtErlaubt("Nur die Teamleitung kann Geräte sperren oder freigeben.")
+        }
+        guard deviceId != state.deviceId else {
+            throw SyncError.nichtErlaubt("Das eigene Gerät lässt sich nicht sperren.")
+        }
+        guard let teamId = state.teamId,
+              let index = state.devices.firstIndex(where: { $0.deviceId == deviceId })
+        else { throw SyncError.fremdesTeam }
+
+        var neu = state
+        neu.devices[index].blocked = blocked
+        neu.devices[index].approved = blocked ? false : neu.devices[index].approved
+        let name = neu.devices[index].displayName.isEmpty
+            ? String(deviceId.prefix(8))
+            : neu.devices[index].displayName
+        neu.events.insert(
+            PosterEvent(
+                posterId: "TEAM",
+                teamId: teamId,
+                actorDeviceId: state.deviceId,
+                actorName: state.deviceName,
+                action: blocked ? "Gerät gesperrt: \(name)" : "Gerät entsperrt: \(name)"
+            ),
+            at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    /// 32 Byte aus der Systemquelle, hexadezimal.
+    ///
+    /// Android setzt hier zwei UUIDs aneinander. Gleich lang, aber UUIDv4 liefert nur 122
+    /// nutzbare Bits je Stück; hier stehen 256 echte Zufallsbits. Das Format ist frei — das
+    /// Geheimnis geht nur als Hash ins Paket und wird sonst nirgends verglichen.
+    private func neuesGeheimnis() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
     // MARK: - Ein Sync-Paket aus dem eigenen Stand
 
-    public func toSnapshot(_ s: LocalTeamState) throws -> SyncSnapshot {
+    /// Abgelaufene Fristen werden **vor** dem Bauen ausgewertet.
+    ///
+    /// Sonst verschickt ein Gerät, das seit dem Fristablauf nicht neu gestartet wurde, ein Paket
+    /// mit veralteten Status — und die Gegenseite übernimmt „Hängt" für ein Plakat, das längst
+    /// abgenommen gehört. Auf Android steht dieselbe Zeile in `toSnapshot`.
+    public func toSnapshot(_ zustand: LocalTeamState) throws -> SyncSnapshot {
+        let s = RemovalDeadlinePolicy.applyToState(zustand)
         guard let teamId = s.teamId, let teamSecret = s.teamSecret else {
             throw SyncError.fremdesTeam
         }

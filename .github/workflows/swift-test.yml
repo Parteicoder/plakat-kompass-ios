@@ -69,4 +69,53 @@ jobs:
             -project PlakatKompass.xcodeproj \
             -scheme PlakatKompass \
             -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Info.plist der gebauten App pruefen
+        # Geprueft wird die Plist IM FERTIGEN BUNDLE, nicht die im Repo. Genau das war der
+        # Fehler, den dieser Schritt abfaengt: In project.yml stand ein "info:"-Block, der
+        # App/Info.plist beim Erzeugen ueberschrieb. Im Repo sah alles richtig aus, in der
+        # gebauten App fehlte alles.
+        #
+        # Nichts davon ist ein Uebersetzungsfehler. Ohne diesen Schritt faellt es erst auf
+        # einem echten iPhone auf - beim Absturz vor der ersten Kamerafrage, oder wenn die
+        # App nicht in "Oeffnen mit" auftaucht und der Abgleich mit Android nicht zustande
+        # kommt.
+        run: |
+          # Das Muster muss auf den GANZEN Pfad passen und Info.plist direkt in
+          # PlakatKompass.app verlangen. Ein blosses "-name Info.plist -path '*PlakatKompass.app*'"
+          # trifft auch die Plists der eingebetteten Ressourcenbuendel - beim ersten Lauf hier
+          # ZIPFoundation_ZIPFoundation.bundle/Info.plist, in der die gesuchten Schluessel
+          # natuerlich fehlen. Der Schritt schlug fehl, obwohl die App in Ordnung war.
+          PLIST=$(find build/Build/Products -path '*/PlakatKompass.app/Info.plist')
+          if [ "$(echo "$PLIST" | grep -c .)" -ne 1 ]; then
+            echo "Erwartet wurde genau eine Info.plist, gefunden:"
+            echo "$PLIST"
+            exit 1
+          fi
+          echo "Geprueft wird: $PLIST"
+
+          fehlt=0
+          for schluessel in NSCameraUsageDescription NSLocationWhenInUseUsageDescription \
+                            NSLocationAlwaysAndWhenInUseUsageDescription NSPhotoLibraryUsageDescription \
+                            CFBundleDocumentTypes UTImportedTypeDeclarations \
+                            UIBackgroundModes CFBundleDisplayName; do
+            if ! /usr/libexec/PlistBuddy -c "Print :$schluessel" "$PLIST" >/dev/null 2>&1; then
+              echo "FEHLT: $schluessel"
+              fehlt=1
+            else
+              echo "vorhanden: $schluessel"
+            fi
+          done
+
+          # Das Datenschutz-Manifest muss neben der Info.plist im Bundle liegen. Fehlt es,
+          # weist der App Store die App zurueck - und zwar erst beim Einreichen, nicht hier.
+          if [ -f "$(dirname "$PLIST")/PrivacyInfo.xcprivacy" ]; then
+            echo "vorhanden: PrivacyInfo.xcprivacy"
+          else
+            echo "FEHLT: PrivacyInfo.xcprivacy"
+            fehlt=1
+          fi
+
+          exit $fehlt

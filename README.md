@@ -265,18 +265,107 @@ sind immer da.
 | | |
 |---|---|
 | Kern: Modell, JSON, Krypto, `PRSYNC2`, Merge, Team-QR | steht |
-| Oberfläche: Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
+| Startseite, Erfassen, Liste, Karte, Abgleich, Team-Beitritt | steht |
+| Allein loslegen, ohne Team | steht |
+| Abnahmefristen: Statusautomatik und Erinnerung | steht |
+| Amtlicher Export: Liste und Fotos als ZIP | steht |
+| Flyer-Touren aufzeichnen und ansehen | steht |
+| Sozialdaten aus dem Regionalatlas | steht |
+| Gemeindegrenzen auf der Karte | steht |
+| Team-Schlüssel erneuern, Geräte sperren | steht |
+| App-Icon und Startbildschirm | steht, Icon hochgerechnet |
 | Testvektoren und Tests auf beiden Seiten | steht |
-| **Auf einem Mac übersetzt** | **noch nie** |
+| Auf einem Mac übersetzt, App gebaut, Tests grün | seit `add5eb3` |
 
-Der letzte Punkt ist kein Nebensatz. Der gesamte Swift-Code ist gegen den Android-Quelltext
-geschrieben, aber durch keinen Compiler gelaufen. Der erste `swift test` wird Fehler zeigen. Die
-wahrscheinlichsten Stellen: die ZIPFoundation-Schnittstelle (0.9.x liefert `Archive(…)` optional,
-neuere Fassungen werfen) und `URL: @retroactive Identifiable`, das Swift 6 braucht — bei 5.9 muss
-das Attribut weg.
+Der letzte Punkt war lange der wunde: Der Swift-Code war gegen den Android-Quelltext geschrieben
+und durch keinen Compiler gelaufen. Seit der CI auf `macos-15` läuft, ist das erledigt — `swift
+build`, `swift test` und `xcodebuild` für den Simulator sind grün, und der Swift-Test liest den
+Testvektor, den die Kotlin-Seite ebenfalls liest.
 
-Noch nicht gebaut: App-Icon, Startbildschirm, Sozialdaten, Flyer-Touren, amtlicher CSV-Export,
-Handywechsel-Backup und der Abgleich über den Relay-Server.
+**Auf einem echten iPhone gelaufen ist die App noch nicht.** Der CI baut für den Simulator und
+ohne Signierung; Kamera, Standort und der Teilen-Dialog sind damit übersetzt, aber nicht erprobt.
+
+## Was das Gerät verlässt
+
+Kurz: die Fotos und Standorte **nicht**. Es gibt keinen Server der Entwickler.
+
+| Wohin | Was | Wann |
+|---|---|---|
+| Empfänger nach Wahl | verschlüsseltes Sync-Paket | nur wenn jemand „teilen" antippt |
+| Stadtverwaltung | ZIP mit Liste und Fotos, unverschlüsselt | nur beim amtlichen Export |
+| Regionalatlas (Statistische Ämter) | ungefähre Position, auf 3 Nachkommastellen gerundet | nur im Bereich Sozialdaten |
+| Overpass (OpenStreetMap) | ungefähre Position, auf 2 Nachkommastellen gerundet | nur mit eingeschaltetem Grenzen-Schalter |
+
+Die beiden Abfragen beantworten die Anfrage und behalten nichts, was der App zuzuordnen wäre.
+Gerundet wird nicht aus Vorsicht allein, sondern weil sonst jedes Zittern der Ortung eine neue
+Abfrage auslöst — 100 Meter ändern am Gebiet ohnehin nichts.
+
+`App/PrivacyInfo.xcprivacy` sagt dasselbe maschinenlesbar. Apple verlangt die Datei seit Frühjahr
+2024 beim Einreichen und prüft sie gegen den tatsächlichen Code: kein Tracking, nichts erhoben,
+und als einzige begründungspflichtige Schnittstelle `UserDefaults` (hinter jedem `@AppStorage`).
+Ein CI-Schritt prüft, dass sie im gebauten Bundle landet — fehlt sie, fiele das sonst erst beim
+Einreichen auf.
+
+## Was Android kann und iOS nicht — und warum
+
+Vier Dinge fehlen. Bei dreien ist das keine offene Aufgabe, sondern das Ergebnis.
+
+**Nearby Connections.** Android gleicht per Funk ab, ohne Netz, über Bluetooth und Wi-Fi Direct.
+Diese Schnittstelle gehört zu den Play-Diensten; auf iOS gibt es sie nicht, und es gibt auch
+keinen Client, der ihr Protokoll spricht. Betroffen sind der Funk-Abgleich, der Handywechsel über
+Nearby und die „Teamaufnahme" mit rollendem QR-Code. **Ersatz:** das Sync-Paket als Datei über den
+Teilen-Dialog — Messenger, Mail, AirDrop, Dateien-App. Das braucht Netz oder AirDrop, dafür
+funktioniert es zwischen Android und iPhone in beide Richtungen.
+
+**Offline-Kartenkacheln.** Android nutzt osmdroid und legt die Kacheln selbst ab. MapKit gibt
+seinen Kachelspeicher nicht heraus. Offlinekarten sind auf iOS seit 17 eine Systemfunktion —
+sie in der App nachzubauen hieße, gegen die Plattform zu arbeiten.
+
+**Handywechsel-Backup (`PRBACKUP2`).** Android braucht es, weil sein Auto-Backup den
+verschlüsselten Gerätestand nicht mitnimmt. Auf iOS liegt alles unter „Application Support" und
+wandert mit dem iCloud-Backup auf das neue Gerät. Wer kein iCloud-Backup nutzt, kommt über
+Sync-Paket und Team-QR an seine Daten.
+
+**Relay-Abgleich.** Der einzige Punkt auf dieser Liste, der wirklich noch aussteht. Der Server
+existiert, die iOS-Anbindung nicht.
+
+## App-Icon
+
+Dieselbe Kompassrose wie auf Android, aus `mipmap-xxxhdpi/ic_launcher.png` des Android-Repos
+umgerechnet mit `Tools/appicon_bauen.py`. Das Skript ist da, weil die Umrechnung nicht
+offensichtlich ist: Android bringt seine abgerundeten Ecken als Grafik mit, iOS legt später
+seine eigene Maske darüber, und blieben die weißen Ecken stehen, sähe man nach dem Maskieren
+einen hellen Rand um die cremefarbene Fläche.
+
+**Die Auflösung ist die Schwachstelle.** Die größte im Android-Repo vorhandene Fassung des
+Kompass-Motivs misst 192 × 192; ein Vektor existiert nicht mehr, er wurde beim Wechsel vom
+alten Motiv entfernt. Der App Store verlangt 1024 × 1024, also wird um gut das Fünffache
+hochgerechnet, und das sieht man. Für Entwicklung und TestFlight reicht es, für eine
+Veröffentlichung nicht. Sobald die Originaldatei auftaucht, gehört sie ins Skript — dann fällt
+der Vergrößerungsschritt weg und der Rest bleibt.
+
+Der Startbildschirm hat bewusst weder Logo noch Schriftzug: Apples Richtlinie will einen, der
+wie die erste Seite der App aussieht, damit der Start kurz wirkt. Ein leerer `UILaunchScreen`
+nimmt die Systemhintergrundfarbe und wechselt von allein zwischen hell und dunkel.
+
+## Der amtliche Export
+
+Ein ZIP mit `plakatliste.csv` und `fotos/plakat_001.jpg…`, gedacht für die Stadtverwaltung.
+Gegenstück zu `core/OfficialExport.kt`.
+
+Anders als ein Sync-Paket ist es **unverschlüsselt** und muss Android nicht Byte für Byte
+entsprechen — es geht ans Rathaus, nie an ein Teamgerät. Interne Bemerkungen stehen nicht darin.
+
+Drei Eigenheiten der CSV sind Absicht und sehen ohne Erklärung nach Fehlern aus:
+
+- **BOM am Dateianfang**, sonst zeigt älteres Excel aus Umlauten Buchstabensalat.
+- **`sep=;` als erste Zeile**, sonst zerlegt Excel Überschriften wie „Aktueller Status" an den
+  Leerzeichen.
+- **Zellen, die mit `=`, `+`, `-`, `@`, Tab oder CR beginnen, bekommen ein Apostroph davor.**
+  Excel und LibreOffice würden sie sonst als Formel ausführen. Standortbeschreibung, Bemerkung
+  und Kommune sind Freitext und können per Abgleich von einem fremden Gerät stammen — das ist der
+  einzige Weg, auf dem aus dieser App heraus fremder Inhalt auf einem Verwaltungsrechner landet.
+  Echte Zahlen bleiben ausgenommen, damit ein Längengrad `-12.34` in der Tabelle rechnen kann.
 
 ## Lizenz
 

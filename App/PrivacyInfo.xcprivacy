@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Datenschutz-Manifest. Seit Frühjahr 2024 verlangt Apple es beim Einreichen; ohne die Datei
+	  wird die App zurückgewiesen. Sie ist kein Beiwerk zur Datenschutzerklärung, sondern eine
+	  maschinenlesbare Aussage, die Apple gegen den tatsächlichen Code prüft.
+
+	  Wer hier etwas einträgt, das nicht stimmt, fliegt beim Prüfen auf. Wer etwas weglässt, das
+	  benutzt wird, ebenso.
+	-->
+
+	<!-- Kein Tracking. Es gibt keine Werbe-Kennung, keine Analyse, keine Fremdbibliothek dafür. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!--
+	  Nichts wird erhoben.
+
+	  Die App speichert Fotos und Standorte ausschließlich auf dem Gerät. Es gibt keinen Server
+	  der Entwickler, an den etwas ginge. Ein Sync-Paket verschickt der Nutzer selbst und
+	  verschlüsselt, an einen Empfänger seiner Wahl — das ist Nutzung des Teilen-Dialogs, keine
+	  Erhebung durch die App.
+
+	  Zwei Abfragen verlassen das Gerät, beide auf ausdrückliche Handlung und beide nur mit der
+	  ungefähren Position (auf zwei bis drei Nachkommastellen gerundet):
+	  Regionalatlas (Statistische Ämter) und Overpass (OpenStreetMap). Sie beantworten die
+	  Anfrage und behalten nichts, was der App zuzuordnen wäre — nach Apples Definition ist das
+	  keine Erhebung. In der Datenschutzerklärung gehören sie trotzdem erwähnt.
+	-->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<!--
+	  Schnittstellen, für die Apple einen Grund verlangt.
+
+	  Geprüft wurde der ganze Quelltext: Dateizeitstempel, freier Speicherplatz, Systemstartzeit
+	  und aktive Tastatur werden NICHT benutzt. Übrig bleibt UserDefaults, hinter dem in SwiftUI
+	  jedes @AppStorage steckt — hier die Kommune für den Export, die gewählte Kennzahl, der
+	  Grenzen-Schalter und die Pausen-Einstellungen.
+
+	  CA92.1: Zugriff nur auf Informationen, die ausschließlich dieser App gehören.
+	-->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

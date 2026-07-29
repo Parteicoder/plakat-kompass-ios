@@ -50,6 +50,13 @@ struct PosterListView: View {
                     }
                     .pickerStyle(.menu)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        FlyerTourenView()
+                    } label: {
+                        Label("Flyer-Touren", systemImage: "figure.walk")
+                    }
+                }
             }
         }
     }
@@ -74,10 +81,10 @@ private struct PosterZeile: View {
                         .font(.headline)
                     Text(plakat.status.beschriftung)
                         .font(.subheadline).foregroundStyle(plakat.status.farbe)
-                    if let frist = plakat.plannedRemovalAt {
-                        Text(fristText(frist))
+                    if let text = RemovalDeadlinePolicy.removalCountdownText(plakat.plannedRemovalAt) {
+                        Text(text)
                             .font(.caption)
-                            .foregroundStyle(frist < Date.nowMillis ? .red : .secondary)
+                            .foregroundStyle((plakat.plannedRemovalAt ?? .max) < Date.nowMillis ? .red : .secondary)
                     }
                 }
             }
@@ -95,10 +102,4 @@ private struct PosterZeile: View {
         }
     }
 
-    private func fristText(_ frist: Int64) -> String {
-        let tage = Int((Double(frist - Date.nowMillis) / 86_400_000).rounded(.up))
-        if tage < 0 { return "Abnahme seit \(-tage) Tagen überfällig" }
-        if tage == 0 { return "Abnahme heute fällig" }
-        return "Abnahme in \(tage) Tagen"
-    }
 }

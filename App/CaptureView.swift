@@ -16,10 +16,13 @@ struct CaptureView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if !model.istImTeam {
+                if !model.istEingerichtet {
                     Section {
-                        Text("Du bist noch in keinem Team. Unter „Abgleich“ kannst du eins anlegen.")
-                            .foregroundStyle(.secondary)
+                        Text("""
+                        Noch nicht eingerichtet. Unter „Abgleich“ einem Team beitreten, eins \
+                        gründen — oder allein loslegen.
+                        """)
+                        .foregroundStyle(.secondary)
                     }
                 }
 
@@ -82,7 +85,7 @@ struct CaptureView: View {
 
                 Section {
                     Button("Plakat speichern") { speichere() }
-                        .disabled(foto == nil || standort.position == nil || !model.istImTeam)
+                        .disabled(foto == nil || standort.position == nil || !model.istEingerichtet)
                 }
             }
             .navigationTitle("Erfassen")

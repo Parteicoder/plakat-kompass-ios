@@ -6,6 +6,9 @@ struct PosterMapView: View {
     @EnvironmentObject private var model: AppModel
     @State private var ausschnitt: MapCameraPosition = .automatic
     @State private var ausgewaehlt: Poster?
+    @StateObject private var grenze = Gemeindegrenze()
+    @AppStorage("grenzeZeigen") private var grenzeZeigen = false
+    @State private var mitte: CLLocationCoordinate2D?
 
     private var sichtbare: [Poster] {
         model.state.posters.filter { $0.status != .REMOVED }
@@ -14,6 +17,14 @@ struct PosterMapView: View {
     var body: some View {
         NavigationStack {
             Map(position: $ausschnitt) {
+                if grenzeZeigen, let umriss = grenze.grenze {
+                    ForEach(Array(umriss.lines.enumerated()), id: \.offset) { _, linie in
+                        MapPolyline(coordinates: linie.map {
+                            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+                        })
+                        .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.75), lineWidth: 3)
+                    }
+                }
                 ForEach(sichtbare) { plakat in
                     Annotation(
                         plakat.addressHint.isEmpty ? plakat.status.beschriftung : plakat.addressHint,
@@ -36,8 +47,32 @@ struct PosterMapView: View {
                 MapUserLocationButton()
                 MapCompass()
             }
+            .onMapCameraChange(frequency: .onEnd) { kontext in
+                mitte = kontext.region.center
+            }
+            .task(id: grenzeSchluessel) {
+                guard grenzeZeigen, let punkt = mitte else { return }
+                await grenze.hole(latitude: punkt.latitude, longitude: punkt.longitude)
+            }
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Toggle(isOn: $grenzeZeigen) {
+                        Label("Gemeindegrenze", systemImage: "map")
+                    }
+                    .toggleStyle(.button)
+                }
+            }
+            .overlay(alignment: .top) {
+                if grenzeZeigen, let name = grenze.grenze?.name {
+                    Text(name)
+                        .font(.footnote.weight(.medium))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(.thinMaterial, in: Capsule())
+                        .padding(.top, 8)
+                }
+            }
             .sheet(item: $ausgewaehlt) { plakat in
                 PlakatDetail(plakat: plakat)
                     .presentationDetents([.medium])
@@ -52,6 +87,52 @@ struct PosterMapView: View {
                 }
             }
         }
+    }
+}
+
+private extension PosterMapView {
+    /// Grob gerundet, weil eine Gemeinde größer ist als 100 Meter: Ohne das Runden löst jedes
+    /// Verschieben der Karte eine neue Overpass-Abfrage aus.
+    var grenzeSchluessel: String {
+        guard grenzeZeigen, let punkt = mitte else { return "aus" }
+        return String(format: "%.2f|%.2f", punkt.latitude, punkt.longitude)
+    }
+}
+
+/// Holt den Grenzverlauf von Overpass.
+///
+/// Overpass ist ein von Freiwilligen betriebener Dienst ohne Schlüssel und ohne Rechnung. Deshalb
+/// wird gerundet zwischengespeichert und nur auf Wunsch abgefragt — nicht bei jedem Öffnen der
+/// Karte.
+@MainActor
+final class Gemeindegrenze: ObservableObject {
+    @Published private(set) var grenze: CommuneBoundary?
+
+    private var zwischenspeicher: [String: CommuneBoundary?] = [:]
+
+    func hole(latitude: Double, longitude: Double) async {
+        let schluessel = String(format: "%.2f,%.2f", latitude, longitude)
+        if let vorhanden = zwischenspeicher[schluessel] {
+            grenze = vorhanden
+            return
+        }
+        guard let ziel = URL(string: CommuneBoundaryQuery.url(latitude: latitude, longitude: longitude))
+        else { return }
+
+        var anfrage = URLRequest(url: ziel)
+        anfrage.timeoutInterval = 30
+        anfrage.setValue("PlakatKompass/1.0 (iOS; Gemeindegrenzen)", forHTTPHeaderField: "User-Agent")
+        anfrage.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        // Scheitert die Abfrage, bleibt die Karte einfach ohne Grenze. Eine Fehlermeldung waere
+        // hier fehl am Platz - die Grenze ist eine Zugabe, keine Voraussetzung.
+        guard let (daten, antwort) = try? await URLSession.shared.data(for: anfrage),
+              let http = antwort as? HTTPURLResponse, (200...299).contains(http.statusCode)
+        else { return }
+
+        let gefunden = CommuneBoundaryQuery.parse(String(decoding: daten, as: UTF8.self))
+        zwischenspeicher[schluessel] = gefunden
+        grenze = gefunden
     }
 }
 

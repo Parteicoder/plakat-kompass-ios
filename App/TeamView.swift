@@ -10,6 +10,7 @@ struct TeamBeitrittView: View {
     @State private var scannerOffen = false
     @State private var teamName = ""
     @State private var codeVonHand = ""
+    @State private var eigenerName = ""
 
     var body: some View {
         NavigationStack {
@@ -36,7 +37,7 @@ struct TeamBeitrittView: View {
                         .textInputAutocapitalization(.never)
                     Button("Code übernehmen") {
                         model.tritTeamBei(qrInhalt: codeVonHand.trimmingCharacters(in: .whitespacesAndNewlines))
-                        if model.istImTeam { schliessen() }
+                        if model.istEingerichtet { schliessen() }
                     }
                     .disabled(codeVonHand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } header: {
@@ -56,6 +57,24 @@ struct TeamBeitrittView: View {
                 } footer: {
                     Text("Dieses Gerät wird dann Teamleiter und kann andere per QR-Code aufnehmen.")
                 }
+
+                Section {
+                    TextField("Dein Name", text: $eigenerName)
+                        .textInputAutocapitalization(.words)
+                    Button("Allein loslegen") {
+                        model.losOhneTeam(name: eigenerName)
+                        if model.istEingerichtet { schliessen() }
+                    }
+                    .disabled(eigenerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } header: {
+                    Text("Oder ohne Team")
+                } footer: {
+                    Text("""
+                    Für alle, die allein plakatieren. Erfassen, Liste, Karte und die Liste für die \
+                    Verwaltung funktionieren vollständig. Nur der Abgleich mit anderen Geräten \
+                    braucht ein Team — dem lässt sich jederzeit später beitreten.
+                    """)
+                }
             }
             .navigationTitle("Team")
             .navigationBarTitleDisplayMode(.inline)
@@ -69,7 +88,7 @@ struct TeamBeitrittView: View {
                     QrScannerView { inhalt in
                         scannerOffen = false
                         model.tritTeamBei(qrInhalt: inhalt)
-                        if model.istImTeam { schliessen() }
+                        if model.istEingerichtet { schliessen() }
                     }
                     .ignoresSafeArea()
                     .toolbar {
