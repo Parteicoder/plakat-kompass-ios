@@ -190,6 +190,52 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Flyer-Touren
+
+    /// Die eigene laufende oder pausierte Tour, falls es eine gibt.
+    var offeneTour: FlyerTour? {
+        state.flyerTours.first { $0.createdByDeviceId == state.deviceId && $0.status != .FINISHED }
+    }
+
+    func starteTour(name: String) -> FlyerTour? {
+        do {
+            let neu = try repo.startFlyerTour(state, name: name)
+            state = neu
+            meldung = "Tour gestartet."
+            return offeneTour
+        } catch {
+            fehler = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Wegpunkte kommen im Sekundentakt herein, während man läuft.
+    ///
+    /// Fehler werden hier bewusst **verschluckt**: Eine Fehlermeldung mitten auf der Straße,
+    /// weil eine einzelne Ortung unbrauchbar war, hilft niemandem — die Tour läuft weiter und
+    /// der nächste Punkt kommt in ein paar Sekunden.
+    func merkeWegpunkt(tourId: String, latitude: Double, longitude: Double) {
+        state = (try? repo.addFlyerTrackPoint(
+            state, tourId: tourId, latitude: latitude, longitude: longitude
+        )) ?? state
+    }
+
+    func setzeTourStatus(_ tour: FlyerTour, _ status: FlyerTourStatus) {
+        do {
+            state = try repo.setFlyerTourStatus(state, tour: tour, status: status)
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
+    func loescheTour(_ tour: FlyerTour) {
+        do {
+            state = try repo.deleteFlyerTour(state, tour: tour)
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
     // MARK: - Export für die Verwaltung
 
     /// Baut die Plakatliste samt Fotos als ZIP und legt sie als Datei ab, die der Teilen-Dialog

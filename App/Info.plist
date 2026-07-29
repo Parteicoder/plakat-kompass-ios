@@ -58,6 +58,18 @@
 	<string>Erinnert am Tag der Abnahmefrist an die betroffenen Plakate.</string>
 
 	<!--
+	  Nur für Flyer-Touren, und nur solange eine läuft. Ohne „Immer“ bricht die Aufzeichnung
+	  ab, sobald das Telefon in die Tasche wandert — genau dann, wenn man verteilt.
+	  Die App sagt es, wenn die Berechtigung fehlt, statt still weniger zu tun.
+	-->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Während einer Flyer-Tour wird der zurückgelegte Weg aufgezeichnet, damit das Team sieht, welche Straßen schon versorgt sind. Außerhalb einer Tour wird nichts aufgezeichnet.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+
+	<!--
 	  Der Kern des Android-iOS-Abgleichs: Damit taucht Plakat Kompass in "Öffnen mit" auf,
 	  wenn ein Sync-Paket aus einem Messenger, aus Mail oder per AirDrop hereinkommt.
 	  Die Endung .prsync und der Typ entsprechen dem, was die Android-App verschickt.

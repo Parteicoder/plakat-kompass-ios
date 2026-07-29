@@ -2,47 +2,147 @@ import MapKit
 import PlakatKompassCore
 import SwiftUI
 
-/// Die Flyer-Touren, die über den Abgleich hereinkommen.
-///
-/// **Bewusst nur ansehen, nicht aufzeichnen.** Der Kern trägt Touren längst mit: Sie stehen im
-/// JSON eines Sync-Pakets, `SyncMerge` führt sie zusammen, und der lokale Stand speichert sie.
-/// Ohne diese Ansicht liegen die Touren eines Android-Kollegen also auf dem iPhone, ohne dass
-/// jemand sie zu sehen bekommt.
-///
-/// Das Aufzeichnen fehlt weiterhin, und zwar mit Absicht: Dafür braucht es auf iOS
-/// Ortung im Hintergrund („Immer"), einen dauerhaften Hinweis in der Statusleiste und eine
-/// Begründung im App-Store-Verfahren. Das ist eine Produktentscheidung über Akkulaufzeit und
-/// Datenschutz, keine technische — und sie steht hier nicht an. Ansehen kostet nichts davon.
+/// Flyer-Touren: aufzeichnen, ansehen, verwalten.
 struct FlyerTourenView: View {
     @EnvironmentObject private var model: AppModel
+    @StateObject private var aufzeichnung = TourAufzeichnung()
+    @State private var neuerName = ""
+    @State private var loeschKandidat: FlyerTour?
 
+    /// Touren ohne Wegpunkte sind für die Liste uninteressant — außer der eigenen laufenden,
+    /// die am Anfang naturgemäß leer ist.
     private var touren: [FlyerTour] {
-        model.state.flyerTours.filter { !$0.points.isEmpty }
+        model.state.flyerTours.filter { !$0.points.isEmpty || $0.id == model.offeneTour?.id }
     }
 
     var body: some View {
-        Group {
-            if touren.isEmpty {
-                ContentUnavailableView(
-                    "Keine Touren",
-                    systemImage: "figure.walk",
-                    description: Text("""
-                    Touren werden zurzeit nur auf Android aufgezeichnet. Sobald ein Paket von \
-                    dort ankommt, stehen sie hier.
-                    """)
-                )
-            } else {
-                List(touren) { tour in
-                    NavigationLink {
-                        TourKarte(tour: tour)
+        List {
+            Section {
+                if let offen = model.offeneTour {
+                    LaufendeTour(tour: offen, aufzeichnung: aufzeichnung)
+                } else {
+                    TextField("Name der Tour", text: $neuerName)
+                    Button {
+                        starte()
                     } label: {
-                        TourZeile(tour: tour)
+                        Label("Tour starten", systemImage: "record.circle")
+                    }
+                    .disabled(!model.istEingerichtet)
+                }
+            } header: {
+                Text("Aufzeichnen")
+            } footer: {
+                if model.offeneTour == nil {
+                    Text("""
+                    Der zurückgelegte Weg wird aufgezeichnet, damit das Team sieht, welche Straßen \
+                    schon versorgt sind. Ein Wegpunkt alle 20 Meter, höchstens fünf Stunden am Stück.
+                    """)
+                }
+            }
+
+            if touren.isEmpty {
+                Section {
+                    Text("Noch keine Touren. Auch die von Android-Geräten erscheinen hier, sobald ein Paket ankommt.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Section("Touren") {
+                    ForEach(touren) { tour in
+                        NavigationLink {
+                            TourKarte(tour: tour)
+                        } label: {
+                            TourZeile(tour: tour)
+                        }
+                        .swipeActions {
+                            Button("Löschen", role: .destructive) { loeschKandidat = tour }
+                        }
                     }
                 }
             }
         }
         .navigationTitle("Flyer-Touren")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "Tour löschen?",
+            isPresented: .init(get: { loeschKandidat != nil }, set: { if !$0 { loeschKandidat = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Löschen", role: .destructive) {
+                if let tour = loeschKandidat {
+                    if tour.id == model.offeneTour?.id { aufzeichnung.stoppe() }
+                    model.loescheTour(tour)
+                }
+                loeschKandidat = nil
+            }
+            Button("Abbrechen", role: .cancel) { loeschKandidat = nil }
+        } message: {
+            Text("Der aufgezeichnete Weg geht dabei verloren. Andere Geräte behalten ihre Fassung, bis sie ebenfalls löschen.")
+        }
+        .onDisappear {
+            // Die Aufzeichnung laeuft bewusst WEITER, wenn man den Bildschirm verlaesst -
+            // man verteilt Flyer und schaut dabei nicht auf die App. Gestoppt wird nur ueber
+            // "Beenden" oder wenn die Tour geloescht wird.
+        }
+    }
+
+    private func starte() {
+        guard let tour = model.starteTour(name: neuerName) else { return }
+        neuerName = ""
+        aufzeichnung.starte(tourId: tour.id) { breite, laenge in
+            model.merkeWegpunkt(tourId: tour.id, latitude: breite, longitude: laenge)
+        }
+    }
+}
+
+private struct LaufendeTour: View {
+    @EnvironmentObject private var model: AppModel
+    let tour: FlyerTour
+    @ObservedObject var aufzeichnung: TourAufzeichnung
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: tour.status == .ACTIVE ? "record.circle.fill" : "pause.circle.fill")
+                    .foregroundStyle(tour.status == .ACTIVE ? .red : .orange)
+                Text(tour.name).font(.headline)
+                Spacer()
+                Text("\(tour.points.count) Punkte")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if aufzeichnung.nurImVordergrund && tour.status == .ACTIVE {
+                // Lieber sagen als still weniger tun: Ohne "Immer" bricht die Aufzeichnung ab,
+                // sobald das Telefon in die Tasche wandert - also genau beim Verteilen.
+                Text("Ohne die Berechtigung „Immer“ zeichnet die App nur auf, solange sie offen ist. Zu ändern unter Einstellungen › Plakat Kompass › Ort.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            HStack {
+                if tour.status == .ACTIVE {
+                    Button("Pause") {
+                        model.setzeTourStatus(tour, .PAUSED)
+                        aufzeichnung.stoppe()
+                    }
+                } else {
+                    Button("Fortsetzen") {
+                        model.setzeTourStatus(tour, .ACTIVE)
+                        aufzeichnung.starte(tourId: tour.id) { breite, laenge in
+                            model.merkeWegpunkt(tourId: tour.id, latitude: breite, longitude: laenge)
+                        }
+                    }
+                }
+                Spacer()
+                Button("Beenden", role: .destructive) {
+                    aufzeichnung.stoppe()
+                    model.setzeTourStatus(tour, .FINISHED)
+                }
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.vertical, 4)
     }
 }
 

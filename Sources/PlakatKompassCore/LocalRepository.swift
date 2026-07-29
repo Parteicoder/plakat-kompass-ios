@@ -120,6 +120,106 @@ public final class LocalRepository {
         )
     }
 
+    // MARK: - Flyer-Touren
+
+    /// Beginnt eine Tour. Gegenstück zu `startFlyerTour` auf Android.
+    ///
+    /// Nur **eine** offene Tour je Gerät. Zwei gleichzeitig aufzuzeichnen ergibt keinen Sinn —
+    /// man läuft nur einen Weg — und beim Zusammenführen wüsste niemand, welche der beiden die
+    /// Wegpunkte bekommen soll.
+    public func startFlyerTour(_ state: LocalTeamState, name: String) throws -> LocalTeamState {
+        guard let teamId = state.teamId else { throw SyncError.fremdesTeam }
+        guard !state.flyerTours.contains(where: { $0.createdByDeviceId == state.deviceId && $0.status != .FINISHED })
+        else {
+            throw SyncError.nichtErlaubt("Bitte die laufende Flyer-Tour erst beenden oder löschen.")
+        }
+
+        let sauber = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let jetzt = Date.nowMillis
+        let tour = FlyerTour(
+            teamId: teamId,
+            name: sauber.isEmpty ? "Flyer-Tour" : sauber,
+            createdByDeviceId: state.deviceId,
+            createdByName: state.deviceName,
+            startedAt: jetzt,
+            updatedAt: jetzt
+        )
+
+        var neu = state
+        neu.flyerTours.insert(tour, at: 0)
+        neu.events.insert(
+            ereignis(state, tour: tour, text: "Flyer-Tour gestartet: \(tour.name)"), at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    /// Hängt einen Wegpunkt an. Die Koordinate wird geprüft, bevor sie in den Stand kommt —
+    /// ein `NaN` vom Ortungsdienst würde sonst das ganze JSON unschreibbar machen.
+    public func addFlyerTrackPoint(
+        _ state: LocalTeamState, tourId: String, latitude: Double, longitude: Double
+    ) throws -> LocalTeamState {
+        try TeamStateJson.requireValidCoordinate(latitude, longitude, "Flyer-Wegpunkt")
+        guard let index = state.flyerTours.firstIndex(where: { $0.id == tourId }) else {
+            throw SyncError.nichtErlaubt("Flyer-Tour wurde nicht gefunden.")
+        }
+        guard state.flyerTours[index].status == .ACTIVE else {
+            throw SyncError.nichtErlaubt("Flyer-Tour ist nicht aktiv.")
+        }
+
+        var neu = state
+        neu.flyerTours[index].points.append(
+            FlyerTrackPoint(latitude: latitude, longitude: longitude)
+        )
+        neu.flyerTours[index].updatedAt = Date.nowMillis
+        try save(neu)
+        return neu
+    }
+
+    public func setFlyerTourStatus(
+        _ state: LocalTeamState, tour: FlyerTour, status: FlyerTourStatus
+    ) throws -> LocalTeamState {
+        guard let index = state.flyerTours.firstIndex(where: { $0.id == tour.id }) else {
+            throw SyncError.nichtErlaubt("Flyer-Tour wurde nicht gefunden.")
+        }
+        let jetzt = Date.nowMillis
+
+        var neu = state
+        neu.flyerTours[index].status = status
+        neu.flyerTours[index].updatedAt = jetzt
+        if status == .FINISHED { neu.flyerTours[index].finishedAt = jetzt }
+
+        let text: String
+        switch status {
+        case .ACTIVE: text = "Flyer-Tour fortgesetzt: \(tour.name)"
+        case .PAUSED: text = "Flyer-Tour pausiert: \(tour.name)"
+        case .FINISHED: text = "Flyer-Tour beendet: \(tour.name)"
+        }
+        neu.events.insert(ereignis(state, tour: tour, text: text), at: 0)
+        try save(neu)
+        return neu
+    }
+
+    public func deleteFlyerTour(_ state: LocalTeamState, tour: FlyerTour) throws -> LocalTeamState {
+        var neu = state
+        neu.flyerTours.removeAll { $0.id == tour.id }
+        neu.events.insert(
+            ereignis(state, tour: tour, text: "Flyer-Tour gelöscht: \(tour.name)"), at: 0
+        )
+        try save(neu)
+        return neu
+    }
+
+    private func ereignis(_ state: LocalTeamState, tour: FlyerTour, text: String) -> PosterEvent {
+        PosterEvent(
+            posterId: tour.id,
+            teamId: tour.teamId,
+            actorDeviceId: state.deviceId,
+            actorName: state.deviceName,
+            action: text
+        )
+    }
+
     // MARK: - Teamsicherheit
 
     /// Erneuert das Team-Geheimnis. Gegenstück zu `rotateTeamSecret` auf Android.
