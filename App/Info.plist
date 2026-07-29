@@ -2,8 +2,50 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	  Diese Datei wird ueber INFOPLIST_FILE eingebunden, nicht von XcodeGen erzeugt.
+	  Vorher stand in project.yml ein "info:"-Block, der genau hierher schrieb und dabei
+	  alles unterhalb ueberschrieb - Berechtigungstexte und Dateityp inklusive.
+
+	  Die Werte in $(...) kommen aus den Bau-Einstellungen in project.yml. Wer sie dort
+	  aendert, aendert sie hier mit; doppelt gepflegt wird nichts.
+	-->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>de</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
 	<key>CFBundleDisplayName</key>
 	<string>Plakat Kompass</string>
+
+	<!--
+	  Startbildschirm ohne Eintraege: Damit nimmt iOS die Systemhintergrundfarbe und wechselt
+	  von allein zwischen hell und dunkel. Bewusst kein Logo und kein Schriftzug - Apples
+	  Richtlinie will einen Startbildschirm, der wie die erste Seite der App aussieht, damit
+	  der Start kurz wirkt. Ein Begruessungsbild tut das Gegenteil.
+	-->
+	<key>UILaunchScreen</key>
+	<dict/>
+
+	<!-- Nur Hochformat: Erfasst wird im Stehen, mit einer Hand, vor einem Laternenmast. -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 
 	<!-- Ohne diese Texte stuerzt die App beim ersten Zugriff ab, statt zu fragen. -->
 	<key>NSCameraUsageDescription</key>

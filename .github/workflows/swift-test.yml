@@ -69,4 +69,36 @@ jobs:
             -project PlakatKompass.xcodeproj \
             -scheme PlakatKompass \
             -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Info.plist der gebauten App pruefen
+        # Geprueft wird die Plist IM FERTIGEN BUNDLE, nicht die im Repo. Genau das war der
+        # Fehler, den dieser Schritt abfaengt: In project.yml stand ein "info:"-Block, der
+        # App/Info.plist beim Erzeugen ueberschrieb. Im Repo sah alles richtig aus, in der
+        # gebauten App fehlte alles.
+        #
+        # Nichts davon ist ein Uebersetzungsfehler. Ohne diesen Schritt faellt es erst auf
+        # einem echten iPhone auf - beim Absturz vor der ersten Kamerafrage, oder wenn die
+        # App nicht in "Oeffnen mit" auftaucht und der Abgleich mit Android nicht zustande
+        # kommt.
+        run: |
+          PLIST=$(find build/Build/Products -name Info.plist -path '*PlakatKompass.app*' | head -1)
+          if [ -z "$PLIST" ]; then
+            echo "Keine Info.plist im gebauten Bundle gefunden."
+            exit 1
+          fi
+          echo "Geprueft wird: $PLIST"
+
+          fehlt=0
+          for schluessel in NSCameraUsageDescription NSLocationWhenInUseUsageDescription \
+                            NSPhotoLibraryUsageDescription CFBundleDocumentTypes \
+                            UTImportedTypeDeclarations CFBundleDisplayName; do
+            if ! /usr/libexec/PlistBuddy -c "Print :$schluessel" "$PLIST" >/dev/null 2>&1; then
+              echo "FEHLT: $schluessel"
+              fehlt=1
+            else
+              echo "vorhanden: $schluessel"
+            fi
+          done
+          exit $fehlt
