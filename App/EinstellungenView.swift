@@ -16,53 +16,17 @@ struct EinstellungenView: View {
     @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
     @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
 
+    // Die Abschnitte stehen einzeln, nicht als ein grosses `body`.
+    //
+    // Nicht aus Ordnungsliebe: Bei allem in einem Ausdruck gibt Swifts Typprüfer auf --
+    // "unable to type-check this expression in reasonable time". Die Meldung nennt nur die Zeile
+    // mit `body` und sagt nicht, welcher Teil zu viel war. Kleine Abschnitte sind die Loesung
+    // UND die Vorbeugung.
     var body: some View {
         List {
-            Section {
-                Toggle("Ans Trinken erinnern", isOn: $pausenErinnerung)
-                if pausenErinnerung {
-                    Stepper(
-                        "Alle \(pausenMinuten) Minuten",
-                        value: $pausenMinuten,
-                        in: Erinnerungen.pausenSpanne,
-                        step: 15
-                    )
-                }
-            } header: {
-                Text("Pausen")
-            } footer: {
-                Text("""
-                Wer im Sommer vier Stunden mit Leiter und Kabelbindern unterwegs ist, vergisst \
-                das Trinken. Die Erinnerung läuft, bis sie hier wieder ausgeschaltet wird.
-                """)
-            }
-
-            Section {
-                LabeledContent("Meldungen") {
-                    Text(meldungenText).foregroundStyle(meldungenErlaubt == .authorized ? .secondary : .orange)
-                }
-                Button("Systemeinstellungen öffnen") {
-                    if let ziel = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(ziel)
-                    }
-                }
-            } header: {
-                Text("Berechtigungen")
-            } footer: {
-                Text("""
-                Kamera, Ort und Meldungen verwaltet iOS. Die App kann sie nicht selbst \
-                umschalten — hier geht es direkt zur richtigen Stelle.
-                """)
-            }
-
-            Section("Dieses Gerät") {
-                LabeledContent("Name", value: model.state.deviceName)
-                LabeledContent("Rolle", value: model.state.role == .LEADER ? "Teamleitung" : "Mitglied")
-                LabeledContent("Team", value: model.state.teamName ?? "—")
-                LabeledContent("Plakate", value: "\(model.state.posters.count)")
-                LabeledContent("Touren", value: "\(model.state.flyerTours.count)")
-            }
-
+            pausenAbschnitt
+            berechtigungenAbschnitt
+            geraeteAbschnitt
             Section {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
                 // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
@@ -78,6 +42,55 @@ struct EinstellungenView: View {
         .onChange(of: pausenMinuten) { _, neu in
             guard pausenErinnerung else { return }
             Task { await Erinnerungen.startePause(minuten: neu) }
+        }
+    }
+
+    @ViewBuilder private var pausenAbschnitt: some View {
+        Section {
+            Toggle("Ans Trinken erinnern", isOn: $pausenErinnerung)
+            if pausenErinnerung {
+                Stepper(value: $pausenMinuten, in: Erinnerungen.pausenSpanne, step: 15) {
+                    Text("Alle \(pausenMinuten) Minuten")
+                }
+            }
+        } header: {
+            Text("Pausen")
+        } footer: {
+            Text("""
+            Wer im Sommer vier Stunden mit Leiter und Kabelbindern unterwegs ist, vergisst das \
+            Trinken. Die Erinnerung läuft, bis sie hier wieder ausgeschaltet wird.
+            """)
+        }
+    }
+
+    @ViewBuilder private var berechtigungenAbschnitt: some View {
+        Section {
+            LabeledContent("Meldungen") {
+                Text(meldungenText)
+                    .foregroundStyle(meldungenErlaubt == .authorized ? Color.secondary : Color.orange)
+            }
+            Button("Systemeinstellungen öffnen") {
+                if let ziel = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(ziel)
+                }
+            }
+        } header: {
+            Text("Berechtigungen")
+        } footer: {
+            Text("""
+            Kamera, Ort und Meldungen verwaltet iOS. Die App kann sie nicht selbst umschalten — \
+            hier geht es direkt zur richtigen Stelle.
+            """)
+        }
+    }
+
+    @ViewBuilder private var geraeteAbschnitt: some View {
+        Section("Dieses Gerät") {
+            LabeledContent("Name", value: model.state.deviceName)
+            LabeledContent("Rolle", value: model.state.role == .LEADER ? "Teamleitung" : "Mitglied")
+            LabeledContent("Team", value: model.state.teamName ?? "—")
+            LabeledContent("Plakate", value: "\(model.state.posters.count)")
+            LabeledContent("Touren", value: "\(model.state.flyerTours.count)")
         }
     }
 
