@@ -104,8 +104,11 @@ final class SyncBundleAbwehrTests: XCTestCase {
 
     // MARK: - Dateinamen
 
+    /// `.` und `..` sind der interessante Teil: Sie bestehen den Zeichentest und wurden erst
+    /// durch diesen Test auffällig. Android fängt sie eine Stufe später ab, indem es den Pfad
+    /// auflöst; auf der Swift-Seite gibt es diese zweite Stufe nicht.
     func testUnsichereDateinamenWerdenErkannt() {
-        for name in ["../evil.jpg", "photos/../evil.jpg", "/etc/passwd", "..", "", "a/b.jpg",
+        for name in ["../evil.jpg", "photos/../evil.jpg", "/etc/passwd", "..", ".", "", "a/b.jpg",
                      "foto mit leerzeichen.jpg", String(repeating: "a", count: 121)] {
             XCTAssertFalse(SyncBundleCodec.isSafeFileName(name), "„\(name)“ darf nicht durchgehen.")
         }

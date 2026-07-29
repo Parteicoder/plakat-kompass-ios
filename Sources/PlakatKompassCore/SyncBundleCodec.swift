@@ -20,7 +20,20 @@ public enum SyncBundleCodec {
     /// Fotodateinamen dürfen keine Pfade vorgeben. Gegenstück zu `isSafeFileName`.
     static let safeFileName = try! NSRegularExpression(pattern: "^[a-zA-Z0-9._-]{1,120}$")
 
+    /// `.` und `..` bestehen den Zeichentest, sind aber keine Dateinamen, sondern Wegweiser.
+    ///
+    /// Android lässt sie ebenfalls durch den Namenstest und fängt sie eine Stufe später ab:
+    /// `safePhotoTarget` löst den Pfad auf und besteht darauf, dass er unterhalb von `photos/`
+    /// bleibt. Diese zweite Stufe gibt es hier nicht — `importVerifiedBundle` bekommt nur einen
+    /// Bauplan für Ziel-URLs, nicht das Wurzelverzeichnis. Also muss der Namenstest allein tragen.
+    ///
+    /// Das kann er auch: Über dem Zeichenvorrat `[a-zA-Z0-9._-]` gibt es keinen Schrägstrich, und
+    /// damit sind `.` und `..` die **einzigen** Zeichenketten, die aus dem Ordner herausführen.
+    /// Wer die beiden ausschließt, hat alle erwischt.
+    static let wegweiser: Set<String> = [".", ".."]
+
     public static func isSafeFileName(_ name: String) -> Bool {
+        guard !wegweiser.contains(name) else { return false }
         let bereich = NSRange(name.startIndex..., in: name)
         return safeFileName.firstMatch(in: name, range: bereich) != nil
     }
