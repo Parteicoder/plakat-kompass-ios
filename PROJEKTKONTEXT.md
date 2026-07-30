@@ -218,7 +218,7 @@ Fassungen vergleichen lassen. Kommentare und Commit-Nachrichten deutsch, und sie
 **Zielbranch ist `main`.** PRs werden als Draft geöffnet; **der Nutzer merged selbst**.
 
 **Lizenz: AGPL-3.0.** Gleich wie im Android-Repo. Die Nennung fremder Bestandteile steht unter
-„Einstellungen" → „Lizenzen und Datenquellen". Auf der Karte ist keine eigene Namensnennung nötig:
+„Einstellungen" → „Lizenzen und Dank". Auf der Karte ist keine eigene Namensnennung nötig:
 MapKit setzt seinen Hinweis selbst. Overpass (OpenStreetMap, ODbL) und die Sozialdaten
 (Datenlizenz Deutschland – Namensnennung 2.0) müssen dagegen genannt werden — beides wird
 abgefragt, auch wenn die Karte von Apple kommt.
