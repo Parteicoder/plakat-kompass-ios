@@ -31,6 +31,7 @@ struct EinstellungenView: View {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
                 // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
                 NavigationLink("Verlauf") { VerlaufView() }
+                NavigationLink("Lizenzen und Datenquellen") { LizenzenView() }
             }
         }
         .navigationTitle("Einstellungen")
@@ -131,5 +132,47 @@ private struct VerlaufView: View {
         f.dateStyle = .short
         f.timeStyle = .short
         return f.string(from: Date(timeIntervalSince1970: Double(millis) / 1000))
+    }
+}
+
+/// Lizenzen und Datenquellen.
+///
+/// Zwei Pflichten: Die Gemeindegrenzen stammen aus OpenStreetMap und stehen unter der ODbL, die
+/// Namensnennung verlangt. Die Sozialdaten sind amtlich und stehen unter einer Lizenz mit
+/// Namensnennung.
+///
+/// Die Karte selbst braucht hier nichts: Sie läuft über MapKit, und Apple setzt seinen Hinweis
+/// samt „Rechtliche Hinweise" von sich aus in die Karte. Das ist der Unterschied zur
+/// Android-Fassung, die OSM-Kacheln über osmdroid zeichnet und den Hinweis selbst setzen muss.
+private struct LizenzenView: View {
+    var body: some View {
+        List {
+            Section("Diese App") {
+                Text("""
+                Plakat Kompass steht unter der GNU Affero General Public License, Version 3 \
+                (AGPL-3.0). Der Lizenztext liegt der Quelle als Datei LICENSE bei.
+                """)
+            }
+            Section("Gemeindegrenzen") {
+                Text("""
+                © OpenStreetMap-Mitwirkende, abgefragt über die Overpass-Schnittstelle. Die Daten \
+                stehen unter der Open Database License (ODbL) 1.0.
+                """)
+            }
+            Section("Sozialdaten") {
+                Text("""
+                Regionalatlas Deutschland und Zensus 2022, Statistische Ämter des Bundes und der \
+                Länder. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).
+                """)
+            }
+            Section("Karte") {
+                Text("Apple MapKit. Den Kartenhinweis setzt iOS selbst in die Karte.")
+            }
+            Section("Verwendete Bibliothek") {
+                Text("ZIPFoundation von Thomas Zoechling, MIT-Lizenz.")
+            }
+        }
+        .navigationTitle("Lizenzen")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
