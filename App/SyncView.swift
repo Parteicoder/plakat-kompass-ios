@@ -44,6 +44,8 @@ struct SyncView: View {
                     }
 
                     if model.kannAbgleichen {
+                        FunkAbgleich(nearby: model.nearby)
+
                         Section {
                             Button {
                                 teilenDatei = model.erzeugeSyncPaket()
@@ -165,6 +167,46 @@ struct SyncView: View {
                     model.fehler = fehler.localizedDescription
                 }
             }
+        }
+    }
+}
+
+/// Der Abgleich per Funk, ohne dass jemand eine Datei verschicken muss.
+///
+/// Der Abschnitt sagt beides: was er kann und woran es liegt, wenn nichts passiert. Beide
+/// Fehlerfälle auf iOS sind **lautlos** — ein verweigertes lokales Netzwerk und zwei Geräte in
+/// verschiedenen WLANs sehen beide aus wie „niemand in der Nähe". Ohne diesen Text sucht man den
+/// Fehler beim Team-Schlüssel oder beim anderen Gerät.
+private struct FunkAbgleich: View {
+    @ObservedObject var nearby: NearbyAbgleich
+
+    var body: some View {
+        Section {
+            Toggle("Geräte in der Nähe", isOn: Binding(
+                get: { nearby.laeuft },
+                set: { $0 ? nearby.start() : nearby.stop() }
+            ))
+
+            if nearby.laeuft {
+                LabeledContent(
+                    "Geprüfte Geräte",
+                    value: nearby.gepruefteGeraete == 0 ? "sucht …" : "\(nearby.gepruefteGeraete)"
+                )
+            }
+
+            if let letzte = nearby.protokoll.last {
+                Text(letzte).font(.caption).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Funk-Abgleich")
+        } footer: {
+            Text("""
+            Läuft über dieselbe Schnittstelle wie die Android-App und gleicht direkt mit ihr ab — \
+            ohne Datei, ohne Messenger. Beide Geräte müssen dafür im **selben WLAN** sein; der \
+            Hotspot eines der beiden Telefone genügt. Ohne Netz finden sie sich nicht, dann bleibt \
+            das Sync-Paket als Datei. Beim ersten Mal fragt iOS nach dem lokalen Netzwerk — wer \
+            hier ablehnt, sieht danach nie ein Gerät, ohne dass es eine Meldung gäbe.
+            """)
         }
     }
 }

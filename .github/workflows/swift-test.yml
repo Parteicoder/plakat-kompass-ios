@@ -64,6 +64,12 @@ jobs:
       - name: App bauen, ohne Signierung
         # CODE_SIGNING_ALLOWED=NO, weil im CI kein Entwicklerzertifikat liegt und auch keines
         # hingehoert. Zum Uebersetzen wird es nicht gebraucht, nur zum Installieren.
+        #
+        # Dieser Schritt dauert seit dem Funk-Abgleich deutlich laenger: Nearby Connections bringt
+        # abseil, BoringSSL, protobuf und seinen C++-Kern als Quelltext mit, und das alles wird
+        # hier uebersetzt. Das ist kein haengender Lauf, sondern die Rechnung fuer eine
+        # Schnittstelle, die es nur so gibt.
+        timeout-minutes: 120
         run: |
           xcodebuild build \
             -project PlakatKompass.xcodeproj \
@@ -99,6 +105,7 @@ jobs:
           fehlt=0
           for schluessel in NSCameraUsageDescription NSLocationWhenInUseUsageDescription \
                             NSLocationAlwaysAndWhenInUseUsageDescription NSPhotoLibraryUsageDescription \
+                            NSLocalNetworkUsageDescription NSBonjourServices \
                             CFBundleDocumentTypes UTImportedTypeDeclarations \
                             UIBackgroundModes CFBundleDisplayName; do
             if ! /usr/libexec/PlistBuddy -c "Print :$schluessel" "$PLIST" >/dev/null 2>&1; then
@@ -108,6 +115,23 @@ jobs:
               echo "vorhanden: $schluessel"
             fi
           done
+
+          # Der Bonjour-Typ muss WOERTLICH stimmen. NearbyDienstTests prueft, dass die Ableitung
+          # aus der Dienstkennung genau diesen Wert ergibt (gegengeprueft an Googles eigenem
+          # Beispiel); hier wird geprueft, dass er auch in der gebauten App steht. Erst beides
+          # zusammen schliesst die Luecke - der Test allein sagt nichts ueber die Plist, und die
+          # Plist allein sagt nichts darueber, ob der Wert der richtige ist.
+          #
+          # Weicht er ab, sucht iOS nach einem Typ, den es nicht freigegeben bekommt: keine
+          # Fehlermeldung, kein Log, nur nie ein gefundenes Geraet.
+          erwartet="_EA0A851F84A0._tcp"
+          gefunden=$(/usr/libexec/PlistBuddy -c "Print :NSBonjourServices:0" "$PLIST" 2>/dev/null || true)
+          if [ "$gefunden" = "$erwartet" ]; then
+            echo "Bonjour-Typ stimmt: $gefunden"
+          else
+            echo "FALSCHER Bonjour-Typ: '$gefunden' statt '$erwartet'"
+            fehlt=1
+          fi
 
           # Das Datenschutz-Manifest muss neben der Info.plist im Bundle liegen. Fehlt es,
           # weist der App Store die App zurueck - und zwar erst beim Einreichen, nicht hier.
