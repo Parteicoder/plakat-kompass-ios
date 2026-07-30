@@ -9,10 +9,24 @@ struct PosterMapView: View {
     @StateObject private var grenze = Gemeindegrenze()
     @AppStorage("grenzeZeigen") private var grenzeZeigen = false
     @State private var mitte: CLLocationCoordinate2D?
+    @State private var flyerkarte = false
 
+    /// Auf der Flyerkarte gibt es keine Plakate — dort soll allein der gelaufene Weg zu sehen
+    /// sein. Sonst liegen Marker über dem Balken und man sieht die Strasse nicht mehr.
     private var sichtbare: [Poster] {
-        model.state.posters.filter { $0.status != .REMOVED }
+        guard !flyerkarte else { return [] }
+        return model.state.posters.filter { $0.status != .REMOVED }
     }
+
+    /// Touren mit mindestens einem Wegpunkt. Die eigene gerade gestartete ist am Anfang leer und
+    /// hat dann nichts zu zeichnen.
+    private var touren: [FlyerTour] {
+        model.state.flyerTours.filter { !$0.points.isEmpty }
+    }
+
+    /// Mintgrün wie der Sozialdaten-Kreis der Android-Fassung, damit die Flyerkarte auf beiden
+    /// Geräten gleich aussieht.
+    private static let mint = Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255)
 
     var body: some View {
         NavigationStack {
@@ -23,6 +37,31 @@ struct PosterMapView: View {
                             CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
                         })
                         .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.75), lineWidth: 3)
+                    }
+                }
+                if flyerkarte {
+                    ForEach(touren) { tour in
+                        let punkte = tour.points.map {
+                            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+                        }
+                        let formen = FlyerZeichnung.formenAnzahl(punkte: punkte.count)
+                        if formen >= 1, let start = punkte.first {
+                            // Der Startkreis kommt ab dem ERSTEN Punkt. Siehe FlyerZeichnung:
+                            // Ohne ihn sieht eine frisch gestartete Tour aus wie ein Fehler.
+                            MapCircle(center: start, radius: FlyerZeichnung.startKreisRadius)
+                                .foregroundStyle(Self.mint.opacity(FlyerZeichnung.deckkraft))
+                        }
+                        if formen >= 2 {
+                            MapPolyline(coordinates: punkte)
+                                .stroke(
+                                    Self.mint.opacity(FlyerZeichnung.deckkraft),
+                                    style: StrokeStyle(
+                                        lineWidth: FlyerZeichnung.balkenBreite,
+                                        lineCap: .round,
+                                        lineJoin: .round
+                                    )
+                                )
+                        }
                     }
                 }
                 ForEach(sichtbare) { plakat in
@@ -58,6 +97,12 @@ struct PosterMapView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Toggle(isOn: $flyerkarte) {
+                        Label("Flyerkarte", systemImage: "figure.walk")
+                    }
+                    .toggleStyle(.button)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Toggle(isOn: $grenzeZeigen) {
                         Label("Gemeindegrenze", systemImage: "map")
                     }
@@ -78,7 +123,14 @@ struct PosterMapView: View {
                     .presentationDetents([.medium])
             }
             .overlay(alignment: .bottom) {
-                if sichtbare.isEmpty {
+                if flyerkarte && touren.isEmpty {
+                    Text("Noch keine Flyer-Tour mit Wegpunkten. Unter „Start\u{201C} lässt sich eine aufzeichnen.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.thinMaterial, in: Capsule())
+                        .padding(.horizontal, 24).padding(.bottom, 20)
+                } else if !flyerkarte && sichtbare.isEmpty {
                     Text("Noch keine Plakate auf der Karte.")
                         .font(.footnote)
                         .padding(.horizontal, 14).padding(.vertical, 8)
