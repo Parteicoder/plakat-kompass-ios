@@ -35,8 +35,21 @@ final class AppModel: ObservableObject {
 
     /// Wird beim Start aufgerufen, nicht im `init` — beides braucht `await`.
     func beimStart() async {
+        haltEineTourAn()
         await Erinnerungen.frageErlaubnis()
         await Erinnerungen.planeNeu(fuer: state)
+    }
+
+    /// Eine eigene Tour, die beim Start noch auf „läuft" steht, wird pausiert.
+    ///
+    /// Beim Start läuft naturgemäß keine Aufzeichnung — der Aufzeichner ist gerade erst entstanden.
+    /// Eine Tour, die trotzdem `ACTIVE` ist, stammt also aus einem Lauf, den iOS beendet hat.
+    /// Bliebe sie so stehen, behauptete der Status etwas, das nicht stimmt, und der Zustand
+    /// wanderte auch noch in jedes Sync-Paket. „Pausiert" ist die Wahrheit, und Fortsetzen ist
+    /// ein Fingertipp.
+    private func haltEineTourAn() {
+        guard let offen = offeneTour, offen.status == .ACTIVE else { return }
+        setzeTourStatus(offen, .PAUSED)
     }
 
     /// Wie viele Plakate fällig oder überfällig sind.
@@ -60,6 +73,13 @@ final class AppModel: ObservableObject {
 
     // MARK: - Erfassen
 
+    /// Gibt zurück, ob es geklappt hat.
+    ///
+    /// Der Rückgabewert ist kein Zierrat: Die Oberfläche darf das Foto erst wegwerfen, wenn es
+    /// wirklich gespeichert ist. Vorher wurde es in jedem Fall verworfen — nach einem Fehler
+    /// stand der Nutzer mit einer Meldung da und ohne Bild, mitten auf der Straße, und musste
+    /// zum Plakat zurück.
+    @discardableResult
     func erfassePlakat(
         foto: Data,
         latitude: Double,
@@ -69,10 +89,10 @@ final class AppModel: ObservableObject {
         abnahmeInTagen: Int,
         amtlicheBemerkung: String,
         interneBemerkung: String
-    ) {
+    ) -> Bool {
         guard let teamId = state.teamId else {
             fehler = "Erst einem Team beitreten, dann erfassen."
-            return
+            return false
         }
         do {
             let dateiname = try repo.speichereFoto(foto)
@@ -106,8 +126,10 @@ final class AppModel: ObservableObject {
             try speichere(neu)
             hatFotoAufgenommen = true
             meldung = "Plakat erfasst."
+            return true
         } catch {
             fehler = error.localizedDescription
+            return false
         }
     }
 

@@ -6,10 +6,22 @@ import UniformTypeIdentifiers
 struct PlakatKompassApp: App {
     @StateObject private var model = AppModel()
 
+    /// Der Tour-Aufzeichner gehört **der App**, nicht einem Bildschirm.
+    ///
+    /// Vorher stand er als `@StateObject` in `FlyerTourenView`. Damit lebte er nur, solange die
+    /// Ansicht auf dem Navigationsstapel lag — wer nach dem Start der Tour zurückging, tötete
+    /// den `CLLocationManager`, und die Aufzeichnung endete lautlos.
+    ///
+    /// Das ist genau der Ablauf, für den die Funktion gedacht ist: Tour starten, Telefon
+    /// einstecken, Flyer verteilen. Der Fehler wäre nur auf einem Gerät aufgefallen, und dort
+    /// hätte er wie ein Problem mit der Ortung ausgesehen.
+    @StateObject private var aufzeichnung = TourAufzeichnung()
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
+                .environmentObject(aufzeichnung)
                 // Der ganze Android-iOS-Abgleich haengt an dieser einen Zeile: Ein Sync-Paket
                 // kommt als Datei herein, egal ob aus einem Messenger, aus Mail, per AirDrop
                 // oder aus der Dateien-App.
