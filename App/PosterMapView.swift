@@ -10,12 +10,17 @@ struct PosterMapView: View {
     @AppStorage("grenzeZeigen") private var grenzeZeigen = false
     @State private var mitte: CLLocationCoordinate2D?
     @State private var flyerkarte = false
+    @State private var filter: PosterFilter = .aktiv
 
     /// Auf der Flyerkarte gibt es keine Plakate — dort soll allein der gelaufene Weg zu sehen
     /// sein. Sonst liegen Marker über dem Balken und man sieht die Strasse nicht mehr.
+    ///
+    /// Derselbe Filter wie in der Liste, aus PosterFilter: Wer dort „Überfällig" gewählt hat und
+    /// zur Karte wechselt, erwartet dieselbe Auswahl und nicht eine zweite Bedeutung desselben
+    /// Wortes.
     private var sichtbare: [Poster] {
         guard !flyerkarte else { return [] }
-        return model.state.posters.filter { $0.status != .REMOVED }
+        return model.state.posters.gefiltert(nach: filter, jetzt: Date.nowMillis)
     }
 
     /// Touren mit mindestens einem Wegpunkt. Die eigene gerade gestartete ist am Anfang leer und
@@ -96,6 +101,15 @@ struct PosterMapView: View {
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Auf der Flyerkarte gibt es nichts zu filtern - dort liegen keine Plakate.
+                if !flyerkarte {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Picker("Filter", selection: $filter) {
+                            ForEach(PosterFilter.allCases, id: \.self) { Text($0.beschriftung).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Toggle(isOn: $flyerkarte) {
                         Label("Flyerkarte", systemImage: "figure.walk")
@@ -131,7 +145,9 @@ struct PosterMapView: View {
                         .background(.thinMaterial, in: Capsule())
                         .padding(.horizontal, 24).padding(.bottom, 20)
                 } else if !flyerkarte && sichtbare.isEmpty {
-                    Text("Noch keine Plakate auf der Karte.")
+                    Text(model.state.posters.isEmpty
+                         ? "Noch keine Plakate auf der Karte."
+                         : "Kein Plakat passt zum Filter „\(filter.beschriftung)\u{201C}.")
                         .font(.footnote)
                         .padding(.horizontal, 14).padding(.vertical, 8)
                         .background(.thinMaterial, in: Capsule())
