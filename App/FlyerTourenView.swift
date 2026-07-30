@@ -5,7 +5,9 @@ import SwiftUI
 /// Flyer-Touren: aufzeichnen, ansehen, verwalten.
 struct FlyerTourenView: View {
     @EnvironmentObject private var model: AppModel
-    @StateObject private var aufzeichnung = TourAufzeichnung()
+    // Aus der Umgebung, nicht als eigener @StateObject: Der Aufzeichner muss laenger leben als
+    // dieser Bildschirm - sonst endet die Tour, sobald jemand zurueckgeht.
+    @EnvironmentObject private var aufzeichnung: TourAufzeichnung
     @State private var neuerName = ""
     @State private var loeschKandidat: FlyerTour?
 
@@ -19,7 +21,7 @@ struct FlyerTourenView: View {
         List {
             Section {
                 if let offen = model.offeneTour {
-                    LaufendeTour(tour: offen, aufzeichnung: aufzeichnung)
+                    LaufendeTour(tour: offen)
                 } else {
                     TextField("Name der Tour", text: $neuerName)
                     Button {
@@ -79,11 +81,6 @@ struct FlyerTourenView: View {
         } message: {
             Text("Der aufgezeichnete Weg geht dabei verloren. Andere Geräte behalten ihre Fassung, bis sie ebenfalls löschen.")
         }
-        .onDisappear {
-            // Die Aufzeichnung laeuft bewusst WEITER, wenn man den Bildschirm verlaesst -
-            // man verteilt Flyer und schaut dabei nicht auf die App. Gestoppt wird nur ueber
-            // "Beenden" oder wenn die Tour geloescht wird.
-        }
     }
 
     private func starte() {
@@ -97,8 +94,8 @@ struct FlyerTourenView: View {
 
 private struct LaufendeTour: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var aufzeichnung: TourAufzeichnung
     let tour: FlyerTour
-    @ObservedObject var aufzeichnung: TourAufzeichnung
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

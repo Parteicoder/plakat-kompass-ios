@@ -103,7 +103,8 @@ struct CaptureView: View {
 
     private func speichere() {
         guard let foto, let position = standort.position else { return }
-        model.erfassePlakat(
+
+        let geklappt = model.erfassePlakat(
             foto: foto,
             latitude: position.coordinate.latitude,
             longitude: position.coordinate.longitude,
@@ -113,9 +114,18 @@ struct CaptureView: View {
             amtlicheBemerkung: amtlicheBemerkung,
             interneBemerkung: interneBemerkung
         )
+
+        // Das Formular NUR bei Erfolg leeren.
+        //
+        // Vorher wurde es in jedem Fall geleert. Wer beim Speichern einen Fehler bekam — kein
+        // Platz auf dem Gerät, kein Team — stand mit einer Meldung da und ohne Foto, mitten auf
+        // der Straße, und musste zum Plakat zurück. Die Meldung erschien, das Bild war weg.
+        guard geklappt else { return }
         self.foto = nil
         adresse = ""
         amtlicheBemerkung = ""
         interneBemerkung = ""
+        // Art und Abnahmefrist bleiben stehen: Das nächste Plakat ist meistens dasselbe an der
+        // nächsten Laterne, und eine Kampagne hat eine Frist.
     }
 }
