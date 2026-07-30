@@ -11,6 +11,8 @@ struct PosterMapView: View {
     @State private var mitte: CLLocationCoordinate2D?
     @State private var flyerkarte = false
     @State private var filter: PosterFilter = .aktiv
+    @State private var suchtext = ""
+    @State private var suchfehler: String?
 
     /// Auf der Flyerkarte gibt es keine Plakate — dort soll allein der gelaufene Weg zu sehen
     /// sein. Sonst liegen Marker über dem Balken und man sieht die Strasse nicht mehr.
@@ -100,6 +102,15 @@ struct PosterMapView: View {
             }
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
+            // Adresssuche ueber CLGeocoder - Apple kann das, eine eigene Suche waere Aufwand
+            // ohne Zweck. .searchable liefert das Feld samt Tastaturverhalten von selbst.
+            .searchable(text: $suchtext, prompt: "Adresse suchen")
+            .onSubmit(of: .search) { springeZurAdresse() }
+            .alert("Adresse nicht gefunden", isPresented: .constant(suchfehler != nil)) {
+                Button("OK") { suchfehler = nil }
+            } message: {
+                Text(suchfehler ?? "")
+            }
             .toolbar {
                 // Auf der Flyerkarte gibt es nichts zu filtern - dort liegen keine Plakate.
                 if !flyerkarte {
@@ -159,6 +170,29 @@ struct PosterMapView: View {
 }
 
 private extension PosterMapView {
+    /// Springt an die eingetippte Adresse.
+    ///
+    /// Der Ausschnitt ist bewusst eng (600 m): Wer eine Adresse sucht, will die Strasse sehen und
+    /// nicht die Stadt. Findet der Geocoder nichts, sagt die App das - stiller Stillstand waere
+    /// hier das Schlimmste, weil man nicht weiss, ob die Suche laeuft oder nichts fand.
+    @MainActor func springeZurAdresse() {
+        let anfrage = suchtext.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !anfrage.isEmpty else { return }
+        Task {
+            guard let treffer = try? await CLGeocoder().geocodeAddressString(anfrage),
+                  let ort = treffer.first?.location?.coordinate
+            else {
+                suchfehler = "Zu „\(anfrage)\u{201C} wurde nichts gefunden."
+                return
+            }
+            ausschnitt = .region(MKCoordinateRegion(
+                center: ort,
+                latitudinalMeters: 600,
+                longitudinalMeters: 600
+            ))
+        }
+    }
+
     /// Grob gerundet, weil eine Gemeinde größer ist als 100 Meter: Ohne das Runden löst jedes
     /// Verschieben der Karte eine neue Overpass-Abfrage aus.
     var grenzeSchluessel: String {
