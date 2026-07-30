@@ -38,6 +38,8 @@ public enum RegionLevel: String, Sendable {
 /// Einheit samt deutscher Zahlenschreibweise.
 public enum SocialUnit: Sendable {
     case percent, years, euro, density, per10k, plain
+    // Nur beim Zensus-Raster: Haushaltsgröße, Wohnfläche, Miete je Quadratmeter, Kopfzahlen.
+    case personen, quadratmeter, euroProQm, anzahl
 
     var suffix: String {
         switch self {
@@ -47,13 +49,18 @@ public enum SocialUnit: Sendable {
         case .density: return " EW/km²"
         case .per10k: return " je 10.000 EW"
         case .plain: return ""
+        case .personen: return " Pers."
+        case .quadratmeter: return " m²"
+        case .euroProQm: return " €/m²"
+        case .anzahl: return ""
         }
     }
 
     var nachkommastellen: Int {
         switch self {
-        case .percent, .years, .plain: return 1
-        case .euro, .density, .per10k: return 0
+        case .percent, .years, .plain, .personen, .quadratmeter: return 1
+        case .euroProQm: return 2
+        case .euro, .density, .per10k, .anzahl: return 0
         }
     }
 
