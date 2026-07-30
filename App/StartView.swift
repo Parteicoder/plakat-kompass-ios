@@ -29,6 +29,12 @@ struct StartView: View {
 
                     if let treffer = naechstes {
                         NaechstesPlakat(treffer: treffer)
+                    } else if standort.abgelehnt && !model.state.posters.isEmpty {
+                        // Sonst fehlt die Karte "naechstes Plakat" einfach, ohne dass jemand
+                        // erfaehrt warum - und man sucht den Fehler bei den Plakaten.
+                        OrtungAbgelehnt(
+                            text: "Ohne Standort lässt sich das nächste Plakat nicht bestimmen."
+                        )
                     } else if model.state.posters.isEmpty {
                         Text("Noch keine Plakate erfasst. Der Anfang steht unter „Erfassen“.")
                             .font(.footnote)

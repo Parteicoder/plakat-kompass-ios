@@ -1,4 +1,5 @@
 import CoreLocation
+import UIKit
 import PlakatKompassCore
 import SwiftUI
 
@@ -65,20 +66,30 @@ struct SozialdatenView: View {
             }
 
             Section {
-                switch abruf.zustand {
-                case .ruhe:
-                    Text("Warte auf den Standort …").foregroundStyle(.secondary)
-                case .laedt:
-                    HStack { ProgressView(); Text("Wird abgerufen …").foregroundStyle(.secondary) }
-                case .leer:
-                    Text("Für diesen Bereich liegen keine Werte vor.").foregroundStyle(.secondary)
-                case .fehler(let text):
-                    Text(text).foregroundStyle(.orange)
-                case .wert(let wert):
-                    Ergebnis(wert: wert)
-                case .werte(let werte):
-                    ForEach(werte, id: \.indicator.id) { wert in
-                        LabeledContent(wert.indicator.label, value: wert.formatted)
+                if standort.abgelehnt {
+                    // Ohne diese Abfrage stand hier für immer "Warte auf den Standort ..." - auf
+                    // etwas, das nie kommt. Ein Bildschirm, der auf ein Ereignis wartet, das die
+                    // Berechtigung ausschliesst, ist schlimmer als eine Fehlermeldung: Man haelt
+                    // die App fuer langsam statt fuer gesperrt.
+                    OrtungAbgelehnt(
+                        text: "Ohne Standort lassen sich keine Sozialdaten zum Gebiet abrufen."
+                    )
+                } else {
+                    switch abruf.zustand {
+                    case .ruhe:
+                        Text("Warte auf den Standort …").foregroundStyle(.secondary)
+                    case .laedt:
+                        HStack { ProgressView(); Text("Wird abgerufen …").foregroundStyle(.secondary) }
+                    case .leer:
+                        Text("Für diesen Bereich liegen keine Werte vor.").foregroundStyle(.secondary)
+                    case .fehler(let text):
+                        Text(text).foregroundStyle(.orange)
+                    case .wert(let wert):
+                        Ergebnis(wert: wert)
+                    case .werte(let werte):
+                        ForEach(werte, id: \.indicator.id) { wert in
+                            LabeledContent(wert.indicator.label, value: wert.formatted)
+                        }
                     }
                 }
             } header: {
@@ -126,6 +137,32 @@ struct SozialdatenView: View {
                 longitude: ort.coordinate.longitude
             )
         }
+    }
+}
+
+/// Der Hinweis, wenn die Ortung abgelehnt ist — samt dem Weg, es zu ändern.
+///
+/// Eine Meldung ohne Ausweg ist eine Sackgasse mit Text. Der Knopf führt genau dorthin, wo die
+/// Berechtigung liegt.
+struct OrtungAbgelehnt: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Ortung ist abgelehnt", systemImage: "location.slash")
+                .foregroundStyle(.orange)
+                .font(.headline)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button("Einstellungen öffnen") {
+                if let ziel = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(ziel)
+                }
+            }
+            .font(.footnote)
+        }
+        .padding(.vertical, 4)
     }
 }
 
