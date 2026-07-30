@@ -31,7 +31,7 @@ struct EinstellungenView: View {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
                 // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
                 NavigationLink("Verlauf") { VerlaufView() }
-                NavigationLink("Lizenzen und Datenquellen") { LizenzenView() }
+                NavigationLink("Lizenzen und Dank") { LizenzenView() }
             }
         }
         .navigationTitle("Einstellungen")
@@ -135,7 +135,7 @@ private struct VerlaufView: View {
     }
 }
 
-/// Lizenzen und Datenquellen.
+/// Lizenzen und Dank.
 ///
 /// Zwei Pflichten: Die Gemeindegrenzen stammen aus OpenStreetMap und stehen unter der ODbL, die
 /// Namensnennung verlangt. Die Sozialdaten sind amtlich und stehen unter einer Lizenz mit
@@ -171,8 +171,11 @@ private struct LizenzenView: View {
             Section("Verwendete Bibliothek") {
                 Text("ZIPFoundation von Thomas Zoechling, MIT-Lizenz.")
             }
+            Section("Dank") {
+                Text("Malte Steinbach")
+            }
         }
-        .navigationTitle("Lizenzen")
+        .navigationTitle("Lizenzen und Dank")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
