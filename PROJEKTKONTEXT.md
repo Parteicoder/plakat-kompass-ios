@@ -101,7 +101,10 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Rechte und Rollen | `AccessPolicy.swift` |
 | Abnahmefristen samt Statusautomatik | `RemovalDeadlinePolicy.swift` |
 | Amtlicher Export | `OfficialExport.swift` |
-| Sozialdaten | `SocialData.swift`, `SozialdatenView.swift` |
+| Sozialdaten, Regionalatlas (Gemeinde/Kreis) | `SocialData.swift`, `SozialdatenView.swift` |
+| Sozialdaten, Zensus-Gitter (Umkreis 300 m) | `Epsg3035.swift`, `ZensusRaster.swift` |
+| Flyerkarte auf der Hauptkarte | `FlyerZeichnung.swift`, `PosterMapView.swift` |
+| Statusfilter, von Liste und Karte geteilt | `PosterFilter.swift` |
 | Gemeindegrenzen | `CommuneBoundary.swift` |
 | Flyer-Touren | `FlyerTourenView.swift`, `TourAufzeichnung.swift` |
 | Erinnerungen | `Erinnerungen.swift` |
