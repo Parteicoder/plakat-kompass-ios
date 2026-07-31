@@ -143,3 +143,79 @@ jobs:
           fi
 
           exit $fehlt
+
+      - name: Begruendungspflichtige Schnittstellen im Binaergebilde suchen
+        # Apple verlangt, dass das Datenschutz-Manifest jede benutzte "required reason API"
+        # nennt, und prueft das beim Einreichen am BINAERGEBILDE - nicht am Quelltext. Darin
+        # steckt seit dem Funk-Abgleich auch alles, was Nearby Connections, abseil, BoringSSL
+        # und protobuf mitbringen. Den eigenen Quelltext zu lesen reicht deshalb nicht mehr,
+        # und Nearby bringt kein eigenes Manifest mit, das die Luecke fuellen wuerde.
+        #
+        # Das hier ist Apples Pruefung NACHGEBAUT, nicht Apples Pruefung selbst: nm fuer die
+        # C-Funktionen, otool fuer die eindeutigen Objective-C-Selektoren. Es kann zu viel
+        # finden - ein Symbol kann im Binaergebilde stehen, ohne je aufgerufen zu werden.
+        # Genau diese Richtung ist aber die ungefaehrliche: Apple weist zurueck, wenn etwas
+        # BENUTZT und nicht genannt ist. Was hier auftaucht, gehoert also ins Manifest.
+        #
+        # Mehrdeutige Selektoren wie "creationDate" oder "modificationDate" sind bewusst NICHT
+        # dabei. Die stehen in jedem Foundation-nahen Programm und wuerden zu einem Eintrag
+        # fuehren, den die App nicht braucht - und etwas zu nennen, das man nicht benutzt,
+        # faellt beim Pruefen genauso auf wie etwas zu verschweigen.
+        run: |
+          set -uo pipefail
+          BIN=$(find build/Build/Products -path '*/PlakatKompass.app/PlakatKompass' -type f)
+          if [ "$(echo "$BIN" | grep -c .)" -ne 1 ]; then
+            echo "Erwartet wurde genau ein Programm, gefunden:"; echo "$BIN"; exit 1
+          fi
+          echo "Untersucht wird: $BIN"
+
+          symbole=$( { nm -u "$BIN"; otool -v -s __TEXT __objc_methname "$BIN"; } 2>/dev/null )
+
+          gefunden=""
+          pruefe() {
+            kategorie=$1; shift
+            treffer=""
+            for muster in "$@"; do
+              if printf '%s\n' "$symbole" | grep -qwF -- "$muster"; then
+                treffer="$treffer $muster"
+              fi
+            done
+            if [ -n "$treffer" ]; then
+              echo "BENUTZT   $kategorie -$treffer"
+              gefunden="$gefunden $kategorie"
+            else
+              echo "frei      $kategorie"
+            fi
+          }
+
+          pruefe NSPrivacyAccessedAPICategoryFileTimestamp \
+            _stat _stat64 _fstat _fstat64 _lstat _lstat64 _fstatat _fstatat64 \
+            _getattrlist _fgetattrlist _getattrlistbulk _getattrlistat \
+            _NSURLContentModificationDateKey _NSURLCreationDateKey
+          pruefe NSPrivacyAccessedAPICategorySystemBootTime \
+            _mach_absolute_time systemUptime
+          pruefe NSPrivacyAccessedAPICategoryDiskSpace \
+            _statfs _statfs64 _fstatfs _fstatfs64 _statvfs _fstatvfs \
+            _NSFileSystemFreeSize _NSFileSystemSize \
+            _NSURLVolumeAvailableCapacityKey _NSURLVolumeTotalCapacityKey \
+            _NSURLVolumeAvailableCapacityForImportantUsageKey \
+            _NSURLVolumeAvailableCapacityForOpportunisticUsageKey \
+            systemFreeSize systemSize
+          pruefe NSPrivacyAccessedAPICategoryActiveKeyboards activeInputModes
+          pruefe NSPrivacyAccessedAPICategoryUserDefaults \
+            '_OBJC_CLASS_$_NSUserDefaults' standardUserDefaults
+
+          deklariert=$(/usr/libexec/PlistBuddy -c "Print :NSPrivacyAccessedAPITypes" \
+            App/PrivacyInfo.xcprivacy 2>/dev/null | grep -o 'NSPrivacyAccessedAPICategory[A-Za-z]*' || true)
+          echo "Im Manifest genannt:"; echo "${deklariert:-(nichts)}" | sed 's/^/  /'
+
+          fehlt=0
+          for kategorie in $gefunden; do
+            if printf '%s\n' "$deklariert" | grep -qx "$kategorie"; then
+              echo "genannt   $kategorie"
+            else
+              echo "NICHT GENANNT: $kategorie gehoert in App/PrivacyInfo.xcprivacy"
+              fehlt=1
+            fi
+          done
+          exit $fehlt
