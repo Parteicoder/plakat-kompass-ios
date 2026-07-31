@@ -29,22 +29,33 @@ final class OberflaechenRauchtest: XCTestCase {
         return app
     }
 
+    /// Wegklicken, was das System über die App legt — Ort, Meldungen, lokales Netzwerk.
+    ///
+    /// **Hier stand einmal `app.tap()`**, das übliche Rezept, um einen `UIInterruptionMonitor`
+    /// auslösen zu lassen. Es hat den Test zu Fall gebracht, und zwar auf die lehrreiche Art:
+    /// `app.tap()` tippt blind in die Bildschirmmitte, und auf „Erfassen" sitzt dort der
+    /// Kameraknopf. Der öffnete die Kamera, die verdeckte die Reiterleiste, und der nächste
+    /// Reiter war nicht mehr erreichbar — Fehlermeldung „Computed hit point {-1, -1}".
+    ///
+    /// Ein Werkzeug, das irgendwohin tippt, hat in einem Test nichts zu suchen. Jetzt wird die
+    /// Systemoberfläche direkt angesprochen: Dort und nur dort stehen die Knöpfe der Nachfragen.
+    private func schliesseSystemfragen() {
+        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let beschriftungen = [
+            "Beim Verwenden der App erlauben", "Allow While Using App",
+            "Erlauben", "Allow", "OK", "Zulassen"
+        ]
+        // Mehrere Nachfragen koennen nacheinander kommen (Ort, dann Meldungen).
+        for _ in 0..<3 {
+            guard let knopf = beschriftungen.map({ system.buttons[$0] }).first(where: { $0.exists })
+            else { return }
+            knopf.tap()
+        }
+    }
+
     /// Alle fünf Bereiche einmal öffnen und je einen Beleg verlangen, dass sie da sind.
     func testJederBereichZeichnetSich() {
         let app = starte()
-
-        // Systemnachfragen nach Ort und Meldungen legen sich sonst über die App und
-        // verschlucken den naechsten Tipp.
-        //
-        // ponytail: Unterbrechungswaechter statt fester Wartezeiten. Reicht fuer fuenf
-        // Reiterwechsel; wer hier spaeter echte Ablaeufe testet, braucht mehr.
-        addUIInterruptionMonitor(withDescription: "Systemnachfrage") { meldung in
-            for beschriftung in ["Erlauben", "Allow", "Beim Verwenden der App erlauben", "OK"] {
-                let knopf = meldung.buttons[beschriftung]
-                if knopf.exists { knopf.tap(); return true }
-            }
-            return false
-        }
 
         let bereiche = [
             (reiter: "Start", titel: "Plakat Kompass"),
@@ -55,15 +66,20 @@ final class OberflaechenRauchtest: XCTestCase {
         ]
 
         for bereich in bereiche {
+            schliesseSystemfragen()
+
             let knopf = app.tabBars.buttons[bereich.reiter]
             XCTAssertTrue(
                 knopf.waitForExistence(timeout: 20),
                 "Der Reiter „\(bereich.reiter)“ ist nicht da — die Reiterleiste fehlt oder heisst anders."
             )
+            // Erreichbar, nicht nur vorhanden: Liegt etwas darueber, ist "exists" wahr und der
+            // Tipp scheitert trotzdem. Genau daran ist der erste Anlauf gescheitert.
+            XCTAssertTrue(
+                warteAufErreichbarkeit(knopf),
+                "Der Reiter „\(bereich.reiter)“ ist verdeckt — etwas liegt über der Reiterleiste."
+            )
             knopf.tap()
-            // Ein Tipp auf die App selbst laesst den Waechter greifen, falls gerade eine
-            // Systemnachfrage offen steht.
-            app.tap()
 
             XCTAssertTrue(
                 app.navigationBars[bereich.titel].waitForExistence(timeout: 20),
@@ -80,11 +96,12 @@ final class OberflaechenRauchtest: XCTestCase {
     /// automatisch mit, wenn es an der falschen Stelle hängt.
     func testDerEinstiegLaesstSichOeffnen() {
         let app = starte()
+        schliesseSystemfragen()
 
         let abgleich = app.tabBars.buttons["Abgleich"]
         XCTAssertTrue(abgleich.waitForExistence(timeout: 20))
+        XCTAssertTrue(warteAufErreichbarkeit(abgleich))
         abgleich.tap()
-        app.tap()
 
         // „Loslegen“ steht dort, solange kein Team eingerichtet ist — auf einem frisch
         // installierten Simulator ist das immer der Fall.
@@ -103,5 +120,15 @@ final class OberflaechenRauchtest: XCTestCase {
             "Das Einstiegsblatt hat sich nicht geöffnet."
         )
         XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    /// `waitForExistence` gibt es fertig, `waitForHittable` nicht — deshalb hier von Hand.
+    private func warteAufErreichbarkeit(_ element: XCUIElement, sekunden: Int = 15) -> Bool {
+        for _ in 0..<sekunden {
+            if element.isHittable { return true }
+            schliesseSystemfragen()
+            Thread.sleep(forTimeInterval: 1)
+        }
+        return element.isHittable
     }
 }
