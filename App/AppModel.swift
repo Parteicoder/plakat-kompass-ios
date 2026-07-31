@@ -473,12 +473,17 @@ extension PosterStatus {
         }
     }
 
+    /// Dieselbe Status-Ampel wie auf Android, aus `Farben`.
+    ///
+    /// Vorher standen hier eigene Fliesskommawerte, die den Android-Tönen nur ähnelten. Das
+    /// fällt auf keinem einzelnen Bildschirm auf — aber wer beide Fassungen nebeneinander legt,
+    /// sieht zwei verschiedene Grüns für denselben Status.
     var farbe: Color {
         switch self {
-        case .HANGING, .REPLACED: return Color(red: 0.39, green: 0.40, blue: 0.95)
-        case .CHECKED: return Color(red: 0.06, green: 0.73, blue: 0.51)
-        case .DAMAGED, .MISSING: return Color(red: 0.86, green: 0.15, blue: 0.15)
-        case .REMOVED: return Color(red: 0.39, green: 0.45, blue: 0.55)
+        case .HANGING, .REPLACED: return Farben.blau
+        case .CHECKED: return Farben.gruen
+        case .DAMAGED, .MISSING: return Farben.rot
+        case .REMOVED: return Farben.grau
         }
     }
 }

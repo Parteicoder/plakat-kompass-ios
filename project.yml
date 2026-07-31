@@ -84,6 +84,10 @@ targets:
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"          # nur iPhone
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Das BSW-Pink als App-Farbe. iOS faerbt damit Knoepfe, Schalter, Auswahlen und die
+        # Navigationsleiste - ohne eine einzige Zeile Code und ueberall gleich. Ein .tint() im
+        # Quelltext waere derselbe Effekt an einer Stelle, die man beim naechsten Umbau vergisst.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         # Signierung bleibt bewusst leer: Die Team-ID gehoert nicht ins Repo.
         # In Xcode unter "Signing & Capabilities" das eigene Team waehlen.
         CODE_SIGN_STYLE: Automatic

@@ -19,7 +19,12 @@ struct StartView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    Kopf(teamName: model.state.teamName, geraet: model.state.deviceName)
+                    BswKopfkarte(
+                        teamName: model.state.teamName ?? "Lokales Plakat-Team",
+                        rolle: model.state.role == .LEADER ? "Teamleitung" : "Mitglied",
+                        plakate: model.state.posters.count,
+                        ueberfaellig: model.faelligeAbnahmen
+                    )
 
                     if model.faelligeAbnahmen > 0 {
                         Faelliges(anzahl: model.faelligeAbnahmen)
@@ -45,6 +50,10 @@ struct StartView: View {
                 }
                 .padding(16)
             }
+            // Der warme Grundton aus AppColors.kt. Kein Verlauf: Unter einer List waere er
+            // ohnehin verdeckt, und einer, den man nur hier sieht, faellt als Unstimmigkeit auf
+            // statt als Wiedererkennung.
+            .background(Farben.flaeche)
             .navigationTitle("Plakat Kompass")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -77,22 +86,6 @@ struct StartView: View {
     }
 }
 
-private struct Kopf: View {
-    let teamName: String?
-    let geraet: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(teamName ?? "Lokales Plakat-Team")
-                .font(.title2.weight(.semibold))
-            Text(geraet)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
 /// Der einzige Hinweis, der auffallen muss. Alles andere auf dieser Seite ist Information,
 /// das hier ist eine Frist.
 private struct Faelliges: View {
@@ -112,7 +105,7 @@ private struct Faelliges: View {
         }
         .foregroundStyle(.white)
         .padding(14)
-        .background(Color(red: 0.86, green: 0.15, blue: 0.15), in: RoundedRectangle(cornerRadius: 14))
+        .background(Farben.rot, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -124,12 +117,12 @@ private struct Zahlenreihe: View {
         // schmal, dass dreistellige Zahlen umbrechen.
         Grid(horizontalSpacing: 12, verticalSpacing: 12) {
             GridRow {
-                Kachel(wert: zahlen.aktiv, titel: "Aktiv", farbe: Color(red: 0.39, green: 0.40, blue: 0.95))
-                Kachel(wert: zahlen.kontrolliert, titel: "OK", farbe: Color(red: 0.06, green: 0.73, blue: 0.51))
+                Kachel(wert: zahlen.aktiv, titel: "Aktiv", farbe: Farben.blau)
+                Kachel(wert: zahlen.kontrolliert, titel: "OK", farbe: Farben.gruen)
             }
             GridRow {
-                Kachel(wert: zahlen.probleme, titel: "Probleme", farbe: Color(red: 0.86, green: 0.15, blue: 0.15))
-                Kachel(wert: zahlen.entfernt, titel: "Entfernt", farbe: Color(red: 0.39, green: 0.45, blue: 0.55))
+                Kachel(wert: zahlen.probleme, titel: "Probleme", farbe: Farben.rot)
+                Kachel(wert: zahlen.entfernt, titel: "Entfernt", farbe: Farben.grau)
             }
         }
     }
