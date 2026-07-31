@@ -203,11 +203,15 @@ final class Sozialdatenabruf: ObservableObject {
 
     @Published private(set) var zustand: Zustand = .ruhe
 
-    /// Antworten für eine Viertelstunde behalten. Die Zahlen ändern sich jährlich; jede Abfrage
-    /// neu zu stellen wäre unhöflich gegenüber einem Server, den die Statistischen Ämter
-    /// kostenlos bereitstellen.
-    private var zwischenspeicher: [String: (text: String, bis: Date)] = [:]
-    private static let haltbarkeit: TimeInterval = 15 * 60
+    /// **Hier stand ein Wörterbuch im Arbeitsspeicher mit einer Viertelstunde Haltbarkeit.**
+    /// Es war bei jedem App-Start weg — wer die App zwischendurch schliesst, holte dieselben
+    /// Zahlen wieder neu, über eine Rasterabfrage von rund fünfzehn Sekunden, und belastete
+    /// dabei einen Server, den die Statistischen Ämter kostenlos bereitstellen.
+    ///
+    /// Jetzt liegt der Zwischenspeicher auf der Platte und hält voreingestellt sieben Tage.
+    /// Das ist grosszügig und trotzdem richtig: Zensus- und Regionalatlas-Zahlen ändern sich
+    /// jährlich; eine Woche alte Werte sind exakt so gültig wie frisch geholte.
+    private let zwischenspeicher = SozialdatenCache.geteilt
 
     /// Das Zensus-Gitter: eine Abfrage ueber 49 Zellen, alle Kennzahlen auf einmal.
     func holeRaster(latitude: Double, longitude: Double) async {
@@ -258,9 +262,7 @@ final class Sozialdatenabruf: ObservableObject {
     /// Regionalatlas antwortet in Sekunden, die Rasterabfrage ueber 49 Zellen braucht rund
     /// fuenfzehn. Mit zwoelf Sekunden fuer beide waere das Raster nie durchgekommen.
     private func lade(_ url: String, zeitgrenze: TimeInterval = 12) async throws -> String {
-        if let vorhanden = zwischenspeicher[url], vorhanden.bis > Date() {
-            return vorhanden.text
-        }
+        if let vorhanden = zwischenspeicher.hole(url) { return vorhanden }
         guard let ziel = URL(string: url) else { throw URLError(.badURL) }
 
         var anfrage = URLRequest(url: ziel)
@@ -274,7 +276,7 @@ final class Sozialdatenabruf: ObservableObject {
             throw URLError(.badServerResponse)
         }
         let text = String(decoding: daten, as: UTF8.self)
-        zwischenspeicher[url] = (text, Date().addingTimeInterval(Self.haltbarkeit))
+        zwischenspeicher.merke(url, text)
         return text
     }
 }
