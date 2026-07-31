@@ -352,11 +352,17 @@ Zwei Dinge dazu, damit der Schritt nicht mehr verspricht, als er hält:
   deshalb nicht auf, obwohl die App es benutzt. Für eigenen Swift-Code bleibt der Quelltext
   maßgeblich; der Symbolscan ist für die mitgebrachten C- und C++-Bibliotheken da, die libc
   direkt aufrufen.
-- Er **prüft sich selbst** an `_objc_msgSend`. Ohne das wäre ein leeres Ergebnis nicht von
-  „nichts gefunden" zu unterscheiden, und die Aufgabe würde grün, gerade weil sie blind ist.
+- Er **prüft sich selbst** an `malloc` und sagt es laut, wenn er nichts sieht. Ohne das wäre ein
+  leeres Ergebnis nicht von „nichts gefunden" zu unterscheiden, und die Aufgabe würde grün,
+  gerade weil sie blind ist.
 
-Verbindlich ist am Ende Apples eigene Prüfung beim Hochladen. Ohne Entwicklerkonto ist das hier
-die bestmögliche Annäherung — nicht dasselbe.
+**Und genau das ist bisher der Fall.** Der Scan hat am gebauten Programm mehrfach nichts gesehen —
+erst weil `nm -u` bei Xcodes *chained fixups* die Importe nicht findet, dann weil das
+Kontrollsymbol schlecht gewählt war. Für Nearbys C++-Kern ist die Frage damit **nicht
+abschließend geklärt**. Verbindlich ist ohnehin Apples eigene Prüfung beim Hochladen; kommt von
+dort eine Meldung (ITMS-91053), stehen die passenden Begründungscodes in
+`App/PrivacyInfo.xcprivacy` bereit. Ohne Entwicklerkonto ist hier nicht mehr zu holen, und ein
+Manifest, das mehr behauptet, wäre schlechter als eines, das die Lücke benennt.
 
 ## Was Android kann und iOS nicht — und warum
 

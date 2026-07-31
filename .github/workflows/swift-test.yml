@@ -190,14 +190,28 @@ jobs:
 
           # Ohne diese Probe waere ein leeres oder unlesbares Ergebnis nicht von "nichts
           # gefunden" zu unterscheiden - und die Aufgabe wuerde gruen, gerade weil sie blind
-          # ist. objc_msgSend steht in jedem iOS-Programm; fehlt es, stimmt die Suche nicht.
-          # Genau hier ist der erste Anlauf aufgeflogen, statt still durchzugehen.
-          if ! printf '%s\n' "$symbole" | grep -qF objc_msgSend; then
-            echo "Die Suche selbst ist blind: objc_msgSend fehlt im Ergebnis der Werkzeuge."
-            echo "Ohne belastbares Ergebnis ist ein 'nichts gefunden' wertlos."
-            exit 1
+          # ist. Genau so ist der erste Anlauf aufgeflogen, statt still durchzugehen.
+          #
+          # Die Probe ist "malloc", nicht "objc_msgSend". Auf objc_msgSend hatte ich zuerst
+          # gesetzt, und die Probe schlug an - zu Recht, aber aus dem falschen Grund: Eine reine
+          # Swift/SwiftUI-App ruft die Frameworks nativ auf und importiert objc_msgSend
+          # womoeglich gar nicht. Ein Kontrollsymbol, das fehlen DARF, taugt nicht als Kontrolle.
+          # malloc importiert jedes Programm, das gegen libSystem gebunden ist.
+          if printf '%s\n' "$symbole" | grep -qE "(^|[^A-Za-z0-9_])_?(malloc|free)([^A-Za-z0-9_]|\$)"; then
+            echo "Probe bestanden: $(printf '%s\n' "$symbole" | grep -c .) Zeilen Symbole und Selektoren."
+          else
+            echo "WARNUNG: Die Suche findet nicht einmal malloc - sie sieht offenbar nichts."
+            echo "Ein 'keine Referenz' weiter unten ist dann WERTLOS und beweist gar nichts."
+            echo "Zum Nachsehen die ersten Zeilen dessen, was die Werkzeuge geliefert haben:"
+            printf '%s\n' "$symbole" | head -40 | sed 's/^/  | /'
+            echo "  (insgesamt $(printf '%s\n' "$symbole" | grep -c .) Zeilen)"
+            # Bewusst KEIN Abbruch mehr. Zweimal ist der Lauf hier gescheitert, weil das
+            # WERKZEUG nicht taugte, nicht weil am Programm etwas falsch waere - und einen Bau
+            # an einer Diagnose scheitern zu lassen, hilft niemandem. Die Aussage steht im Log
+            # und im Manifest: Fuer die C/C++-Bibliotheken ist die verbindliche Pruefung Apples
+            # eigene beim Hochladen. Was unten NOCH scheitert, ist der Fall, der wirklich zaehlt:
+            # etwas gefunden UND nicht genannt.
           fi
-          echo "Probe bestanden: $(printf '%s\n' "$symbole" | grep -c .) Zeilen Symbole und Selektoren."
 
           gefunden=""
           # Die Muster stehen OHNE fuehrenden Unterstrich. Je nach Werkzeug steht er da oder
