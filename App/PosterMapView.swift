@@ -14,6 +14,23 @@ struct PosterMapView: View {
     @State private var suchtext = ""
     @State private var suchfehler: String?
 
+    /// Der Sozialdaten-Umkreis. Bleibt über Neustarts an, wie auf Android auch — wer damit
+    /// arbeitet, arbeitet eine Weile damit.
+    @AppStorage("sozialAufKarte") private var sozialZeigen = false
+    /// Dieselbe Klasse wie im Sozialdaten-Bildschirm — eine zweite Fassung des Abrufs hier hiesse
+    /// zwei, die mit der Zeit auseinanderlaufen.
+    ///
+    /// Es ist allerdings eine **eigene Instanz** und damit ein eigener Zwischenspeicher: Die
+    /// beiden Bildschirme teilen ihn nicht. Das kostet beim Wechsel höchstens eine zusätzliche
+    /// Abfrage und erspart ein gemeinsames Objekt, das die halbe App durchreichen müsste.
+    @StateObject private var sozial = Sozialdatenabruf()
+    /// Der Punkt, für den die angezeigten Zahlen tatsächlich gelten.
+    ///
+    /// Ausdrücklich **nicht** [mitte]: Der Kreis wandert sonst beim Schieben der Karte mit,
+    /// während darin noch die Zahlen des alten Orts stehen. Ein Kreis, der behauptet, für den
+    /// Bereich unter ihm zu gelten, obwohl er es nicht tut, ist schlimmer als kein Kreis.
+    @State private var kreisMitte: CLLocationCoordinate2D?
+
     /// Auf der Flyerkarte gibt es keine Plakate — dort soll allein der gelaufene Weg zu sehen
     /// sein. Sonst liegen Marker über dem Balken und man sieht die Strasse nicht mehr.
     ///
@@ -31,6 +48,12 @@ struct PosterMapView: View {
         model.state.flyerTours.filter { !$0.points.isEmpty }
     }
 
+    /// Sozialdaten nur auf der Plakatkarte, genau wie `socialActive` auf Android.
+    ///
+    /// Auf der Flyerkarte geht es um den gelaufenen Weg. Ein zweiter mintgrüner Kreis neben dem
+    /// mintgrünen Startpunkt der Tour wäre dort vor allem eines: verwechselbar.
+    private var sozialAktiv: Bool { sozialZeigen && !flyerkarte }
+
     /// Mintgrün wie der Sozialdaten-Kreis der Android-Fassung, damit die Flyerkarte auf beiden
     /// Geräten gleich aussieht.
     private static let mint = Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255)
@@ -45,6 +68,14 @@ struct PosterMapView: View {
                         })
                         .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.75), lineWidth: 3)
                     }
+                }
+                // Der 300-Meter-Umkreis, für den die Zahlen unten gelten. Er erscheint erst NACH
+                // einer Antwort und liegt dann genau auf dem abgefragten Punkt — nicht auf der
+                // aktuellen Kartenmitte.
+                if sozialAktiv, let punkt = kreisMitte {
+                    MapCircle(center: punkt, radius: CLLocationDistance(ZensusRaster.radiusMeter))
+                        .foregroundStyle(Self.mint.opacity(0.2))
+                        .stroke(Self.mint.opacity(0.65), lineWidth: 3)
                 }
                 if flyerkarte {
                     ForEach(touren) { tour in
@@ -100,6 +131,7 @@ struct PosterMapView: View {
                 guard grenzeZeigen, let punkt = mitte else { return }
                 await grenze.hole(latitude: punkt.latitude, longitude: punkt.longitude)
             }
+            .task(id: sozialSchluessel) { await holeSozialdaten() }
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
             // Adresssuche ueber CLGeocoder - Apple kann das, eine eigene Suche waere Aufwand
@@ -127,6 +159,15 @@ struct PosterMapView: View {
                     }
                     .toggleStyle(.button)
                 }
+                // Auf der Flyerkarte gibt es keinen Umkreis - siehe sozialAktiv.
+                if !flyerkarte {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Toggle(isOn: $sozialZeigen) {
+                            Label("Sozialdaten", systemImage: "person.3")
+                        }
+                        .toggleStyle(.button)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Toggle(isOn: $grenzeZeigen) {
                         Label("Gemeindegrenze", systemImage: "map")
@@ -148,22 +189,31 @@ struct PosterMapView: View {
                     .presentationDetents([.medium])
             }
             .overlay(alignment: .bottom) {
-                if flyerkarte && touren.isEmpty {
-                    Text("Noch keine Flyer-Tour mit Wegpunkten. Unter „Start\u{201C} lässt sich eine aufzeichnen.")
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.thinMaterial, in: Capsule())
-                        .padding(.horizontal, 24).padding(.bottom, 20)
-                } else if !flyerkarte && sichtbare.isEmpty {
-                    Text(model.state.posters.isEmpty
-                         ? "Noch keine Plakate auf der Karte."
-                         : "Kein Plakat passt zum Filter „\(filter.beschriftung)\u{201C}.")
-                        .font(.footnote)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.thinMaterial, in: Capsule())
-                        .padding(.bottom, 20)
+                // Hinweis und Sozialdaten uebereinander, statt dass eines das andere verdraengt:
+                // Warum die Karte leer ist und was im Umkreis wohnt, sind zwei verschiedene
+                // Auskuenfte, und beide koennen gleichzeitig gebraucht werden.
+                VStack(spacing: 8) {
+                    if flyerkarte && touren.isEmpty {
+                        Text("Noch keine Flyer-Tour mit Wegpunkten. Unter „Start\u{201C} lässt sich eine aufzeichnen.")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(.thinMaterial, in: Capsule())
+                            .padding(.horizontal, 24)
+                    } else if !flyerkarte && sichtbare.isEmpty {
+                        Text(model.state.posters.isEmpty
+                             ? "Noch keine Plakate auf der Karte."
+                             : "Kein Plakat passt zum Filter „\(filter.beschriftung)\u{201C}.")
+                            .font(.footnote)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(.thinMaterial, in: Capsule())
+                    }
+                    if sozialAktiv {
+                        Sozialkarte(zustand: sozial.zustand)
+                            .padding(.horizontal, 12)
+                    }
                 }
+                .padding(.bottom, 20)
             }
         }
     }
@@ -198,6 +248,99 @@ private extension PosterMapView {
     var grenzeSchluessel: String {
         guard grenzeZeigen, let punkt = mitte else { return "aus" }
         return String(format: "%.2f|%.2f", punkt.latitude, punkt.longitude)
+    }
+
+    /// Drei Nachkommastellen, also gut hundert Meter — dieselbe Rundung wie im
+    /// Sozialdaten-Bildschirm, und in derselben Größenordnung wie Androids Schwelle von 80 m.
+    ///
+    /// Feiner wäre sinnlos: Die Abfrage liest die Rasterzellen im Umkreis, und zwei Punkte in
+    /// derselben Zellnachbarschaft ergeben dieselbe URL — die zweite Anfrage beantwortet dann
+    /// ohnehin der Zwischenspeicher von [Sozialdatenabruf]. Deshalb braucht es hier keine
+    /// Entfernungsrechnung, nur eine Rundung.
+    var sozialSchluessel: String {
+        guard sozialAktiv, let punkt = mitte else { return "aus" }
+        return String(format: "%.3f|%.3f", punkt.latitude, punkt.longitude)
+    }
+
+    /// Holt die Rasterwerte für die Kartenmitte.
+    ///
+    /// Der Kreis wird **erst nach** einer Antwort gesetzt und dabei auf den abgefragten Punkt —
+    /// nicht auf die inzwischen vielleicht verschobene Kartenmitte. Bis dahin steht er auf `nil`,
+    /// die Karte zeigt also lieber keinen Kreis als einen, der am falschen Ort das Falsche
+    /// behauptet.
+    @MainActor func holeSozialdaten() async {
+        guard sozialAktiv, let punkt = mitte else {
+            kreisMitte = nil
+            return
+        }
+        kreisMitte = nil
+        await sozial.holeRaster(latitude: punkt.latitude, longitude: punkt.longitude)
+        if case .werte = sozial.zustand { kreisMitte = punkt }
+    }
+}
+
+/// Die Rasterwerte zur Kartenmitte, als Karte über der Karte.
+///
+/// Die Höhe ist gedeckelt und der Inhalt rollt: Das Gitter liefert zehn Kennzahlen, und zehn
+/// Zeilen verdecken auf einem iPhone die halbe Karte. Wer Sozialdaten einblendet, will sie
+/// **neben** der Karte sehen, nicht statt ihrer.
+private struct Sozialkarte: View {
+    let zustand: Sozialdatenabruf.Zustand
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch zustand {
+            case .ruhe:
+                Text("Karte bewegen, dann werden die Werte geholt.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            case .laedt:
+                // Fünfzehn Sekunden ohne ein Lebenszeichen sehen aus wie ein Fehler. Die Dauer
+                // steht deshalb dabei, statt dass man sie erlebt.
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Umkreis wird gelesen — das dauert rund fünfzehn Sekunden.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            case .leer:
+                Text("Für diesen Umkreis liegen keine Rasterwerte vor.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            case .fehler(let text):
+                Text(text).font(.footnote).foregroundStyle(.orange)
+            case .wert(let wert):
+                // Kommt hier nicht vor: Die Karte fragt ausschliesslich das Raster ab, und das
+                // liefert immer alle Kennzahlen. Der Fall gehoert trotzdem behandelt, sonst
+                // waere das switch nicht vollstaendig.
+                Zeile(wert: wert)
+            case .werte(let werte):
+                Text("Umkreis \(ZensusRaster.radiusMeter) m")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(werte, id: \.indicator.id) { Zeile(wert: $0) }
+                    }
+                }
+                .frame(maxHeight: 150)
+                // Ohne Namensnennung darf der Zensus nicht verwendet werden (DL-DE/BY-2.0).
+                Text(ZensusRaster.quellenangabe)
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private struct Zeile: View {
+        let wert: SocialValue
+
+        var body: some View {
+            HStack {
+                Text(wert.indicator.label).font(.footnote)
+                Spacer(minLength: 12)
+                Text(wert.formatted).font(.footnote.weight(.semibold))
+            }
+        }
     }
 }
 
