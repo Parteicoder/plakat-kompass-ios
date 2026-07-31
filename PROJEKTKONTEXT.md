@@ -103,6 +103,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Amtlicher Export | `OfficialExport.swift` |
 | Sozialdaten, Regionalatlas (Gemeinde/Kreis) | `SocialData.swift`, `SozialdatenView.swift` |
 | Sozialdaten, Zensus-Gitter (Umkreis 300 m) | `Epsg3035.swift`, `ZensusRaster.swift` |
+| Sozialdaten samt 300-m-Kreis auf der Karte | `PosterMapView.swift` (`Sozialkarte`) |
 | Flyerkarte auf der Hauptkarte | `FlyerZeichnung.swift`, `PosterMapView.swift` |
 | Statusfilter, von Liste und Karte geteilt | `PosterFilter.swift` |
 | Gemeindegrenzen | `CommuneBoundary.swift` |
