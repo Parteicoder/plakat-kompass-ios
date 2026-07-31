@@ -24,6 +24,17 @@ import Foundation
 /// geordneten Beenden wieder verschwindet. Ist sie beim nächsten Start noch da, ist der vorige
 /// Lauf **nicht geordnet zu Ende gegangen** — was der Grund war, weiss sie nicht, und behauptet
 /// es auch nicht.
+///
+/// ## Den Grund liefert MetricKit
+///
+/// Der Absatz oben stand hier zuerst als „geht also gar nicht". Das war ein Fehlschluss: Für
+/// selbstgebaute Signal-Handler stimmt er, aber [Absturzberichte] holt sich über Apples eigene
+/// Schnittstelle den Bericht, den **das System** zum Absturz geschrieben hat — mitsamt Grund
+/// und Aufrufliste, Swift-Laufzeitfehler eingeschlossen.
+///
+/// Beide Wege bleiben nebeneinander, weil sie sich ergänzen: Die Marke merkt sofort **dass**
+/// etwas war, auch im Simulator und ohne TestFlight. MetricKit sagt **warum**, aber nur auf
+/// einem echten Gerät.
 @MainActor
 final class Protokoll: ObservableObject {
 
@@ -89,6 +100,9 @@ final class Protokoll: ObservableObject {
             let text = "ABSTURZ (ObjC): \(ausnahme.name.rawValue) — \(ausnahme.reason ?? "ohne Grund")"
             Protokoll.haengeRohAn(text)
         }
+        // Erst jetzt anmelden: MetricKit liefert unmittelbar nach dem Anmelden, und die Zeilen
+        // sollen hinter "App gestartet" stehen, nicht davor.
+        Absturzberichte.geteilt.melde_an()
         schreibe("App gestartet.")
     }
 
