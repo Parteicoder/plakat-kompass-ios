@@ -177,6 +177,7 @@ final class HandywechselNearby: ObservableObject {
 
     private func melde(_ text: String) {
         protokoll.append(text)
+        Protokoll.geteilt.schreibe("Handywechsel: \(text)")
         if protokoll.count > 60 { protokoll.removeFirst(protokoll.count - 60) }
     }
 
