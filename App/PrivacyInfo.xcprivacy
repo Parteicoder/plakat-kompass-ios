@@ -37,12 +37,32 @@
 	<!--
 	  Schnittstellen, für die Apple einen Grund verlangt.
 
-	  Geprüft wurde der ganze Quelltext: Dateizeitstempel, freier Speicherplatz, Systemstartzeit
-	  und aktive Tastatur werden NICHT benutzt. Übrig bleibt UserDefaults, hinter dem in SwiftUI
-	  jedes @AppStorage steckt — hier die Kommune für den Export, die gewählte Kennzahl, der
-	  Grenzen-Schalter und die Pausen-Einstellungen.
+	  Hier stand einmal „geprüft wurde der ganze Quelltext". Das reicht seit dem Funk-Abgleich
+	  nicht mehr, denn es ist nicht mehr unser Quelltext allein: Nearby Connections bringt
+	  abseil, BoringSSL, protobuf und einen C++-Kern mit, deren Quellen nicht in diesem Repo
+	  liegen — und ein eigenes Datenschutz-Manifest bringt Nearby nicht mit. Apple prüft
+	  ohnehin am fertigen Programm, nicht am Quelltext.
+
+	  Geprüft wird deshalb auf beiden Wegen, und jeder deckt ab, was der andere nicht kann:
+
+	  1. Der eigene Swift-Code am Quelltext. Nur dort ist zu sehen, was über ein Systemframework
+	     läuft — @AppStorage etwa greift INNERHALB von SwiftUI auf UserDefaults zu; im Programm
+	     selbst steht davon nichts, ein Symbolscan findet es also nie.
+	  2. Die mitgebrachten C- und C++-Bibliotheken am fertigen Programm, mit nm und otool
+	     (Schritt „Begruendungspflichtige Schnittstellen" in swift-test.yml). Die rufen libc
+	     direkt auf; dort ist ein undefiniertes Symbol der Beweis. Der Schritt prüft sich selbst
+	     an _objc_msgSend, damit ein leeres Ergebnis nicht als „nichts gefunden" durchgeht.
+
+	  Ergebnis: Dateizeitstempel, freier Speicherplatz, Systemstartzeit und aktive Tastatur
+	  werden von keiner Seite angefasst. Übrig bleibt UserDefaults, hinter dem jedes @AppStorage
+	  steckt — die Kommune für den Export, die gewählte Kennzahl, der Grenzen-Schalter, der
+	  Sozialdaten-Schalter der Karte und die Pausen-Einstellungen.
 
 	  CA92.1: Zugriff nur auf Informationen, die ausschließlich dieser App gehören.
+
+	  Was auch das nicht leistet: Die verbindliche Prüfung macht Apple beim Hochladen. Ein
+	  Entwicklerkonto gibt es hier nicht — das hier ist die bestmögliche Annäherung, nicht
+	  dasselbe.
 	-->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>

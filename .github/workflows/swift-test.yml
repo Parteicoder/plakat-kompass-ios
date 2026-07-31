@@ -157,6 +157,17 @@ jobs:
         # Genau diese Richtung ist aber die ungefaehrliche: Apple weist zurueck, wenn etwas
         # BENUTZT und nicht genannt ist. Was hier auftaucht, gehoert also ins Manifest.
         #
+        # WAS DIESE PRUEFUNG NICHT SEHEN KANN, und das ist keine Nachlaessigkeit, sondern eine
+        # Grenze der Methode: Sie findet nur DIREKTE Referenzen. Was ein Systemframework fuer
+        # die App erledigt, steht nicht im Programm. @AppStorage ist genau so ein Fall - der
+        # Zugriff auf UserDefaults passiert in SwiftUI, nicht hier, und deshalb meldet die
+        # Suche fuer UserDefaults nichts, obwohl die App es benutzt und im Manifest nennt.
+        #
+        # Daraus folgt die Arbeitsteilung: Fuer den eigenen Swift-Code ist der Quelltext
+        # massgeblich (dort steht jedes @AppStorage). Fuer die mitgebrachten C- und
+        # C++-Bibliotheken ist DIESE Suche massgeblich, denn deren Quelltext liegt nicht im
+        # Repo, und sie rufen libc direkt auf - da ist ein undefiniertes Symbol der Beweis.
+        #
         # Mehrdeutige Selektoren wie "creationDate" oder "modificationDate" sind bewusst NICHT
         # dabei. Die stehen in jedem Foundation-nahen Programm und wuerden zu einem Eintrag
         # fuehren, den die App nicht braucht - und etwas zu nennen, das man nicht benutzt,
@@ -171,6 +182,16 @@ jobs:
 
           symbole=$( { nm -u "$BIN"; otool -v -s __TEXT __objc_methname "$BIN"; } 2>/dev/null )
 
+          # Ohne diese Probe waere ein leeres oder unlesbares Ergebnis nicht von "nichts
+          # gefunden" zu unterscheiden - und die Aufgabe wuerde gruen, gerade weil sie blind
+          # ist. objc_msgSend steht in jedem iOS-Programm; fehlt es, stimmt die Suche nicht.
+          if ! printf '%s\n' "$symbole" | grep -qwF -- _objc_msgSend; then
+            echo "Die Suche selbst ist blind: _objc_msgSend fehlt im Ergebnis von nm/otool."
+            echo "Ohne belastbares Ergebnis ist ein 'nichts gefunden' wertlos."
+            exit 1
+          fi
+          echo "Probe bestanden: $(printf '%s\n' "$symbole" | grep -c .) Zeilen Symbole und Selektoren."
+
           gefunden=""
           pruefe() {
             kategorie=$1; shift
@@ -181,10 +202,10 @@ jobs:
               fi
             done
             if [ -n "$treffer" ]; then
-              echo "BENUTZT   $kategorie -$treffer"
+              echo "DIREKT BENUTZT      $kategorie -$treffer"
               gefunden="$gefunden $kategorie"
             else
-              echo "frei      $kategorie"
+              echo "keine Referenz      $kategorie"
             fi
           }
 
@@ -204,6 +225,13 @@ jobs:
           pruefe NSPrivacyAccessedAPICategoryActiveKeyboards activeInputModes
           pruefe NSPrivacyAccessedAPICategoryUserDefaults \
             '_OBJC_CLASS_$_NSUserDefaults' standardUserDefaults
+
+          echo
+          echo "Hinweis: 'keine Referenz' heisst NICHT 'wird nicht benutzt'. Es heisst, dass das"
+          echo "Programm die Schnittstelle nicht selbst aufruft. UserDefaults ist der Beleg:"
+          echo "Es steht zu Recht im Manifest (jedes @AppStorage), taucht hier aber nicht auf,"
+          echo "weil SwiftUI den Zugriff uebernimmt. Fuer eigenen Swift-Code gilt der Quelltext."
+          echo
 
           deklariert=$(/usr/libexec/PlistBuddy -c "Print :NSPrivacyAccessedAPITypes" \
             App/PrivacyInfo.xcprivacy 2>/dev/null | grep -o 'NSPrivacyAccessedAPICategory[A-Za-z]*' || true)

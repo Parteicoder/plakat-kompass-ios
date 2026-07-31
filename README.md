@@ -60,9 +60,8 @@ Drei Dinge, die beim Nachbauen Zeit kosten, wenn man sie nicht weiß:
   ihn aus, `NearbyDienstTests` prüft die Ableitung gegen Googles eigenes Beispiel, und ein
   CI-Schritt prüft den Wert in der **gebauten** App.
 - **Das Paket bringt kein Datenschutz-Manifest mit** (`find . -name "*.xcprivacy"` im Nearby-Repo
-  findet nichts). Apple verlangt seit Frühjahr 2024 eines je Fremdbibliothek. Aufgefallen ist das
-  hier nicht und wird es auch nicht — es schlägt erst beim Einreichen im App Store zu. Vor der
-  ersten Einreichung ist das zu klären; `App/PrivacyInfo.xcprivacy` deckt nur diese App ab.
+  findet nichts). Damit fällt die Frage, welche begründungspflichtigen Schnittstellen es benutzt,
+  auf diese App zurück. Sie ist beantwortet — siehe unten.
 
 Ein Abgleich über einen eigenen Relay-Server ist als späterer Zusatzweg vorgesehen, aber nicht
 Voraussetzung.
@@ -338,6 +337,26 @@ Abfrage auslöst — 100 Meter ändern am Gebiet ohnehin nichts.
 und als einzige begründungspflichtige Schnittstelle `UserDefaults` (hinter jedem `@AppStorage`).
 Ein CI-Schritt prüft, dass sie im gebauten Bundle landet — fehlt sie, fiele das sonst erst beim
 Einreichen auf.
+
+**Warum das seit dem Funk-Abgleich nicht mehr am Quelltext zu beantworten ist:** Apple prüft am
+fertigen Programm, und darin steckt nun auch alles, was Nearby Connections mitbringt — abseil,
+BoringSSL, protobuf, ein C++-Kern. Deren Quellen liegen nicht in diesem Repo, und ein eigenes
+Datenschutz-Manifest liefert Nearby nicht. Ein zweiter CI-Schritt durchsucht deshalb das
+**gebaute Programm** mit `nm` und `otool` nach den begründungspflichtigen Symbolen und schlägt
+fehl, sobald etwas auftaucht, das im Manifest nicht steht.
+
+Zwei Dinge dazu, damit der Schritt nicht mehr verspricht, als er hält:
+
+- Er sieht **nur direkte Aufrufe**. Was ein Systemframework für die App erledigt, steht nicht im
+  Programm — `@AppStorage` etwa greift innerhalb von SwiftUI auf `UserDefaults` zu und taucht
+  deshalb nicht auf, obwohl die App es benutzt. Für eigenen Swift-Code bleibt der Quelltext
+  maßgeblich; der Symbolscan ist für die mitgebrachten C- und C++-Bibliotheken da, die libc
+  direkt aufrufen.
+- Er **prüft sich selbst** an `_objc_msgSend`. Ohne das wäre ein leeres Ergebnis nicht von
+  „nichts gefunden" zu unterscheiden, und die Aufgabe würde grün, gerade weil sie blind ist.
+
+Verbindlich ist am Ende Apples eigene Prüfung beim Hochladen. Ohne Entwicklerkonto ist das hier
+die bestmögliche Annäherung — nicht dasselbe.
 
 ## Was Android kann und iOS nicht — und warum
 
