@@ -66,12 +66,12 @@ public enum NearbyDienst {
 
         /// Der Name, unter dem sich diese Seite ankündigt.
         public func endpunktName(zeit: Int64) -> String {
-            "\(backupPraefix)\(rawValue)|\(zeit)"
+            "\(NearbyDienst.backupPraefix)\(rawValue)|\(zeit)"
         }
 
         /// Passt die Gegenseite? Zwei Sender finden sich sonst gegenseitig und warten ewig.
         public func passtZu(endpunktName: String) -> Bool {
-            guard endpunktName.hasPrefix(backupPraefix) else { return false }
+            guard endpunktName.hasPrefix(NearbyDienst.backupPraefix) else { return false }
             let felder = endpunktName.split(separator: "|", omittingEmptySubsequences: false)
             guard felder.count >= 2 else { return false }
             return String(felder[1]) == gegenseite.rawValue
@@ -83,7 +83,7 @@ public enum NearbyDienst {
         /// **lange** Form. Nicht dasselbe wie [rawValue]; die Asymmetrie stammt aus dem
         /// Android-Original und wird hier bewusst nachgebildet statt begradigt.
         public var verbindungsName: String {
-            "\(backupPraefix)\(self == .senden ? "SENDING" : "RECEIVING")|local"
+            "\(NearbyDienst.backupPraefix)\(self == .senden ? "SENDING" : "RECEIVING")|local"
         }
     }
 }

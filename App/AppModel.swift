@@ -196,6 +196,53 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - Handywechsel
+
+    /// Packt den **kompletten** Gerätestand für den Umzug auf ein neues Telefon.
+    ///
+    /// Gibt Datei **und** Transfer-Geheimnis zurück, denn beides gehört zusammen und darf sich
+    /// nie trennen: Das Geheimnis wird nirgends gespeichert, sondern gleich über Funk an das
+    /// neue Gerät gegeben. Wer die Datei ohne das Geheimnis findet, hat verschlüsselten Müll —
+    /// und genau das ist der Zweck.
+    func erzeugeHandywechselBackup() -> (datei: URL, geheimnis: String)? {
+        let geheimnis = DeviceBackupCodec.neuesTransferGeheimnis()
+        do {
+            let paket = try DeviceBackupCodec.createBackup(
+                state: state,
+                transferSecret: geheimnis,
+                photoURL: { [repo] name in repo.photoURL(name) }
+            )
+            let ziel = FileManager.default.temporaryDirectory
+                .appendingPathComponent("plakatkompass-device-backup-\(Date.nowMillis).prbackup")
+            try paket.write(to: ziel, options: .atomic)
+            return (ziel, geheimnis)
+        } catch {
+            fehler = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Übernimmt ein Backup auf dem **neuen** Gerät und **ersetzt** damit alles Bisherige.
+    ///
+    /// Das ist keine Zusammenführung wie beim Abgleich, sondern ein Überschreiben — mitsamt
+    /// Geräte-Kennung, Rolle und Team-Schlüssel. Deshalb darf es nur nach ausdrücklicher
+    /// Rückfrage passieren; die stellt der Experten-Bildschirm, nicht diese Methode.
+    func uebernimmHandywechselBackup(von url: URL, geheimnis: String) {
+        do {
+            let daten = try Data(contentsOf: url)
+            let neu = try DeviceBackupCodec.restoreBackup(
+                daten,
+                transferSecret: geheimnis,
+                photoTargetURL: { [repo] name in repo.photoURL(name) }
+            )
+            // Fristen sofort auswerten: Ein uebernommenes Plakat kann laengst faellig sein.
+            try speichere(RemovalDeadlinePolicy.applyToState(neu))
+            meldung = "Umzug abgeschlossen: \(neu.posters.count) Plakate übernommen."
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
     /// Nimmt ein Paket entgegen, das über den Teilen-Dialog oder „Öffnen mit" hereinkommt.
     func importiereSyncPaket(von url: URL) {
         let brauchtFreigabe = url.startAccessingSecurityScopedResource()
