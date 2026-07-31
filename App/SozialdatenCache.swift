@@ -1,4 +1,7 @@
 import Foundation
+// Fuer SozialCachePolitik: Die beiden Haltbarkeitsregeln liegen im Kern, weil das App-Ziel
+// kein Test-Ziel hat. Genau dieser Import hat beim ersten Anlauf gefehlt.
+import PlakatKompassCore
 
 /// Antworten der amtlichen Server über App-Starts hinweg behalten — Gegenstück zu
 /// `feature/socialdata/SocialResponseCache.kt` und `util/SocialDataSettingsStore.kt`.
