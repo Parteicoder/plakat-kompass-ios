@@ -192,6 +192,23 @@ jobs:
         # ausschliesst - und sie braucht keine Testdaten.
         timeout-minutes: 40
         run: |
+          # ORTUNG VORAB ERLAUBEN, damit der Dialog gar nicht erst kommt.
+          #
+          # Der Lauf ist einmal daran gescheitert, dass zwei Systemdialoge nacheinander
+          # aufgingen: "exists" sagte ja zum Ortungsdialog, und bis der Tipp beim Element war,
+          # stand dort schon der Meldungsdialog mit nur zwei Knoepfen. Ein Dialog, den es nie
+          # gibt, kann auch nicht zum falschen Zeitpunkt verschwinden - das ist die einzige
+          # Loesung, die das Rennen wirklich beendet statt es zu verkuerzen.
+          #
+          # Fuer Meldungen gibt es kein Gegenstueck: "simctl privacy" kennt Ortung, Fotos,
+          # Mikrofon und einiges mehr, aber keine Benachrichtigungen. Diesen einen Dialog muss
+          # der Test weiter selbst wegklicken, jetzt aber als einzigen.
+          #
+          # "|| true", weil ein unbekannter Dienst je nach Xcode-Fassung einen Fehler wirft -
+          # und der Schritt laeuft unter "bash -e". Daran soll kein Lauf scheitern.
+          xcrun simctl privacy "$SIM_UDID" grant location-always de.bsw.plakatkompass || true
+          xcrun simctl privacy "$SIM_UDID" grant location de.bsw.plakatkompass || true
+
           xcodebuild test \
             -project PlakatKompass.xcodeproj \
             -scheme PlakatKompass \
