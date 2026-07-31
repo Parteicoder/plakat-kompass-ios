@@ -87,7 +87,17 @@
 	<string>Für den Abgleich mit den Geräten deines Teams in der Nähe. Angesprochen werden nur Geräte mit demselben Team-Schlüssel, und die Daten verlassen das lokale Netz nicht.</string>
 	<key>NSBonjourServices</key>
 	<array>
+		<!-- de.bsw.plakatradar.LOCAL_SYNC - der Abgleich zwischen Teamgeraeten. -->
 		<string>_EA0A851F84A0._tcp</string>
+		<!--
+		  de.bsw.plakatradar.DEVICE_BACKUP - der Handywechsel.
+
+		  Eigener Dienst, weil sich beim Abgleich ALLE Teamgeraete verbinden, beim Umzug aber
+		  genau zwei - und das neue Geraet noch gar kein Team hat. Fehlt dieser Eintrag, sucht
+		  das iPhone beim Handywechsel lautlos ins Leere: kein Absturz, keine Meldung, nie ein
+		  Geraet. Genau dieselbe Falle wie oben, nur ein zweites Mal.
+		-->
+		<string>_27F69BB0892F._tcp</string>
 	</array>
 
 	<!--

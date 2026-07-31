@@ -34,6 +34,11 @@ struct EinstellungenView: View {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
                 // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
                 NavigationLink("Verlauf") { VerlaufView() }
+                // Der Experten-Bildschirm bekommt das Modell im init mit, nicht ueber die
+                // Umgebung: HandywechselNearby haengt als @StateObject daran und muss beim
+                // ERZEUGEN schon wissen, mit welchem Modell es arbeitet. Ein
+                // @EnvironmentObject stuende dafuer zu spaet bereit.
+                NavigationLink("Experten") { ExpertenView(model: model) }
                 NavigationLink("Lizenzen und Dank") { LizenzenView() }
             }
         }
