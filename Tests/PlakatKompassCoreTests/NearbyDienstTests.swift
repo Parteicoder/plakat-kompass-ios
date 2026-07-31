@@ -34,6 +34,52 @@ final class NearbyDienstTests: XCTestCase {
         XCTAssertEqual(NearbyDienst.namensPraefix, "PlakatRadar|")
     }
 
+    // MARK: - Handywechsel
+
+    /// Zweiter Dienst, zweiter Typ, dieselbe lautlose Falle. Muss wörtlich in `App/Info.plist`
+    /// stehen — sonst sucht das iPhone beim Umzug ins Leere.
+    func testTypDesHandywechsels() {
+        XCTAssertEqual(NearbyDienst.backupKennung, "de.bsw.plakatradar.DEVICE_BACKUP")
+        XCTAssertEqual(NearbyDienst.backupBonjourTyp, "_27F69BB0892F._tcp")
+        XCTAssertEqual(NearbyDienst.transferSchluesselPraefix, "PRBACKUP2-KEY\n")
+    }
+
+    /// Die beiden Dienste dürfen sich niemals treffen.
+    func testAbgleichUndHandywechselSindGetrennt() {
+        XCTAssertNotEqual(NearbyDienst.bonjourTyp, NearbyDienst.backupBonjourTyp)
+        XCTAssertNotEqual(NearbyDienst.kennung, NearbyDienst.backupKennung)
+    }
+
+    /// **Über Kreuz, sonst gar nicht.** Zwei Sender fänden sich sonst gegenseitig und warteten,
+    /// bis einer aufgibt — auf beiden Bildschirmen stünde „Verbindung wird aufgebaut".
+    func testNurGegensaetzlicheRollenVerbindenSich() {
+        let alt = NearbyDienst.BackupRolle.senden
+        let neu = NearbyDienst.BackupRolle.empfangen
+
+        XCTAssertTrue(alt.passtZu(endpunktName: neu.endpunktName(zeit: 1)))
+        XCTAssertTrue(neu.passtZu(endpunktName: alt.endpunktName(zeit: 1)))
+        XCTAssertFalse(alt.passtZu(endpunktName: alt.endpunktName(zeit: 1)))
+        XCTAssertFalse(neu.passtZu(endpunktName: neu.endpunktName(zeit: 1)))
+    }
+
+    /// Ein fremder Endpunkt darf nicht durchrutschen — auch keiner des Abgleichs.
+    func testFremdeEndpunktnamenWerdenAbgelehnt() {
+        let alt = NearbyDienst.BackupRolle.senden
+        XCTAssertFalse(alt.passtZu(endpunktName: "PlakatRadar|Davids iPhone|abc12345"))
+        XCTAssertFalse(alt.passtZu(endpunktName: "PlakatRadarBackup|"))
+        XCTAssertFalse(alt.passtZu(endpunktName: ""))
+        XCTAssertFalse(alt.passtZu(endpunktName: "Irgendwas|RECEIVE|1"))
+    }
+
+    /// Der Name im Verbindungswunsch ist auf Android die **lange** Form (`mode.name`), der beim
+    /// Ankündigen die kurze. Diese Asymmetrie ist nachgebildet, nicht begradigt — wer sie
+    /// „aufräumt", macht den Umzug zwischen Android und iPhone unmöglich.
+    func testVerbindungsnameFolgtDerAndroidSchreibweise() {
+        XCTAssertEqual(NearbyDienst.BackupRolle.senden.verbindungsName, "PlakatRadarBackup|SENDING|local")
+        XCTAssertEqual(NearbyDienst.BackupRolle.empfangen.verbindungsName, "PlakatRadarBackup|RECEIVING|local")
+        XCTAssertEqual(NearbyDienst.BackupRolle.senden.endpunktName(zeit: 42), "PlakatRadarBackup|SEND|42")
+    }
+
     /// Der Nonce im Handschlag: 32 Byte als Kleinhex, und zweimal nacheinander nicht derselbe.
     func testNonceHatLaengeUndWiederholtSichNicht() {
         let a = Crypto.randomNonceHex()

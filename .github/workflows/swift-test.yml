@@ -297,14 +297,23 @@ jobs:
           #
           # Weicht er ab, sucht iOS nach einem Typ, den es nicht freigegeben bekommt: keine
           # Fehlermeldung, kein Log, nur nie ein gefundenes Geraet.
-          erwartet="_EA0A851F84A0._tcp"
-          gefunden=$(/usr/libexec/PlistBuddy -c "Print :NSBonjourServices:0" "$PLIST" 2>/dev/null || true)
-          if [ "$gefunden" = "$erwartet" ]; then
-            echo "Bonjour-Typ stimmt: $gefunden"
-          else
-            echo "FALSCHER Bonjour-Typ: '$gefunden' statt '$erwartet'"
-            fehlt=1
-          fi
+          #
+          # ZWEI Typen, seit es den Handywechsel gibt: der Abgleich und das Geraete-Backup sind
+          # getrennte Nearby-Dienste und haben deshalb getrennte Bonjour-Typen. Geprueft wird
+          # jeder EINZELN und ueber die ganze Liste - nicht ueber den Index. Mit ":0" haette
+          # ein vertauschter oder ein fehlender zweiter Eintrag hier gar nichts ausgeloest.
+          alle=$(/usr/libexec/PlistBuddy -c "Print :NSBonjourServices" "$PLIST" 2>/dev/null || true)
+          echo "In der Plist stehen:"; printf '%s\n' "$alle" | sed 's/^/  /'
+          for erwartet in _EA0A851F84A0._tcp _27F69BB0892F._tcp; do
+            # -F, damit die Punkte im Typ Punkte bleiben und nicht "irgendein Zeichen"
+            # bedeuten; -x, damit ein laengerer Eintrag nicht als Treffer durchgeht.
+            if printf '%s\n' "$alle" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -qxF "$erwartet"; then
+              echo "Bonjour-Typ vorhanden: $erwartet"
+            else
+              echo "FEHLENDER Bonjour-Typ: $erwartet"
+              fehlt=1
+            fi
+          done
 
           # Das Datenschutz-Manifest muss neben der Info.plist im Bundle liegen. Fehlt es,
           # weist der App Store die App zurueck - und zwar erst beim Einreichen, nicht hier.
