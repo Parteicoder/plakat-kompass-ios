@@ -1,5 +1,6 @@
 import PlakatKompassCore
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct SyncView: View {
@@ -194,6 +195,10 @@ private struct FunkAbgleich: View {
                 )
             }
 
+            if nearby.nichtsGefunden {
+                StilleErklaeren()
+            }
+
             if let letzte = nearby.protokoll.last {
                 Text(letzte).font(.caption).foregroundStyle(.secondary)
             }
@@ -208,6 +213,36 @@ private struct FunkAbgleich: View {
             hier ablehnt, sieht danach nie ein Gerät, ohne dass es eine Meldung gäbe.
             """)
         }
+    }
+}
+
+/// Kommt nach 25 Sekunden Stille — und nur dann.
+///
+/// Der Fussnotentext unten steht immer da und wird deshalb genau dann nicht gelesen, wenn er
+/// gebraucht wird. Dies hier erscheint erst, wenn das Problem eingetreten ist, und nennt beide
+/// Ursachen in der Reihenfolge, in der man sie prüfen kann. Der Knopf führt direkt auf die Seite
+/// mit dem Schalter „Lokales Netzwerk" — den Weg über Einstellungen → Datenschutz → Lokales
+/// Netzwerk → App suchen findet sonst kaum jemand.
+private struct StilleErklaeren: View {
+    @Environment(\.openURL) private var oeffne
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Bisher kein Gerät gefunden", systemImage: "wifi.exclamationmark")
+                .font(.subheadline.weight(.semibold))
+            Text("""
+            Zwei mögliche Gründe, beide ohne Fehlermeldung: Die Geräte hängen in \
+            verschiedenen WLANs — oder iOS hat beim ersten Mal nach dem lokalen Netzwerk \
+            gefragt und die Antwort war „Nicht erlauben".
+            """)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            if let einstellungen = URL(string: UIApplication.openSettingsURLString) {
+                Button("Lokales Netzwerk prüfen") { oeffne(einstellungen) }
+                    .font(.caption)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

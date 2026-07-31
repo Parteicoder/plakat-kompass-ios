@@ -28,6 +28,13 @@ final class NearbyAbgleich: ObservableObject {
     @Published private(set) var protokoll: [String] = []
     /// Wie viele Teamgeräte den Handschlag bestanden haben — die Zahl für die Oberfläche.
     @Published private(set) var gepruefteGeraete = 0
+    /// Es läuft, aber nach [stilleSekunden] hat sich kein einziges Gerät gemeldet.
+    ///
+    /// Der einzige Weg, das verweigerte lokale Netzwerk zu bemerken: iOS bietet **keine**
+    /// Abfrage an, ob die Erlaubnis erteilt wurde. Wer sie ablehnt, bekommt eine Suche, die
+    /// fehlerfrei läuft und nie etwas findet — nicht von „niemand in der Nähe" zu unterscheiden.
+    /// Deshalb kein Schluss auf die Ursache, sondern der Hinweis auf beide möglichen.
+    @Published private(set) var nichtsGefunden = false
 
     /// Ein eigenes Paket auf dem Weg zu einem Gerät.
     private struct Sendung {
@@ -56,6 +63,14 @@ final class NearbyAbgleich: ObservableObject {
     private var eigeneSendungen: [PayloadID: Sendung] = [:]
     /// Hereinkommende Pakete: Sendung → Ort auf der Platte. Vollständig erst bei `.success`.
     private var eingehendeDateien: [PayloadID: URL] = [:]
+    private var stilleUhr: Task<Void, Never>?
+
+    /// So lange darf es dauern, bis sich das erste Gerät zeigt, bevor der Hinweis kommt.
+    ///
+    /// Grosszügig bemessen: Über WLAN vergehen zwischen „Suche läuft" und dem ersten Fund
+    /// regelmässig zehn Sekunden und mehr. Ein zu früher Hinweis wäre schlimmer als keiner —
+    /// er schickte Leute in die Einstellungen, während der Abgleich gerade zustande kommt.
+    private static let stilleSekunden: UInt64 = 25
 
     init(model: AppModel) {
         self.model = model
@@ -92,10 +107,20 @@ final class NearbyAbgleich: ObservableObject {
                 ?? "Suche nach Teamgeräten läuft."
             Task { @MainActor [weak self] in self?.melde(text) }
         }
+
+        nichtsGefunden = false
+        stilleUhr = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.stilleSekunden * 1_000_000_000)
+            guard !Task.isCancelled, let self, self.laeuft, self.verbunden.isEmpty else { return }
+            self.nichtsGefunden = true
+        }
     }
 
     func stop() {
         guard laeuft else { return }
+        stilleUhr?.cancel()
+        stilleUhr = nil
+        nichtsGefunden = false
         werber?.stopAdvertising()
         sucher?.stopDiscovery()
         verbunden.forEach { manager?.disconnect(from: $0) }
@@ -124,6 +149,17 @@ final class NearbyAbgleich: ObservableObject {
 
     private func endpunktName(_ stand: LocalTeamState) -> String {
         "\(NearbyDienst.namensPraefix)\(stand.deviceName)|\(stand.deviceId.prefix(8))"
+    }
+
+    /// Es ist ein Gerät aufgetaucht — damit ist die Frage nach dem lokalen Netz beantwortet.
+    ///
+    /// Schon der **Fund** genügt, nicht erst die Verbindung: Wer bis hierher kommt, hat die
+    /// Erlaubnis und hängt im richtigen Netz. Scheitert es danach, liegt es am Team-Schlüssel
+    /// oder am anderen Gerät — dann wäre ein Hinweis auf die Einstellungen eine falsche Fährte.
+    private func netzLebt() {
+        stilleUhr?.cancel()
+        stilleUhr = nil
+        nichtsGefunden = false
     }
 
     private func melde(_ text: String) {
@@ -261,6 +297,7 @@ extension NearbyAbgleich: DiscovererDelegate {
             // kostet nichts und steht auf Android genauso da.
             guard String(decoding: context, as: UTF8.self).hasPrefix(NearbyDienst.namensPraefix),
                   let stand = model?.state else { return }
+            netzLebt()
             melde("PlakatRadar-Gerät gefunden. Verbindung wird aufgebaut.")
             discoverer.requestConnection(to: endpointID, using: Data(endpunktName(stand).utf8))
         }
@@ -280,6 +317,8 @@ extension NearbyAbgleich: AdvertiserDelegate {
         MainActor.assumeIsolated {
             let passt = String(decoding: context, as: UTF8.self)
                 .hasPrefix(NearbyDienst.namensPraefix)
+            // Auch der umgekehrte Weg zaehlt: Wer uns anfragt, hat uns gefunden.
+            if passt { netzLebt() }
             melde(passt ? "Anfrage von einem PlakatRadar-Gerät." : "Fremdes Gerät abgelehnt.")
             connectionRequestHandler(passt)
         }
