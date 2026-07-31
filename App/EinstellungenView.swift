@@ -13,6 +13,7 @@ struct EinstellungenView: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage(Kurzanleitung.schluessel) private var anleitungGesehen = ""
 
+    @AppStorage(Darstellung.schluessel) private var darstellung = Darstellung.system.rawValue
     @AppStorage("pausenErinnerung") private var pausenErinnerung = false
     @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
     @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
@@ -26,10 +27,12 @@ struct EinstellungenView: View {
     // UND die Vorbeugung.
     var body: some View {
         List {
+            darstellungAbschnitt
             pausenAbschnitt
             berechtigungenAbschnitt
             geraeteAbschnitt
             kurzanleitungAbschnitt
+            unterstuetzenAbschnitt
             Section {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
                 // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
@@ -79,6 +82,47 @@ struct EinstellungenView: View {
                  ? "Noch kein Bereich erklärt — die Anleitung erscheint von selbst, sobald du einen öffnest."
                  : "\(gesehen) von \(Kurzanleitung.bereiche.count) Bereichen gesehen. Danach erscheint "
                    + "die Erklärung wieder, sobald du einen Bereich öffnest.")
+        }
+    }
+
+    @ViewBuilder private var darstellungAbschnitt: some View {
+        Section {
+            Picker("Erscheinungsbild", selection: $darstellung) {
+                ForEach(Darstellung.allCases) { fall in
+                    Text(fall.beschriftung).tag(fall.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("Darstellung")
+        } footer: {
+            Text("""
+            „Automatisch" folgt der Einstellung des iPhones. Hell und Dunkel gelten nur für \
+            diese App — wer nachts plakatiert, kann sie dunkel stellen, ohne das ganze Telefon \
+            umzustellen.
+            """)
+        }
+    }
+
+    /// Ko-fi — Gegenstück zu `ModernKofiSupportCard.kt`.
+    ///
+    /// **Ein Link, kein Kaufvorgang.** Apple verlangt seine eigene Bezahlung nur für digitale
+    /// Waren *innerhalb* der App; eine Spende an die Entwicklung über einen Browserlink ist
+    /// ausdrücklich erlaubt. Deshalb `Link` und nicht StoreKit — und deshalb steht hier auch
+    /// nichts von „freischalten" oder „Pro": Die App kann ohne Spende alles.
+    @ViewBuilder private var unterstuetzenAbschnitt: some View {
+        Section {
+            Link(destination: URL(string: "https://ko-fi.com/parteicoder")!) {
+                Label("Ko-fi öffnen", systemImage: "cup.and.saucer")
+            }
+        } header: {
+            Text("Unterstützen")
+        } footer: {
+            Text("""
+            Plakat Kompass ist freie Software und kostet nichts. Wer die Arbeit daran \
+            unterstützen möchte, kann das über Ko-fi tun — an der App ändert sich dadurch \
+            nichts, sie kann ohnehin alles.
+            """)
         }
     }
 
