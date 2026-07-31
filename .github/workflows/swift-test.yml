@@ -180,24 +180,36 @@ jobs:
           fi
           echo "Untersucht wird: $BIN"
 
-          symbole=$( { nm -u "$BIN"; otool -v -s __TEXT __objc_methname "$BIN"; } 2>/dev/null )
+          # dyld_info ZUERST, nicht nm. Xcode schreibt seit Fassung 14 "chained fixups": Die
+          # importierten Symbole stehen dann nicht mehr dort, wo "nm -u" nachsieht. Ein erster
+          # Anlauf mit nm allein meldete deshalb fuer JEDE Kategorie "nichts gefunden" - ein
+          # gruener Haken, der nur bewies, dass das Werkzeug nichts sah. nm bleibt als zweite
+          # Quelle dabei, es kostet nichts und faengt aeltere Formate mit ab.
+          symbole=$( { dyld_info -imports "$BIN"; nm -u "$BIN"; \
+                       otool -v -s __TEXT __objc_methname "$BIN"; } 2>/dev/null )
 
           # Ohne diese Probe waere ein leeres oder unlesbares Ergebnis nicht von "nichts
           # gefunden" zu unterscheiden - und die Aufgabe wuerde gruen, gerade weil sie blind
           # ist. objc_msgSend steht in jedem iOS-Programm; fehlt es, stimmt die Suche nicht.
-          if ! printf '%s\n' "$symbole" | grep -qwF -- _objc_msgSend; then
-            echo "Die Suche selbst ist blind: _objc_msgSend fehlt im Ergebnis von nm/otool."
+          # Genau hier ist der erste Anlauf aufgeflogen, statt still durchzugehen.
+          if ! printf '%s\n' "$symbole" | grep -qF objc_msgSend; then
+            echo "Die Suche selbst ist blind: objc_msgSend fehlt im Ergebnis der Werkzeuge."
             echo "Ohne belastbares Ergebnis ist ein 'nichts gefunden' wertlos."
             exit 1
           fi
           echo "Probe bestanden: $(printf '%s\n' "$symbole" | grep -c .) Zeilen Symbole und Selektoren."
 
           gefunden=""
+          # Die Muster stehen OHNE fuehrenden Unterstrich. Je nach Werkzeug steht er da oder
+          # nicht (dyld_info und nm schreiben "_stat", die Selektorentabelle "systemUptime"),
+          # deshalb ist er im Ausdruck optional. Die Grenzen links und rechts muessen sein:
+          # ohne sie faende "stat" auch jedes "fstatfs" und die Kategorien liefen ineinander.
           pruefe() {
             kategorie=$1; shift
             treffer=""
             for muster in "$@"; do
-              if printf '%s\n' "$symbole" | grep -qwF -- "$muster"; then
+              if printf '%s\n' "$symbole" \
+                 | grep -qE "(^|[^A-Za-z0-9_])_?${muster}([^A-Za-z0-9_]|\$)"; then
                 treffer="$treffer $muster"
               fi
             done
@@ -210,21 +222,21 @@ jobs:
           }
 
           pruefe NSPrivacyAccessedAPICategoryFileTimestamp \
-            _stat _stat64 _fstat _fstat64 _lstat _lstat64 _fstatat _fstatat64 \
-            _getattrlist _fgetattrlist _getattrlistbulk _getattrlistat \
-            _NSURLContentModificationDateKey _NSURLCreationDateKey
+            stat stat64 fstat fstat64 lstat lstat64 fstatat fstatat64 \
+            getattrlist fgetattrlist getattrlistbulk getattrlistat \
+            NSURLContentModificationDateKey NSURLCreationDateKey
           pruefe NSPrivacyAccessedAPICategorySystemBootTime \
-            _mach_absolute_time systemUptime
+            mach_absolute_time systemUptime
           pruefe NSPrivacyAccessedAPICategoryDiskSpace \
-            _statfs _statfs64 _fstatfs _fstatfs64 _statvfs _fstatvfs \
-            _NSFileSystemFreeSize _NSFileSystemSize \
-            _NSURLVolumeAvailableCapacityKey _NSURLVolumeTotalCapacityKey \
-            _NSURLVolumeAvailableCapacityForImportantUsageKey \
-            _NSURLVolumeAvailableCapacityForOpportunisticUsageKey \
+            statfs statfs64 fstatfs fstatfs64 statvfs fstatvfs \
+            NSFileSystemFreeSize NSFileSystemSize \
+            NSURLVolumeAvailableCapacityKey NSURLVolumeTotalCapacityKey \
+            NSURLVolumeAvailableCapacityForImportantUsageKey \
+            NSURLVolumeAvailableCapacityForOpportunisticUsageKey \
             systemFreeSize systemSize
           pruefe NSPrivacyAccessedAPICategoryActiveKeyboards activeInputModes
           pruefe NSPrivacyAccessedAPICategoryUserDefaults \
-            '_OBJC_CLASS_$_NSUserDefaults' standardUserDefaults
+            NSUserDefaults standardUserDefaults
 
           echo
           echo "Hinweis: 'keine Referenz' heisst NICHT 'wird nicht benutzt'. Es heisst, dass das"
