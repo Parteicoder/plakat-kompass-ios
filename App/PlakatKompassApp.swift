@@ -29,13 +29,21 @@ struct PlakatKompassApp: App {
                 // Verbindungen fallen. Wuerde der Schalter trotzdem auf „an" stehen bleiben,
                 // behauptete er etwas, das nicht stimmt — und man suchte den Fehler beim WLAN.
                 .onChange(of: phase) { _, neu in
-                    if neu != .active { model.nearby.stop() }
+                    if neu != .active {
+                        model.nearby.stop()
+                        // Die Marke wieder wegnehmen: Wer geordnet in den Hintergrund geht, ist
+                        // nicht abgestuerzt. Steht sie beim naechsten Start noch da, war es einer.
+                        Protokoll.geteilt.gehtInDenHintergrund()
+                    }
                 }
                 // Der ganze Android-iOS-Abgleich haengt an dieser einen Zeile: Ein Sync-Paket
                 // kommt als Datei herein, egal ob aus einem Messenger, aus Mail, per AirDrop
                 // oder aus der Dateien-App.
                 .onOpenURL { url in model.importiereSyncPaket(von: url) }
-                .task { await model.beimStart() }
+                .task {
+                    Protokoll.geteilt.beimStart()
+                    await model.beimStart()
+                }
         }
     }
 }

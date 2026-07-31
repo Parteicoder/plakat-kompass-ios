@@ -11,6 +11,7 @@ struct ExpertenView: View {
     @StateObject private var umzug: HandywechselNearby
 
     @State private var empfangBestaetigen = false
+    @State private var protokollDatei: URL?
 
     init(model: AppModel) {
         _umzug = StateObject(wrappedValue: HandywechselNearby(model: model))
@@ -20,7 +21,9 @@ struct ExpertenView: View {
         List {
             Handywechsel(umzug: umzug, empfangBestaetigen: $empfangBestaetigen)
             Diagnose(umzug: umzug)
+            Fehlerbericht(protokollDatei: $protokollDatei)
         }
+        .sheet(item: $protokollDatei) { datei in TeilenDialog(dateien: [datei]) }
         .navigationTitle("Experten")
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { umzug.stop() }
@@ -102,6 +105,69 @@ private struct Handywechsel: View {
             Geräte-Kennung, und das Team hielte sie für ein einziges Gerät.
             """)
         }
+    }
+}
+
+/// Das Protokoll, das den Neustart überlebt — und der Weg, es jemandem zu schicken.
+///
+/// **Warum ein eigener Abschnitt und nicht bei der Diagnose:** Die Protokolle darüber leben nur,
+/// solange die App läuft. Wer nach einem misslungenen Abgleich die App schliesst — und das tut
+/// man —, hat dort nichts mehr. Dieses hier ist genau für den Fall gemacht.
+private struct Fehlerbericht: View {
+    @ObservedObject private var protokoll = Protokoll.geteilt
+    @Binding var protokollDatei: URL?
+
+    var body: some View {
+        Section {
+            if protokoll.vorigerLaufBrachAb {
+                Label(
+                    "Der vorige Lauf ist nicht geordnet zu Ende gegangen.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .foregroundStyle(.orange)
+                .font(.footnote)
+            }
+
+            Button {
+                protokollDatei = schreibeZumTeilen()
+            } label: {
+                Label("Protokoll teilen", systemImage: "square.and.arrow.up")
+            }
+            .disabled(protokoll.zeilen.isEmpty)
+
+            Button(role: .destructive) {
+                protokoll.leeren()
+            } label: {
+                LabeledContent("Protokoll löschen") {
+                    Text("\(protokoll.zeilen.count) Zeilen")
+                }
+            }
+            .disabled(protokoll.zeilen.isEmpty)
+
+            // Neueste zuerst - anders als in der Datei. Wer hier hereinschaut, sucht das
+            // Letzte, was passiert ist, nicht den Start von vorgestern.
+            ForEach(Array(protokoll.zeilen.enumerated().reversed().prefix(40)), id: \.offset) { _, zeile in
+                Text(zeile).font(.caption2).textSelection(.enabled)
+            }
+        } header: {
+            Text("Fehlerbericht")
+        } footer: {
+            Text("""
+            Dieses Protokoll überlebt den Neustart und liegt nur auf dem Gerät. Es enthält \
+            Zeitpunkte und Meldungen des Abgleichs — **keine** Plakate, keine Fotos, keine \
+            Standorte und keinen Team-Schlüssel. Beim Teilen entscheidest du, wer es bekommt.
+
+            Angezeigt sind die letzten 40 Zeilen; geteilt wird das ganze Protokoll.
+            """)
+        }
+    }
+
+    private func schreibeZumTeilen() -> URL? {
+        let ziel = FileManager.default.temporaryDirectory
+            .appendingPathComponent("plakatkompass-protokoll.txt")
+        guard (try? protokoll.alsText().write(to: ziel, atomically: true, encoding: .utf8)) != nil
+        else { return nil }
+        return ziel
     }
 }
 

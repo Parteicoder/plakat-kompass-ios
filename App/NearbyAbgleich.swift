@@ -164,6 +164,9 @@ final class NearbyAbgleich: ObservableObject {
 
     private func melde(_ text: String) {
         protokoll.append(text)
+        // Zusaetzlich in die Datei, die den Neustart ueberlebt - sonst ist beim
+        // Fehlerbericht am naechsten Tag nichts mehr da.
+        Protokoll.geteilt.schreibe("Abgleich: \(text)")
         // Ein Protokoll, das nie vergisst, wächst über eine Kampagne hinweg ins Unangenehme.
         if protokoll.count > 100 { protokoll.removeFirst(protokoll.count - 100) }
     }
