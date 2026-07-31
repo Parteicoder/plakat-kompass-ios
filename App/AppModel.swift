@@ -295,8 +295,13 @@ final class AppModel: ObservableObject {
     // MARK: - Team
 
     /// Legt ein Team an. Das Geheimnis verlässt das Gerät nur als Hash im Sync-Paket.
-    func legeTeamAn(name: String) {
+    ///
+    /// `eigenerName` ist kein Zierrat, siehe [benenneGeraet]: Ohne ihn hiesse die Teamleitung in
+    /// ihrer eigenen Geräteliste „iPhone".
+    func legeTeamAn(name: String, eigenerName: String = "") {
         var neu = state
+        let meinName = eigenerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !meinName.isEmpty { neu.deviceName = meinName }
         neu.teamId = UUID().uuidString
         neu.teamName = name
         // Dieselben 32 Zufallsbytes als Hex wie auf Android — jetzt aus `Crypto`, wo die
@@ -305,7 +310,7 @@ final class AppModel: ObservableObject {
         neu.role = .LEADER
         neu.devices = [
             DeviceRecord(
-                deviceId: state.deviceId, displayName: state.deviceName,
+                deviceId: state.deviceId, displayName: neu.deviceName,
                 role: .LEADER, approved: true, blocked: false
             )
         ]
@@ -350,18 +355,45 @@ final class AppModel: ObservableObject {
     ///
     /// Ohne diesen Weg gäbe es keinen Android-iOS-Abgleich: Er ist die einzige Stelle, an der
     /// zwei Geräte an dasselbe Team-Geheimnis kommen.
-    func tritTeamBei(qrInhalt: String) {
+    func tritTeamBei(qrInhalt: String, eigenerName: String = "") {
         do {
             let einladung = try TeamInvite.decode(qrInhalt)
             guard einladung.istNochGueltig else {
                 fehler = "Dieser Team-QR-Code ist abgelaufen. Bitte den Teamleiter um einen neuen bitten."
                 return
             }
-            try speichere(state.beigetreten(mit: einladung))
+            // `beigetreten` konnte den Namen schon immer übernehmen — nur gab ihn hier nie jemand
+            // mit. Siehe [benenneGeraet]: Das Ergebnis war ein Team, in dem jedes iPhone „iPhone"
+            // hiess.
+            let meinName = eigenerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            try speichere(state.beigetreten(mit: einladung, eigenerName: meinName.isEmpty ? nil : meinName))
             meldung = "Team „\(einladung.teamName)“ beigetreten."
         } catch {
             fehler = error.localizedDescription
         }
+    }
+
+    /// Benennt dieses Gerät um — auch nachträglich.
+    ///
+    /// **Warum es das überhaupt braucht:** Seit iOS 16 gibt `UIDevice.current.name` ohne
+    /// Sonderberechtigung nur noch das Modell zurück, also schlicht „iPhone". Der Name wurde
+    /// bisher allein im Weg „allein loslegen" gesetzt; wer per QR beitrat oder ein Team gründete,
+    /// blieb „iPhone" — in der Geräteliste, im Verlauf jedes Plakats, in der Spalte „erfasst von"
+    /// des amtlichen Exports und im Endpunktnamen des Funk-Abgleichs. Bei drei iPhones im Team
+    /// konnte die Teamleitung nicht mehr erkennen, welches Gerät sie gerade freigibt oder sperrt.
+    ///
+    /// Der eigene Eintrag in der Geräteliste wird mitgezogen. Ohne das stünde der neue Name oben
+    /// unter „Dieses Gerät" und der alte weiter unten in derselben Liste.
+    func benenneGeraet(_ name: String) {
+        let sauber = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sauber.isEmpty, sauber != state.deviceName else { return }
+        var neu = state
+        neu.deviceName = sauber
+        if let index = neu.devices.firstIndex(where: { $0.deviceId == state.deviceId }) {
+            neu.devices[index].displayName = sauber
+        }
+        try? speichere(neu)
+        meldung = "Dieses Gerät heisst jetzt „\(sauber)“."
     }
 
     /// Der eigene Einladungscode — nur sinnvoll, wenn dieses Gerät die Teamleitung hat.

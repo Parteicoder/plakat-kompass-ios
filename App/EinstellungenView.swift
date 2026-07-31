@@ -15,6 +15,7 @@ struct EinstellungenView: View {
     @AppStorage("pausenErinnerung") private var pausenErinnerung = false
     @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
     @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
+    @State private var neuerName = ""
 
     // Die Abschnitte stehen einzeln, nicht als ein grosses `body`.
     //
@@ -37,6 +38,9 @@ struct EinstellungenView: View {
         .navigationTitle("Einstellungen")
         .navigationBarTitleDisplayMode(.inline)
         .task { meldungenErlaubt = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
+        // Das Feld startet mit dem aktuellen Namen, statt leer. Ein leeres Feld sähe aus, als
+        // gäbe es keinen Namen — und lüde dazu ein, versehentlich einen leeren zu speichern.
+        .onAppear { if neuerName.isEmpty { neuerName = model.state.deviceName } }
         .onChange(of: pausenErinnerung) { _, an in
             Task { an ? await Erinnerungen.startePause(minuten: pausenMinuten) : Erinnerungen.beendePause() }
         }
@@ -86,8 +90,28 @@ struct EinstellungenView: View {
     }
 
     @ViewBuilder private var geraeteAbschnitt: some View {
-        Section("Dieses Gerät") {
-            LabeledContent("Name", value: model.state.deviceName)
+        Section {
+            // Änderbar, nicht nur anzeigbar. Wer beim Beitritt keinen Namen gesetzt hat — oder
+            // aus einer älteren Fassung kommt, die gar nicht danach fragte — sitzt sonst
+            // dauerhaft als „iPhone" in der Teamliste fest.
+            TextField("Name", text: $neuerName)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .onSubmit { model.benenneGeraet(neuerName) }
+            if neuerName.trimmingCharacters(in: .whitespacesAndNewlines) != model.state.deviceName {
+                Button("Namen übernehmen") { model.benenneGeraet(neuerName) }
+                    .disabled(neuerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        } header: {
+            Text("Dieses Gerät")
+        } footer: {
+            Text("""
+            Der Name steht an jedem Plakat, das du erfasst, und in der Geräteliste des Teams. \
+            Ein iPhone gibt seinen eigenen Namen nicht heraus — hier ist die einzige Stelle, an \
+            der er gesetzt wird.
+            """)
+        }
+        Section {
             LabeledContent("Rolle", value: model.state.role == .LEADER ? "Teamleitung" : "Mitglied")
             LabeledContent("Team", value: model.state.teamName ?? "—")
             LabeledContent("Plakate", value: "\(model.state.posters.count)")
