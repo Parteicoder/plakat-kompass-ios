@@ -64,6 +64,12 @@ targets:
         product: PlakatKompassCore
       - package: NearbyConnections
         product: NearbyConnections
+    # Damit "xcodebuild test -scheme PlakatKompass" die Oberflaechentests mitnimmt. Ohne diesen
+    # Block erzeugt XcodeGen zwar das Testziel, haengt es aber in kein Schema - der Lauf waere
+    # gruen, ohne einen einzigen Test ausgefuehrt zu haben.
+    scheme:
+      testTargets:
+        - PlakatKompassUITests
     # HIER STAND EIN "info:"-BLOCK. Er hat App/Info.plist ERZEUGT und damit die
     # eingecheckte Fassung ueberschrieben - mitsamt den Berechtigungstexten und den
     # Dateityp-Angaben. Auf dem Bau-Rechner blieb eine Plist mit zwei Eintraegen uebrig.
@@ -90,4 +96,24 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         # Signierung bleibt bewusst leer: Die Team-ID gehoert nicht ins Repo.
         # In Xcode unter "Signing & Capabilities" das eigene Team waehlen.
+        CODE_SIGN_STYLE: Automatic
+
+  # Oberflaechentests: startet die App und tippt sich durch die fuenf Reiter.
+  #
+  # Getrenntes Ziel, weil UI-Tests als eigener Vorgang NEBEN der App laufen - sie steuern sie
+  # von aussen ueber die Barrierefreiheits-Schnittstelle. Ein Unit-Test-Ziel koennte das nicht.
+  PlakatKompassUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: PlakatKompass
+    settings:
+      base:
+        TEST_TARGET_NAME: PlakatKompass
+        # Ohne eigene Bundle-Kennung kollidiert das Testpaket mit der App.
+        PRODUCT_BUNDLE_IDENTIFIER: de.bsw.plakatkompass.uitests
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
