@@ -136,12 +136,20 @@ struct TeamBeitrittView: View {
 struct TeamQrView: View {
     @EnvironmentObject private var model: AppModel
     @State private var codeSichtbar = false
+    @State private var code: String?
+    @State private var folge: Int64 = 0
+    @State private var restSekunden = Int(RollingTeamInvite.ttlSekunden)
+
+    /// Der Takt der Anzeige. Der Code selbst wird kurz VOR Ablauf erneuert, nicht danach —
+    /// sonst hielte die Teamleitung für einen Moment einen bereits ungültigen Code hin, und der
+    /// andere bekäme „abgelaufen“ zu sehen, obwohl er richtig gescannt hat.
+    private let takt = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Group {
-            if let code = model.einladungFuerQr() {
+            if model.einladungFuerQr() != nil {
                 VStack(spacing: 14) {
-                    if codeSichtbar, let bild = qrBild(code) {
+                    if codeSichtbar, let code, let bild = qrBild(code) {
                         Image(uiImage: bild)
                             .interpolation(.none)
                             .resizable()
@@ -149,30 +157,62 @@ struct TeamQrView: View {
                             .frame(maxWidth: 260, maxHeight: 260)
                             .padding(10)
                             .background(.white, in: RoundedRectangle(cornerRadius: 12))
+
+                        Text("Noch \(restSekunden) Sekunden gültig")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
                     Button(codeSichtbar ? "QR-Code verbergen" : "QR-Code anzeigen") {
                         codeSichtbar.toggle()
+                        if codeSichtbar { erneuere() }
                     }
                     if codeSichtbar {
-                        // Der Code enthaelt das Team-Geheimnis. Wer ihn abfotografiert, ist drin -
-                        // deshalb steht er nicht dauerhaft offen auf dem Bildschirm.
-                        Text("Der Code enthält den Team-Schlüssel. Nur Leuten zeigen, die ins Team sollen.")
+                        // Der Code enthaelt das Team-Geheimnis. Wer ihn abfotografiert, kaeme
+                        // damit ins Team - deshalb verfaellt er nach einer Minute und wird durch
+                        // einen neuen ersetzt, solange dieser Bildschirm offen ist.
+                        Text("""
+                        Der Code enthält den Team-Schlüssel und gilt eine Minute. Danach entsteht \
+                        automatisch ein neuer — ein Foto davon nützt später niemandem mehr.
+                        """)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                        ShareLink(item: code) {
-                            Label("Code als Text teilen", systemImage: "square.and.arrow.up")
-                                .font(.footnote)
+                        if let code {
+                            ShareLink(item: code) {
+                                Label("Code als Text teilen", systemImage: "square.and.arrow.up")
+                                    .font(.footnote)
+                            }
                         }
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
+                .onReceive(takt) { _ in ticke() }
+                // Sichtbar verlassen heisst: nicht im Hintergrund weiterrollen. Der Code steht
+                // ohnehin nur so lange, wie ihn jemand hinhaelt.
+                .onDisappear { codeSichtbar = false }
             } else {
                 Text("Nur die Teamleitung kann andere Geräte aufnehmen.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func erneuere() {
+        folge += 1
+        code = model.einladungFuerQr(folge: folge)
+        restSekunden = Int(RollingTeamInvite.ttlSekunden)
+    }
+
+    private func ticke() {
+        guard codeSichtbar else { return }
+        // Bei fünf Sekunden Rest, nicht bei null: Wer den Code gerade scannt, soll ihn nicht
+        // mitten im Vorgang unter dem Objektiv verlieren.
+        if restSekunden <= 5 {
+            erneuere()
+        } else {
+            restSekunden -= 1
         }
     }
 

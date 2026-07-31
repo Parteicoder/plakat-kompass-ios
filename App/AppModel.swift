@@ -397,17 +397,26 @@ final class AppModel: ObservableObject {
     }
 
     /// Der eigene Einladungscode — nur sinnvoll, wenn dieses Gerät die Teamleitung hat.
-    func einladungFuerQr() -> String? {
+    ///
+    /// **Rollend, seit dieser Fassung.** Vorher entstand hier ein Code der Fassung 4, und der
+    /// läuft nie ab: Wer den Bildschirm abfotografierte, konnte Wochen später noch beitreten und
+    /// jedes Sync-Paket entschlüsseln, das ihm in die Hände fiel. Android gibt seit jeher einen
+    /// Code aus, der nach 60 Sekunden verfällt. Gelesen hat diese Fassung solche Codes schon
+    /// immer — geschrieben hat sie sie nie, und deshalb fiel der Unterschied nicht auf.
+    ///
+    /// `folge` zählt hoch, solange derselbe Bildschirm offen ist, und steht so im Format.
+    func einladungFuerQr(folge: Int64 = 0) -> String? {
         guard state.role == .LEADER,
               let teamId = state.teamId,
               let teamSecret = state.teamSecret
         else { return nil }
-        return TeamInvite(
+        return RollingTeamInvite(
             teamId: teamId,
             teamName: state.teamName ?? "Plakat-Team",
             leaderName: state.deviceName,
             leaderDeviceId: state.deviceId,
-            teamSecret: teamSecret
+            teamKey: teamSecret,
+            sequence: folge
         ).encodeForQr()
     }
 
