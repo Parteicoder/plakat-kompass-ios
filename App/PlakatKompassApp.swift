@@ -47,6 +47,7 @@ struct RootView: View {
     /// gerade offen ist. Die Zeichenketten sind zugleich die Schlüssel in [Kurzanleitung].
     @State private var reiter = "start"
     @AppStorage(Kurzanleitung.schluessel) private var gesehen = ""
+    @AppStorage(Darstellung.schluessel) private var darstellung = Darstellung.system.rawValue
 
     var body: some View {
         TabView(selection: $reiter) {
@@ -99,5 +100,8 @@ struct RootView: View {
                     }
             }
         }
+        // Ganz aussen und nur EINMAL. Stuende es an einzelnen Bildschirmen, blieben Blaetter,
+        // Dialoge und die Kurzanleitung beim Systemschema - und die App saehe halb hell aus.
+        .preferredColorScheme(Darstellung.aus(darstellung).farbschema)
     }
 }
