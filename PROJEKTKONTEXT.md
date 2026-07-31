@@ -192,6 +192,16 @@ landen — nicht bloß im Quellbaum.
 
 ## 7. Fallen, die schon einmal Zeit gekostet haben
 
+**Ein iPhone verrät seinen Namen nicht.** `UIDevice.current.name` liefert seit iOS 16 ohne
+Sonderberechtigung nur noch das Modell — also „iPhone", für jedes Gerät dasselbe. Der Gerätename
+wurde daraufhin nur im Weg „allein loslegen" gesetzt; wer per QR beitrat oder ein Team gründete,
+hieß dauerhaft „iPhone": in der Geräteliste, im Verlauf jedes Plakats, in der Spalte „erfasst von"
+des amtlichen Exports und im Endpunktnamen des Funk-Abgleichs. Bei drei iPhones im Team konnte die
+Teamleitung nicht mehr erkennen, welches Gerät sie freigibt oder sperrt. Der Kern konnte den Namen
+die ganze Zeit übernehmen (`beigetreten(mit:eigenerName:)`) — die Oberfläche gab ihn nur nie mit.
+Auf Android fällt das nicht auf, weil dort `Build.MODEL` und der Nutzername verfügbar sind. Der
+Name wird jetzt im Einstieg abgefragt und ist unter „Einstellungen" änderbar.
+
 **XcodeGen überschreibt die `Info.plist`.** Ein `info:`-Block in `project.yml` *erzeugt* die Datei
 am angegebenen Pfad und überschreibt eine eingecheckte. Das ist wochenlang unbemerkt geblieben:
 Der Build war grün, aber im Bundle landeten nur zwei Schlüssel. Die App wäre beim ersten Foto

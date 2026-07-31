@@ -12,17 +12,42 @@ struct TeamBeitrittView: View {
     @State private var codeVonHand = ""
     @State private var eigenerName = ""
 
+    private var nameFehlt: Bool {
+        eigenerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                // SCHRITT 1, und er steht aus einem Grund ganz oben: Ohne Namen heisst dieses
+                // Gerät im Team „iPhone". Seit iOS 16 gibt `UIDevice.current.name` ohne
+                // Sonderberechtigung nur noch das Modell zurück. Das Feld gab es vorher nur beim
+                // Weg „allein loslegen" — wer per QR beitrat oder ein Team gründete, blieb
+                // namenlos, und bei drei iPhones im Team konnte die Teamleitung nicht mehr
+                // erkennen, welches Gerät sie gerade freigibt.
+                Section {
+                    TextField("Zum Beispiel Anna oder Anna M.", text: $eigenerName)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("1. Dein Name")
+                } footer: {
+                    Text("""
+                    Er steht später an jedem Plakat, das du erfasst, und in der Geräteliste des \
+                    Teams. Ein iPhone verrät seinen Namen nicht von selbst — ohne diese Zeile \
+                    heisst hier jedes Gerät „iPhone“.
+                    """)
+                }
+
                 Section {
                     Button {
                         scannerOffen = true
                     } label: {
                         Label("QR-Code des Teamleiters scannen", systemImage: "qrcode.viewfinder")
                     }
+                    .disabled(nameFehlt)
                 } header: {
-                    Text("Einem Team beitreten")
+                    Text("2. Einem Team beitreten")
                 } footer: {
                     Text("""
                     Der Teamleiter zeigt den Code in seiner App unter „Team“. \
@@ -36,10 +61,13 @@ struct TeamBeitrittView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     Button("Code übernehmen") {
-                        model.tritTeamBei(qrInhalt: codeVonHand.trimmingCharacters(in: .whitespacesAndNewlines))
+                        model.tritTeamBei(
+                            qrInhalt: codeVonHand.trimmingCharacters(in: .whitespacesAndNewlines),
+                            eigenerName: eigenerName
+                        )
                         if model.istEingerichtet { schliessen() }
                     }
-                    .disabled(codeVonHand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(nameFehlt || codeVonHand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } header: {
                     Text("Oder Code einfügen")
                 } footer: {
@@ -49,9 +77,13 @@ struct TeamBeitrittView: View {
                 Section {
                     TextField("Teamname", text: $teamName)
                     Button("Neues Team anlegen") {
-                        model.legeTeamAn(name: teamName.isEmpty ? "Mein Team" : teamName)
+                        model.legeTeamAn(
+                            name: teamName.isEmpty ? "Mein Team" : teamName,
+                            eigenerName: eigenerName
+                        )
                         schliessen()
                     }
+                    .disabled(nameFehlt)
                 } header: {
                     Text("Oder ein eigenes Team gründen")
                 } footer: {
@@ -59,13 +91,11 @@ struct TeamBeitrittView: View {
                 }
 
                 Section {
-                    TextField("Dein Name", text: $eigenerName)
-                        .textInputAutocapitalization(.words)
                     Button("Allein loslegen") {
                         model.losOhneTeam(name: eigenerName)
                         if model.istEingerichtet { schliessen() }
                     }
-                    .disabled(eigenerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(nameFehlt)
                 } header: {
                     Text("Oder ohne Team")
                 } footer: {
@@ -87,7 +117,7 @@ struct TeamBeitrittView: View {
                 NavigationStack {
                     QrScannerView { inhalt in
                         scannerOffen = false
-                        model.tritTeamBei(qrInhalt: inhalt)
+                        model.tritTeamBei(qrInhalt: inhalt, eigenerName: eigenerName)
                         if model.istEingerichtet { schliessen() }
                     }
                     .ignoresSafeArea()
