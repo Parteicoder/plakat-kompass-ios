@@ -9,10 +9,31 @@ struct PosterMapView: View {
     @StateObject private var grenze = Gemeindegrenze()
     @AppStorage("grenzeZeigen") private var grenzeZeigen = false
     @State private var mitte: CLLocationCoordinate2D?
+    @State private var flyerkarte = false
+    @State private var filter: PosterFilter = .aktiv
+    @State private var suchtext = ""
+    @State private var suchfehler: String?
 
+    /// Auf der Flyerkarte gibt es keine Plakate — dort soll allein der gelaufene Weg zu sehen
+    /// sein. Sonst liegen Marker über dem Balken und man sieht die Strasse nicht mehr.
+    ///
+    /// Derselbe Filter wie in der Liste, aus PosterFilter: Wer dort „Überfällig" gewählt hat und
+    /// zur Karte wechselt, erwartet dieselbe Auswahl und nicht eine zweite Bedeutung desselben
+    /// Wortes.
     private var sichtbare: [Poster] {
-        model.state.posters.filter { $0.status != .REMOVED }
+        guard !flyerkarte else { return [] }
+        return model.state.posters.gefiltert(nach: filter, jetzt: Date.nowMillis)
     }
+
+    /// Touren mit mindestens einem Wegpunkt. Die eigene gerade gestartete ist am Anfang leer und
+    /// hat dann nichts zu zeichnen.
+    private var touren: [FlyerTour] {
+        model.state.flyerTours.filter { !$0.points.isEmpty }
+    }
+
+    /// Mintgrün wie der Sozialdaten-Kreis der Android-Fassung, damit die Flyerkarte auf beiden
+    /// Geräten gleich aussieht.
+    private static let mint = Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255)
 
     var body: some View {
         NavigationStack {
@@ -23,6 +44,31 @@ struct PosterMapView: View {
                             CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
                         })
                         .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.75), lineWidth: 3)
+                    }
+                }
+                if flyerkarte {
+                    ForEach(touren) { tour in
+                        let punkte = tour.points.map {
+                            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+                        }
+                        let formen = FlyerZeichnung.formenAnzahl(punkte: punkte.count)
+                        if formen >= 1, let start = punkte.first {
+                            // Der Startkreis kommt ab dem ERSTEN Punkt. Siehe FlyerZeichnung:
+                            // Ohne ihn sieht eine frisch gestartete Tour aus wie ein Fehler.
+                            MapCircle(center: start, radius: FlyerZeichnung.startKreisRadius)
+                                .foregroundStyle(Self.mint.opacity(FlyerZeichnung.deckkraft))
+                        }
+                        if formen >= 2 {
+                            MapPolyline(coordinates: punkte)
+                                .stroke(
+                                    Self.mint.opacity(FlyerZeichnung.deckkraft),
+                                    style: StrokeStyle(
+                                        lineWidth: FlyerZeichnung.balkenBreite,
+                                        lineCap: .round,
+                                        lineJoin: .round
+                                    )
+                                )
+                        }
                     }
                 }
                 ForEach(sichtbare) { plakat in
@@ -56,7 +102,31 @@ struct PosterMapView: View {
             }
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
+            // Adresssuche ueber CLGeocoder - Apple kann das, eine eigene Suche waere Aufwand
+            // ohne Zweck. .searchable liefert das Feld samt Tastaturverhalten von selbst.
+            .searchable(text: $suchtext, prompt: "Adresse suchen")
+            .onSubmit(of: .search) { springeZurAdresse() }
+            .alert("Adresse nicht gefunden", isPresented: .constant(suchfehler != nil)) {
+                Button("OK") { suchfehler = nil }
+            } message: {
+                Text(suchfehler ?? "")
+            }
             .toolbar {
+                // Auf der Flyerkarte gibt es nichts zu filtern - dort liegen keine Plakate.
+                if !flyerkarte {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Picker("Filter", selection: $filter) {
+                            ForEach(PosterFilter.allCases, id: \.self) { Text($0.beschriftung).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Toggle(isOn: $flyerkarte) {
+                        Label("Flyerkarte", systemImage: "figure.walk")
+                    }
+                    .toggleStyle(.button)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Toggle(isOn: $grenzeZeigen) {
                         Label("Gemeindegrenze", systemImage: "map")
@@ -78,8 +148,17 @@ struct PosterMapView: View {
                     .presentationDetents([.medium])
             }
             .overlay(alignment: .bottom) {
-                if sichtbare.isEmpty {
-                    Text("Noch keine Plakate auf der Karte.")
+                if flyerkarte && touren.isEmpty {
+                    Text("Noch keine Flyer-Tour mit Wegpunkten. Unter „Start\u{201C} lässt sich eine aufzeichnen.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.thinMaterial, in: Capsule())
+                        .padding(.horizontal, 24).padding(.bottom, 20)
+                } else if !flyerkarte && sichtbare.isEmpty {
+                    Text(model.state.posters.isEmpty
+                         ? "Noch keine Plakate auf der Karte."
+                         : "Kein Plakat passt zum Filter „\(filter.beschriftung)\u{201C}.")
                         .font(.footnote)
                         .padding(.horizontal, 14).padding(.vertical, 8)
                         .background(.thinMaterial, in: Capsule())
@@ -91,6 +170,29 @@ struct PosterMapView: View {
 }
 
 private extension PosterMapView {
+    /// Springt an die eingetippte Adresse.
+    ///
+    /// Der Ausschnitt ist bewusst eng (600 m): Wer eine Adresse sucht, will die Strasse sehen und
+    /// nicht die Stadt. Findet der Geocoder nichts, sagt die App das - stiller Stillstand waere
+    /// hier das Schlimmste, weil man nicht weiss, ob die Suche laeuft oder nichts fand.
+    @MainActor func springeZurAdresse() {
+        let anfrage = suchtext.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !anfrage.isEmpty else { return }
+        Task {
+            guard let treffer = try? await CLGeocoder().geocodeAddressString(anfrage),
+                  let ort = treffer.first?.location?.coordinate
+            else {
+                suchfehler = "Zu „\(anfrage)\u{201C} wurde nichts gefunden."
+                return
+            }
+            ausschnitt = .region(MKCoordinateRegion(
+                center: ort,
+                latitudinalMeters: 600,
+                longitudinalMeters: 600
+            ))
+        }
+    }
+
     /// Grob gerundet, weil eine Gemeinde größer ist als 100 Meter: Ohne das Runden löst jedes
     /// Verschieben der Karte eine neue Overpass-Abfrage aus.
     var grenzeSchluessel: String {

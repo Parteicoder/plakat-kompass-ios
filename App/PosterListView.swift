@@ -3,26 +3,10 @@ import SwiftUI
 
 struct PosterListView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var filter: Filter = .aktiv
-
-    enum Filter: String, CaseIterable {
-        case aktiv = "Aktiv"
-        case ueberfaellig = "Überfällig"
-        case probleme = "Probleme"
-        case alle = "Alle"
-    }
+    @State private var filter: PosterFilter = .aktiv
 
     private var gefiltert: [Poster] {
-        let jetzt = Date.nowMillis
-        switch filter {
-        case .aktiv: return model.state.posters.filter { $0.status != .REMOVED }
-        case .ueberfaellig:
-            return model.state.posters.filter {
-                $0.status != .REMOVED && ($0.plannedRemovalAt ?? .max) < jetzt
-            }
-        case .probleme: return model.state.posters.filter { $0.status == .DAMAGED || $0.status == .MISSING }
-        case .alle: return model.state.posters
-        }
+        model.state.posters.gefiltert(nach: filter, jetzt: Date.nowMillis)
     }
 
     var body: some View {
@@ -46,7 +30,7 @@ struct PosterListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Picker("Filter", selection: $filter) {
-                        ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        ForEach(PosterFilter.allCases, id: \.self) { Text($0.beschriftung).tag($0) }
                     }
                     .pickerStyle(.menu)
                 }
