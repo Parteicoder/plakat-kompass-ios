@@ -78,6 +78,67 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: App im Simulator starten
+        # DER SCHRITT, DER "UEBERSETZT" IN "LAEUFT" VERWANDELT.
+        #
+        # Bisher hat diese App nie jemand gestartet - die CI baute sie und legte sie weg. Ein
+        # Absturz beim Start ist aber kein Uebersetzungsfehler: eine fehlgeschlagene
+        # Verzeichnisanlage (AppModel.init ruft dort fatalError), ein nil an der falschen Stelle,
+        # ein Environment-Objekt, das keiner setzt. Alles davon kaeme in einem gruenen Bau nicht
+        # vor und faellt erst auf, wenn jemand das erste Mal auf das Symbol tippt.
+        #
+        # Geprueft wird zweierlei, weil eines allein nicht reicht: dass der Vorgang nach ein paar
+        # Sekunden noch laeuft UND dass kein Absturzbericht entstanden ist. Ein Absturz direkt
+        # nach dem Start koennte sonst zwischen zwei Abfragen durchrutschen.
+        #
+        # Was das NICHT prueft: ob irgendetwas richtig aussieht oder ob ein Knopf tut, was er
+        # soll. Dafuer braeuchte es UI-Tests. Dies hier ist die unterste Stufe - und die fehlte.
+        timeout-minutes: 20
+        run: |
+          set -uo pipefail
+          APP=$(find build/Build/Products -maxdepth 2 -name 'PlakatKompass.app' -type d | head -1)
+          if [ -z "$APP" ]; then echo "Kein gebautes App-Buendel gefunden."; exit 1; fi
+          echo "Gestartet wird: $APP"
+
+          # Irgendein verfuegbares iPhone. Der Name wird NICHT fest verdrahtet - welche Geraete
+          # ein Runner-Abbild mitbringt, aendert Apple ohne Ansage, und ein fest eingetragenes
+          # "iPhone 16" laesst den Lauf eines Tages ohne Grund scheitern.
+          UDID=$(xcrun simctl list devices available | grep 'iPhone' | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          if [ -z "$UDID" ]; then echo "Kein iPhone-Simulator verfuegbar."; exit 1; fi
+          echo "Simulator: $UDID"
+
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" de.bsw.plakatkompass
+
+          sleep 8
+
+          echo "--- Meldungen der App ---"
+          xcrun simctl spawn "$UDID" log show --last 30s \
+            --predicate 'process == "PlakatKompass"' --style compact 2>/dev/null | tail -30 || true
+
+          fehlt=0
+          if xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q de.bsw.plakatkompass; then
+            echo "LAEUFT: Die App ist acht Sekunden nach dem Start noch da."
+          else
+            echo "WEG: Die App laeuft nicht mehr - sie ist beim Start ausgestiegen."
+            fehlt=1
+          fi
+
+          BERICHTE=$(find ~/Library/Logs/DiagnosticReports -name 'PlakatKompass*' 2>/dev/null || true)
+          if [ -n "$BERICHTE" ]; then
+            echo "ABSTURZBERICHT gefunden:"
+            for b in $BERICHTE; do echo "--- $b"; head -40 "$b"; done
+            fehlt=1
+          else
+            echo "Kein Absturzbericht."
+          fi
+
+          xcrun simctl shutdown "$UDID" || true
+          exit $fehlt
+
       - name: Info.plist der gebauten App pruefen
         # Geprueft wird die Plist IM FERTIGEN BUNDLE, nicht die im Repo. Genau das war der
         # Fehler, den dieser Schritt abfaengt: In project.yml stand ein "info:"-Block, der
