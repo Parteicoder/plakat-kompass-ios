@@ -141,7 +141,21 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO
 
+      # ================= AB HIER NUR AUF main =================
+      #
+      # Die drei Simulator-Schritte kosteten zusammen elf der neunzehn Minuten - und zwar bei
+      # JEDEM Pull Request. Was sie beweisen, ist echt (die fuenf Bildschirme zeichnen sich),
+      # aber es ist auch das Teuerste pro gewonnener Erkenntnis.
+      #
+      # Die Abwaegung, offen hingeschrieben: Uebersetzungsfehler sind die Sorte, die hier am
+      # haeufigsten vorkommt - dieses Projekt hat keinen Mac, der Bau oben ist die einzige
+      # Stelle, an der der App-Code je uebersetzt wird. Der bleibt deshalb bei jedem PR.
+      # Ein Absturz beim Reiterwechsel dagegen ist selten, und ihn eine Merge-Laenge spaeter
+      # zu erfahren ist zu verkraften - main meldet ihn sofort und laut.
+      #
+      # WER DAS ZURUECKDREHEN WILL: die drei "if:"-Zeilen entfernen, sonst nichts.
       - name: Simulator vorbereiten
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         # HIER STAND EIN VOLLSTAENDIGER STARTVERSUCH: installieren, starten, acht Sekunden
         # warten, nachsehen ob der Vorgang noch da ist. Er hat zweieinhalb Minuten gekostet und
         # war zu seiner Zeit richtig - damals gab es keine Oberflaechentests, und ein Absturz
@@ -180,6 +194,7 @@ jobs:
           echo "Installiert: $APP"
 
       - name: Oberflaeche im Simulator pruefen
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         # Eine Stufe ueber dem Start: Zeichnet sich jeder der fuenf Bereiche ueberhaupt?
         #
         # Der Schritt davor beweist, dass die App nicht beim Start aussteigt - und mehr nicht.
@@ -227,7 +242,10 @@ jobs:
         #
         # Er lag frueher VOR den Tests und sah deshalb nur den Start. Jetzt deckt er den
         # gesamten Durchlauf ab.
-        if: always()
+        # "always()" MUSS bleiben - der Schritt ist gerade dann interessant, wenn die Tests
+        # gescheitert sind. Es gilt nur zusammen mit der Zweigbedingung, sonst liefe er auch
+        # bei Pull Requests und suchte einen Simulator, den es dort gar nicht gibt.
+        if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
         run: |
           set -uo pipefail
           # ":-" ist Pflicht, nicht Vorsicht: Bei "always()" laeuft der Schritt auch dann, wenn
