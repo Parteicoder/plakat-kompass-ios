@@ -39,6 +39,20 @@ final class OberflaechenRauchtest: XCTestCase {
     ///
     /// Ein Werkzeug, das irgendwohin tippt, hat in einem Test nichts zu suchen. Jetzt wird die
     /// Systemoberfläche direkt angesprochen: Dort und nur dort stehen die Knöpfe der Nachfragen.
+    ///
+    /// **Und hier stand einmal `system.buttons[…].first { $0.exists }`.** Auch das ist gescheitert:
+    ///
+    ///     Failed to tap "Allow While Using App" Button: No matches found …
+    ///     from input {( Button 'Don't Allow', Button 'Allow' )}
+    ///
+    /// Zwei Nachfragen kamen kurz nacheinander. `exists` beantwortet XCUITest aus einer
+    /// **gespeicherten Momentaufnahme** — es sagte ja zum Ortungsdialog, und bis der Tipp beim
+    /// Element ankam, stand dort längst der Meldungsdialog mit seinen zwei Knöpfen.
+    ///
+    /// Die eigentliche Abhilfe steht nicht hier, sondern im CI: Die Ortung wird vor dem Lauf per
+    /// `simctl privacy … grant location` erteilt, damit dieser Dialog gar nicht erst erscheint.
+    /// Ein Dialog, den es nie gibt, kann auch nicht im falschen Moment verschwinden. Übrig bleibt
+    /// die Meldungsnachfrage — für die kennt `simctl privacy` kein Gegenstück.
     private func schliesseSystemfragen() {
         let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let beschriftungen = [
@@ -47,7 +61,14 @@ final class OberflaechenRauchtest: XCTestCase {
         ]
         // Mehrere Nachfragen koennen nacheinander kommen (Ort, dann Meldungen).
         for _ in 0..<3 {
-            guard let knopf = beschriftungen.map({ system.buttons[$0] }).first(where: { $0.exists })
+            // Nur im offenen Dialog suchen, nicht auf der ganzen Systemoberflaeche: "Allow" ist
+            // ein zu haeufiges Wort, um es irgendwo im Springboard zu suchen.
+            guard system.alerts.firstMatch.exists else { return }
+            // isHittable statt exists: Es erzwingt eine frische Aufnahme und macht das Fenster
+            // zwischen "ist da" und "wird getippt" so schmal wie moeglich.
+            guard let knopf = beschriftungen
+                .map({ system.alerts.buttons[$0] })
+                .first(where: { $0.exists && $0.isHittable })
             else { return }
             knopf.tap()
         }

@@ -188,13 +188,22 @@ private struct VerlaufView: View {
 
 /// Lizenzen und Dank.
 ///
-/// Zwei Pflichten: Die Gemeindegrenzen stammen aus OpenStreetMap und stehen unter der ODbL, die
-/// Namensnennung verlangt. Die Sozialdaten sind amtlich und stehen unter einer Lizenz mit
-/// Namensnennung.
+/// Zwei Pflichten aus den Daten: Die Gemeindegrenzen stammen aus OpenStreetMap und stehen unter
+/// der ODbL, die Namensnennung verlangt. Die Sozialdaten sind amtlich und stehen unter einer
+/// Lizenz mit Namensnennung.
 ///
 /// Die Karte selbst braucht hier nichts: Sie läuft über MapKit, und Apple setzt seinen Hinweis
 /// samt „Rechtliche Hinweise" von sich aus in die Karte. Das ist der Unterschied zur
 /// Android-Fassung, die OSM-Kacheln über osmdroid zeichnet und den Hinweis selbst setzen muss.
+///
+/// **Hier stand lange nur ZIPFoundation.** Das war falsch, seit der Funk-Abgleich dazukam: Google
+/// Nearby Connections trägt ihn vollständig, steht unter Apache 2.0 — und zieht sechs weitere
+/// Fremdbibliotheken in die fertige App, die alle Namensnennung verlangen. Namensnennung, die
+/// fehlt, ist bei einer AGPL-App kein Schönheitsfehler, sondern ein Lizenzverstoss.
+///
+/// Jeder Eintrag unten ist an der festgenagelten Revision nachgesehen worden, keiner aus dem
+/// Gedächtnis: `Package.swift` und `.gitmodules` von `google/nearby` nennen die Abhängigkeiten,
+/// die Lizenz stammt jeweils aus der LICENSE-Datei des Projekts selbst.
 private struct LizenzenView: View {
     var body: some View {
         List {
@@ -219,8 +228,28 @@ private struct LizenzenView: View {
             Section("Karte") {
                 Text("Apple MapKit. Den Kartenhinweis setzt iOS selbst in die Karte.")
             }
-            Section("Verwendete Bibliothek") {
-                Text("ZIPFoundation von Thomas Zoechling, MIT-Lizenz.")
+            Section {
+                Bibliothek("ZIPFoundation", "Thomas Zoechling", "MIT-Lizenz")
+                Bibliothek("Nearby Connections", "Google", "Apache-Lizenz 2.0")
+            } header: {
+                Text("Verwendete Bibliotheken")
+            }
+
+            Section {
+                Bibliothek("Abseil", "Google", "Apache-Lizenz 2.0")
+                Bibliothek("BoringSSL", "Google", "Apache-Lizenz 2.0")
+                Bibliothek("Protocol Buffers", "Google", "BSD-Lizenz, 3 Klauseln")
+                Bibliothek("UKey2", "Google", "Apache-Lizenz 2.0")
+                Bibliothek("JSON for Modern C++", "Niels Lohmann", "MIT-Lizenz")
+                Bibliothek("MurmurHash3", "Austin Appleby", "gemeinfrei")
+            } header: {
+                Text("Mittelbar, über Nearby Connections")
+            } footer: {
+                Text("""
+                Diese sechs stehen hier nicht, weil die App sie selbst benutzt, sondern weil \
+                Nearby Connections sie mitbringt und sie damit im fertigen Programm landen. \
+                Genannt werden müssen sie deshalb genauso.
+                """)
             }
             Section("Dank") {
                 Text("Malte Steinbach")
@@ -228,5 +257,29 @@ private struct LizenzenView: View {
         }
         .navigationTitle("Lizenzen und Dank")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Eine Zeile der Lizenzliste. Der Name gross, Urheber und Lizenz klein darunter — bei acht
+/// Einträgen ist ein Fliesstext aus Halbsätzen nicht mehr lesbar.
+private struct Bibliothek: View {
+    let name: String
+    let urheber: String
+    let lizenz: String
+
+    init(_ name: String, _ urheber: String, _ lizenz: String) {
+        self.name = name
+        self.urheber = urheber
+        self.lizenz = lizenz
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(name)
+            Text("\(urheber) · \(lizenz)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

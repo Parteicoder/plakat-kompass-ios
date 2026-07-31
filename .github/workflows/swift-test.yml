@@ -48,6 +48,41 @@ jobs:
         # koennen, das weder von ihm noch von der Kotlin-Seite erzeugt wurde.
         run: swift test
 
+      - name: Jede Abhaengigkeit steht auf der Lizenzseite
+        # WARUM DIESE AUFGABE EXISTIERT: Genau dieser Fehler ist passiert. Der Funk-Abgleich
+        # brachte Google Nearby in die App - und die Lizenzseite nannte monatelang weiter nur
+        # ZIPFoundation. Namensnennung, die fehlt, ist bei einer AGPL-App kein Schoenheits-
+        # fehler, sondern ein Lizenzverstoss. Und er faellt von selbst nie auf: Die App baut,
+        # startet und laeuft einwandfrei ohne die Nennung.
+        #
+        # Geprueft wird die schwache, aber wartungsfreie Richtung: Jedes Paket, das in
+        # Package.swift oder project.yml als Abhaengigkeit steht, muss auf der Lizenzseite
+        # namentlich vorkommen. Was Nearby SEINERSEITS mitbringt, steht hier nicht - das
+        # nennt kein Manifest dieses Projekts. Diese sechs sind in EinstellungenView.swift
+        # aus Package.swift und .gitmodules von google/nearby abgeschrieben und dort als
+        # eigener Abschnitt begruendet.
+        run: |
+          seite=App/EinstellungenView.swift
+          fehlt=0
+          # Paketnamen aus beiden Manifesten: "url: .../nearby" -> nearby,
+          # ".package(url:" in Package.swift genauso. Der letzte Pfadteil ohne .git.
+          pakete=$(grep -hoE 'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' \
+                     Package.swift project.yml 2>/dev/null \
+                   | sed 's|.*/||; s|\.git$||' | sort -u)
+          echo "Abhaengigkeiten laut Manifest:"; echo "${pakete:-(keine)}" | sed 's/^/  /'
+          echo
+          for paket in $pakete; do
+            # Ohne -i waere "ZIPFoundation" gegen "zipfoundation" blind, ohne den Wortstamm
+            # scheiterte "nearby" an "Nearby Connections". Deshalb Teilstring, klein.
+            if grep -qi "$paket" "$seite"; then
+              echo "genannt         $paket"
+            else
+              echo "NICHT GENANNT:  $paket fehlt in $seite"
+              fehlt=1
+            fi
+          done
+          exit $fehlt
+
   app:
     name: iOS-App bauen
     runs-on: macos-15
@@ -55,6 +90,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Bauzwischenstaende aus dem letzten Lauf holen
+        # DER GROSSE HEBEL. Der Bau hat zehn Minuten gedauert, und fast alles davon war
+        # Nearby: abseil, BoringSSL, protobuf und der C++-Kern kommen als QUELLTEXT und wurden
+        # bei jedem Lauf von vorn uebersetzt. Dieser Quelltext aendert sich aber nur, wenn die
+        # in project.yml festgenagelte Revision sich aendert - also praktisch nie.
+        #
+        # ZUM SCHLUESSEL: Der exakte Schluessel trifft absichtlich NIE, weil die Commit-Kennung
+        # darin steht. Gewollt ist der restore-key: Er greift auf den neuesten Zwischenstand mit
+        # DERSELBEN Abhaengigkeitslage zurueck. Xcode uebersetzt dann nur, was sich geaendert hat
+        # - unseren Swift-Code - und laesst die C++-Objektdateien liegen. Aendert jemand
+        # project.yml oder Package.swift, faellt der Praefix weg und alles wird neu gebaut. Genau
+        # so soll es sein: Ein zwischengespeicherter Bau, der nicht zum Manifest passt, waere
+        # schlimmer als ein langsamer.
+        #
+        # Eingepackt wird nur build/Build und build/SourcePackages. Ausdruecklich NICHT
+        # build/Index.noindex: Der Index ist fuer die Codevervollstaendigung in Xcode da, im CI
+        # sieht ihn niemand an, und er ist der groesste Brocken. Er entsteht durch
+        # COMPILER_INDEX_STORE_ENABLE=NO unten gar nicht erst.
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/Build
+            build/SourcePackages
+          key: bau-${{ runner.os }}-${{ hashFiles('project.yml', 'Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            bau-${{ runner.os }}-${{ hashFiles('project.yml', 'Package.swift') }}-
 
       - name: XcodeGen
         run: |
@@ -76,30 +138,26 @@ jobs:
             -scheme PlakatKompass \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: App im Simulator starten
-        # DER SCHRITT, DER "UEBERSETZT" IN "LAEUFT" VERWANDELT.
+      - name: Simulator vorbereiten
+        # HIER STAND EIN VOLLSTAENDIGER STARTVERSUCH: installieren, starten, acht Sekunden
+        # warten, nachsehen ob der Vorgang noch da ist. Er hat zweieinhalb Minuten gekostet und
+        # war zu seiner Zeit richtig - damals gab es keine Oberflaechentests, und ein Absturz
+        # beim Start waere sonst durchgerutscht.
         #
-        # Bisher hat diese App nie jemand gestartet - die CI baute sie und legte sie weg. Ein
-        # Absturz beim Start ist aber kein Uebersetzungsfehler: eine fehlgeschlagene
-        # Verzeichnisanlage (AppModel.init ruft dort fatalError), ein nil an der falschen Stelle,
-        # ein Environment-Objekt, das keiner setzt. Alles davon kaeme in einem gruenen Bau nicht
-        # vor und faellt erst auf, wenn jemand das erste Mal auf das Symbol tippt.
+        # Inzwischen gibt es sie, und sie beweisen STRENG MEHR: Der erste Test startet die App
+        # ebenfalls und verlangt danach, dass sich alle fuenf Bereiche zeichnen. Stirbt die App
+        # beim Start, scheitert er sofort mit "Application is not running". Zweimal dieselbe
+        # Aussage einzuholen ist keine doppelte Sicherheit, sondern doppelte Wartezeit.
         #
-        # Geprueft wird zweierlei, weil eines allein nicht reicht: dass der Vorgang nach ein paar
-        # Sekunden noch laeuft UND dass kein Absturzbericht entstanden ist. Ein Absturz direkt
-        # nach dem Start koennte sonst zwischen zwei Abfragen durchrutschen.
-        #
-        # Was das NICHT prueft: ob irgendetwas richtig aussieht oder ob ein Knopf tut, was er
-        # soll. Dafuer braeuchte es UI-Tests. Dies hier ist die unterste Stufe - und die fehlte.
+        # Geblieben ist, was der Testlauf NICHT mitbringt: die Wahl des Geraets und der
+        # Absturzbericht. Der wird jetzt NACH den Tests gelesen - dort deckt er mehr ab als
+        # vorher, naemlich auch Abstuerze mitten im Durchlauf.
         timeout-minutes: 20
         run: |
           set -uo pipefail
-          APP=$(find build/Build/Products -maxdepth 2 -name 'PlakatKompass.app' -type d | head -1)
-          if [ -z "$APP" ]; then echo "Kein gebautes App-Buendel gefunden."; exit 1; fi
-          echo "Gestartet wird: $APP"
-
           # Irgendein verfuegbares iPhone. Der Name wird NICHT fest verdrahtet - welche Geraete
           # ein Runner-Abbild mitbringt, aendert Apple ohne Ansage, und ein fest eingetragenes
           # "iPhone 16" laesst den Lauf eines Tages ohne Grund scheitern.
@@ -110,37 +168,16 @@ jobs:
           # Schrittwechsel nicht, GITHUB_ENV schon.
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
 
+          # Vorab hochfahren, damit "simctl privacy" im naechsten Schritt ein laufendes Geraet
+          # vorfindet und der Testlauf nicht selbst darauf warten muss.
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
+          # Die App muss installiert sein, bevor ihr etwas erlaubt werden kann.
+          APP=$(find build/Build/Products -maxdepth 2 -name 'PlakatKompass.app' -type d | head -1)
+          if [ -z "$APP" ]; then echo "Kein gebautes App-Buendel gefunden."; exit 1; fi
           xcrun simctl install "$UDID" "$APP"
-          xcrun simctl launch "$UDID" de.bsw.plakatkompass
-
-          sleep 8
-
-          echo "--- Meldungen der App ---"
-          xcrun simctl spawn "$UDID" log show --last 30s \
-            --predicate 'process == "PlakatKompass"' --style compact 2>/dev/null | tail -30 || true
-
-          fehlt=0
-          if xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q de.bsw.plakatkompass; then
-            echo "LAEUFT: Die App ist acht Sekunden nach dem Start noch da."
-          else
-            echo "WEG: Die App laeuft nicht mehr - sie ist beim Start ausgestiegen."
-            fehlt=1
-          fi
-
-          BERICHTE=$(find ~/Library/Logs/DiagnosticReports -name 'PlakatKompass*' 2>/dev/null || true)
-          if [ -n "$BERICHTE" ]; then
-            echo "ABSTURZBERICHT gefunden:"
-            for b in $BERICHTE; do echo "--- $b"; head -40 "$b"; done
-            fehlt=1
-          else
-            echo "Kein Absturzbericht."
-          fi
-
-          xcrun simctl shutdown "$UDID" || true
-          exit $fehlt
+          echo "Installiert: $APP"
 
       - name: Oberflaeche im Simulator pruefen
         # Eine Stufe ueber dem Start: Zeichnet sich jeder der fuenf Bereiche ueberhaupt?
@@ -157,13 +194,62 @@ jobs:
         # ausschliesst - und sie braucht keine Testdaten.
         timeout-minutes: 40
         run: |
+          # ORTUNG VORAB ERLAUBEN, damit der Dialog gar nicht erst kommt.
+          #
+          # Der Lauf ist einmal daran gescheitert, dass zwei Systemdialoge nacheinander
+          # aufgingen: "exists" sagte ja zum Ortungsdialog, und bis der Tipp beim Element war,
+          # stand dort schon der Meldungsdialog mit nur zwei Knoepfen. Ein Dialog, den es nie
+          # gibt, kann auch nicht zum falschen Zeitpunkt verschwinden - das ist die einzige
+          # Loesung, die das Rennen wirklich beendet statt es zu verkuerzen.
+          #
+          # Fuer Meldungen gibt es kein Gegenstueck: "simctl privacy" kennt Ortung, Fotos,
+          # Mikrofon und einiges mehr, aber keine Benachrichtigungen. Diesen einen Dialog muss
+          # der Test weiter selbst wegklicken, jetzt aber als einzigen.
+          #
+          # "|| true", weil ein unbekannter Dienst je nach Xcode-Fassung einen Fehler wirft -
+          # und der Schritt laeuft unter "bash -e". Daran soll kein Lauf scheitern.
+          xcrun simctl privacy "$SIM_UDID" grant location-always de.bsw.plakatkompass || true
+          xcrun simctl privacy "$SIM_UDID" grant location de.bsw.plakatkompass || true
+
           xcodebuild test \
             -project PlakatKompass.xcodeproj \
             -scheme PlakatKompass \
             -destination "platform=iOS Simulator,id=$SIM_UDID" \
             -derivedDataPath build \
             -only-testing:PlakatKompassUITests \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Absturzberichte und Meldungen der App
+        # Laeuft AUCH, wenn die Tests gescheitert sind - dann wird er erst richtig interessant.
+        # Ein Absturz mitten im Durchlauf zeigt sich hier als Bericht, waehrend die Testmeldung
+        # nur sagt, dass ein Knopf nicht gefunden wurde.
+        #
+        # Er lag frueher VOR den Tests und sah deshalb nur den Start. Jetzt deckt er den
+        # gesamten Durchlauf ab.
+        if: always()
+        run: |
+          set -uo pipefail
+          # ":-" ist Pflicht, nicht Vorsicht: Bei "always()" laeuft der Schritt auch dann, wenn
+          # "Simulator vorbereiten" vorher ausgestiegen ist und SIM_UDID nie gesetzt wurde -
+          # mit "set -u" waere das ein Abbruch an der falschen Stelle.
+          GERAET="${SIM_UDID:-}"
+          if [ -z "$GERAET" ]; then
+            echo "Kein Simulator ausgewaehlt - es gibt nichts nachzusehen."
+            exit 0
+          fi
+          echo "--- Meldungen der App ---"
+          xcrun simctl spawn "$GERAET" log show --last 5m \
+            --predicate 'process == "PlakatKompass"' --style compact 2>/dev/null | tail -40 || true
+
+          BERICHTE=$(find ~/Library/Logs/DiagnosticReports -name 'PlakatKompass*' 2>/dev/null || true)
+          if [ -n "$BERICHTE" ]; then
+            echo "ABSTURZBERICHT gefunden:"
+            for b in $BERICHTE; do echo "--- $b"; head -40 "$b"; done
+            exit 1
+          fi
+          echo "Kein Absturzbericht."
+          xcrun simctl shutdown "$GERAET" || true
 
       - name: Info.plist der gebauten App pruefen
         # Geprueft wird die Plist IM FERTIGEN BUNDLE, nicht die im Repo. Genau das war der
