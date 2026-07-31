@@ -14,6 +14,11 @@ struct EinstellungenView: View {
     @AppStorage(Kurzanleitung.schluessel) private var anleitungGesehen = ""
 
     @AppStorage(Darstellung.schluessel) private var darstellung = Darstellung.system.rawValue
+    @AppStorage(SozialdatenCache.tageSchluessel) private var sozialCacheTage = SozialdatenCache.vorgabeTage
+    /// Die Zahl der Einträge ist kein @Published — der Cache ist absichtlich kein
+    /// ObservableObject, sonst zeichnete jede Antwort im Hintergrund die Oberfläche neu.
+    /// Beim Erscheinen einmal abfragen genügt.
+    @State private var cacheEintraege = 0
     @AppStorage("pausenErinnerung") private var pausenErinnerung = false
     @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
     @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
@@ -32,6 +37,7 @@ struct EinstellungenView: View {
             berechtigungenAbschnitt
             geraeteAbschnitt
             kurzanleitungAbschnitt
+            sozialdatenAbschnitt
             unterstuetzenAbschnitt
             Section {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
@@ -102,6 +108,35 @@ struct EinstellungenView: View {
             umzustellen.
             """)
         }
+    }
+
+    @ViewBuilder private var sozialdatenAbschnitt: some View {
+        Section {
+            Stepper(value: $sozialCacheTage, in: SozialdatenCache.minTage...SozialdatenCache.maxTage) {
+                Text(sozialCacheTage == 0
+                     ? "Nicht zwischenspeichern"
+                     : sozialCacheTage == 1 ? "1 Tag behalten" : "\(sozialCacheTage) Tage behalten")
+            }
+            Button(role: .destructive) {
+                SozialdatenCache.geteilt.leeren()
+                cacheEintraege = 0
+            } label: {
+                LabeledContent("Zwischenspeicher leeren") {
+                    Text(cacheEintraege == 1 ? "1 Antwort" : "\(cacheEintraege) Antworten")
+                }
+            }
+            .disabled(cacheEintraege == 0)
+        } header: {
+            Text("Sozialdaten")
+        } footer: {
+            Text("""
+            Die Zahlen aus Zensus und Regionalatlas ändern sich jährlich — eine Woche alte \
+            Werte sind so gültig wie frisch geholte. Der Zwischenspeicher spart die Wartezeit \
+            und schont einen Server, den die Statistischen Ämter kostenlos bereitstellen. \
+            Auf **0 Tage** wird nichts behalten und jede Abfrage neu gestellt.
+            """)
+        }
+        .onAppear { cacheEintraege = SozialdatenCache.geteilt.anzahl }
     }
 
     /// Ko-fi — Gegenstück zu `ModernKofiSupportCard.kt`.
