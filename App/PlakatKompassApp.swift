@@ -17,11 +17,20 @@ struct PlakatKompassApp: App {
     /// hätte er wie ein Problem mit der Ortung ausgesehen.
     @StateObject private var aufzeichnung = TourAufzeichnung()
 
+    @Environment(\.scenePhase) private var phase
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
                 .environmentObject(aufzeichnung)
+                // Der Funk-Abgleich endet, sobald die App in den Hintergrund geht. Nearby
+                // Connections laeuft auf iOS nur im Vordergrund; iOS friert die App ein und die
+                // Verbindungen fallen. Wuerde der Schalter trotzdem auf „an" stehen bleiben,
+                // behauptete er etwas, das nicht stimmt — und man suchte den Fehler beim WLAN.
+                .onChange(of: phase) { _, neu in
+                    if neu != .active { model.nearby.stop() }
+                }
                 // Der ganze Android-iOS-Abgleich haengt an dieser einen Zeile: Ein Sync-Paket
                 // kommt als Datei herein, egal ob aus einem Messenger, aus Mail, per AirDrop
                 // oder aus der Dateien-App.

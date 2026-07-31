@@ -37,12 +37,38 @@
 	<!--
 	  Schnittstellen, für die Apple einen Grund verlangt.
 
-	  Geprüft wurde der ganze Quelltext: Dateizeitstempel, freier Speicherplatz, Systemstartzeit
-	  und aktive Tastatur werden NICHT benutzt. Übrig bleibt UserDefaults, hinter dem in SwiftUI
-	  jedes @AppStorage steckt — hier die Kommune für den Export, die gewählte Kennzahl, der
-	  Grenzen-Schalter und die Pausen-Einstellungen.
+	  Hier stand einmal „geprüft wurde der ganze Quelltext". Das reicht seit dem Funk-Abgleich
+	  nicht mehr, denn es ist nicht mehr unser Quelltext allein: Nearby Connections bringt
+	  abseil, BoringSSL, protobuf und einen C++-Kern mit, deren Quellen nicht in diesem Repo
+	  liegen — und ein eigenes Datenschutz-Manifest bringt Nearby nicht mit. Apple prüft
+	  ohnehin am fertigen Programm, nicht am Quelltext.
+
+	  Geprüft wird deshalb auf beiden Wegen, und jeder deckt ab, was der andere nicht kann:
+
+	  1. Der eigene Swift-Code am Quelltext. Nur dort ist zu sehen, was über ein Systemframework
+	     läuft — @AppStorage etwa greift INNERHALB von SwiftUI auf UserDefaults zu; im Programm
+	     selbst steht davon nichts, ein Symbolscan findet es also nie.
+	  2. Die mitgebrachten C- und C++-Bibliotheken am fertigen Programm, mit dyld_info, nm und
+	     otool (Schritt „Begruendungspflichtige Schnittstellen" in swift-test.yml). Die rufen
+	     libc direkt auf; dort wäre ein importiertes Symbol der Beweis. Der Schritt prüft sich
+	     selbst an `malloc` und sagt es laut, wenn er nichts sieht — damit ein leeres Ergebnis
+	     nicht als „nichts gefunden" durchgeht.
+
+	  Für den eigenen Code ist das Ergebnis belastbar: Dateizeitstempel, freier Speicherplatz,
+	  Systemstartzeit und aktive Tastatur kommen darin nicht vor. Übrig bleibt UserDefaults,
+	  hinter dem jedes @AppStorage steckt — die Kommune für den Export, die gewählte Kennzahl,
+	  der Grenzen-Schalter, der Sozialdaten-Schalter der Karte und die Pausen-Einstellungen.
 
 	  CA92.1: Zugriff nur auf Informationen, die ausschließlich dieser App gehören.
+
+	  WAS OFFEN BLEIBT, und das gehört hierher und nicht in eine Fußnote: Ob Nearbys C++-Kern
+	  eine dieser Schnittstellen anfasst, ist hier NICHT abschließend geklärt. Der Symbolscan
+	  hat es mehrfach nicht zeigen können — nicht weil nichts da wäre, sondern weil das Werkzeug
+	  am Binärgebilde scheiterte. Die verbindliche Prüfung macht ohnehin Apple beim Hochladen;
+	  ein Entwicklerkonto gibt es hier nicht. Kommt von dort eine Meldung (ITMS-91053), gehört
+	  die genannte Kategorie hier ergänzt: Dateizeitstempel mit DDA9.1, Speicherplatz mit
+	  E174.1, Systemstartzeit mit 35F9.1. Das ist kein Ratschlag ins Blaue — es sind die Codes,
+	  die zu dem passen, was eine Dateiübertragung tut.
 	-->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>

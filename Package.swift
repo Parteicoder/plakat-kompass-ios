@@ -20,6 +20,12 @@ let package = Package(
         // ZIP-Parser waere an dieser Stelle die falsche Sparsamkeit: Er muss Deflate
         // beherrschen und gleichzeitig gegen ZIP-Bomben dichthalten.
         .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.19")
+        //
+        // NEARBY CONNECTIONS STEHT HIER BEWUSST NICHT. Der Funk-Abgleich mit Android braucht es,
+        // aber es gehoert zur App und nicht zum geteilten Kern: Das Paket zieht abseil, BoringSSL,
+        // protobuf und den ganzen C++-Kern von Nearby als Quelltext mit. Stuende es hier, muesste
+        // jedes "swift build" und jedes "swift test" das mitbauen - fuer einen Kern, der davon
+        // kein Byte benutzt. Die Abhaengigkeit steht in project.yml am App-Ziel.
     ],
     targets: [
         .target(

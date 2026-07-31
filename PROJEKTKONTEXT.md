@@ -109,11 +109,18 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Flyer-Touren | `FlyerTourenView.swift`, `TourAufzeichnung.swift` |
 | Erinnerungen | `Erinnerungen.swift` |
 | Startseite, Erfassen, Liste, Karte, Abgleich | `StartView`, `CaptureView`, `PosterListView`, `PosterMapView`, `SyncView` |
+| Funk-Abgleich mit Android | `NearbyAbgleich.swift`, `NearbyDienst.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
 erprobt. Die Hintergrundortung ist dabei das Riskanteste: iOS gibt dafür weder feste Takte noch
 Garantien.
+
+Für den **Funk-Abgleich** gilt das doppelt: Er lässt sich im Simulator gar nicht prüfen, weil dort
+kein Funk vorhanden ist. Was hier grün wird, heißt nur „übersetzt". Der erste echte Beweis ist ein
+iPhone und ein Android-Gerät im selben WLAN. Fällt dabei etwas aus, sind die beiden ersten
+Verdächtigen die Berechtigung fürs lokale Netzwerk und die Frage, ob beide Geräte wirklich
+im selben Netz hängen — nicht der Team-Schlüssel.
 
 ---
 
@@ -139,9 +146,13 @@ eine Kampagne hinweg spürbar träge.
 
 Das README führt das aus. Kurz, und mit einer Berichtigung:
 
-**Nearby Connections** — gibt es auf iOS nicht und wird es nicht geben. Ersatz ist das
-Sync-Paket als Datei über den Teilen-Dialog. Das ist kein Rückschritt für den Android-iOS-Fall,
-denn zwischen den Plattformen hätte Nearby ohnehin nie funktioniert.
+**Nearby Connections** — hier stand, es gebe die Schnittstelle auf iOS nicht und werde sie nie
+geben. Das war schlicht falsch, und zwar in beiden Hälften: Google liefert Nearby Connections als
+Swift-Paket, und der Abgleich zwischen Android und iOS ist ausdrücklich vorgesehen. Er ist in
+`App/NearbyAbgleich.swift` gebaut. Was bleibt, ist eine kleinere Einschränkung als behauptet:
+Zwischen den Plattformen trägt nur das WLAN, nicht Bluetooth oder Wi-Fi Direct — beide Geräte
+müssen also im selben Netz sein, notfalls über den Hotspot eines der beiden. Für den netzlosen
+Fall bleibt das Sync-Paket als Datei über den Teilen-Dialog.
 
 **Offline-Kacheln** — MapKit gibt seinen Kachelspeicher nicht heraus. Offlinekarten sind auf iOS
 seit 17 Systemfunktion.

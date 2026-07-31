@@ -12,24 +12,56 @@ abgleichen können. Nicht nebeneinander existieren — miteinander reden.
 
 ## Wie der Abgleich zwischen Android und iOS läuft
 
-Der Android-Abgleich von Gerät zu Gerät läuft über **Google Nearby Connections**. Diese
-Schnittstelle gibt es auf iOS nicht, und es gibt auch keinen Client, der ihr Protokoll spricht.
-Zwischen Android und iOS ist dieser Weg damit versperrt, egal wie gut der Rest portiert ist.
+Es gibt zwei Wege. Beide tragen denselben Inhalt — das unten beschriebene `PRSYNC2`-Paket.
 
-Der gemeinsame Weg ist stattdessen die **Datei**: Ein Gerät erzeugt ein verschlüsseltes Sync-Paket
-und verschickt es über den normalen Teilen-Dialog des Systems — Messenger, Mail, AirDrop,
-Dateiablage, was gerade da ist. Das Gegenstück öffnet die Datei und führt sie zusammen.
+### 1. Die Datei
 
-Auf Android ist dieser Weg bereits vollständig eingebaut und ausgeliefert:
+Ein Gerät erzeugt ein verschlüsseltes Sync-Paket und verschickt es über den normalen
+Teilen-Dialog des Systems — Messenger, Mail, AirDrop, Dateiablage, was gerade da ist. Das
+Gegenstück öffnet die Datei und führt sie zusammen. Auf Android ist dieser Weg vollständig
+eingebaut und ausgeliefert:
 
 | | |
 |---|---|
 | Erzeugen und teilen | `PlakatRadarViewModel.shareSyncBundle()` |
 | Empfangen | `importSyncBundle(uri)`, dazu Intent-Filter im Manifest |
 
-Für iOS heißt das: Es ist **kein Netzwerkcode nötig**, kein Bonjour, kein eigenes Protokoll. Die
-gesamte Schnittstelle zwischen den beiden Apps ist das unten beschriebene Dateiformat. Wer es
-byteweise trifft, ist kompatibel; wer daneben liegt, ist es nicht.
+Dieser Weg braucht **keinen Netzwerkcode**, kein Bonjour, kein eigenes Protokoll. Die ganze
+Schnittstelle zwischen den beiden Apps ist das Dateiformat. Wer es byteweise trifft, ist
+kompatibel; wer daneben liegt, ist es nicht.
+
+### 2. Der Funk-Abgleich über Nearby Connections
+
+Der Abgleich von Gerät zu Gerät läuft auf Android über **Google Nearby Connections**. An dieser
+Stelle stand hier lange, die Schnittstelle gebe es auf iOS nicht und es gebe auch keinen Client
+für ihr Protokoll. **Das war falsch.** Google liefert Nearby Connections seit 2023 als
+Swift-Paket ([`google/nearby`](https://github.com/google/nearby), Produkt `NearbyConnections`),
+und der Abgleich zwischen Android und iOS ist ausdrücklich vorgesehen, solange Dienstkennung und
+Strategie auf beiden Seiten übereinstimmen. Beides tut es hier: `de.bsw.plakatradar.LOCAL_SYNC`
+und `P2P_CLUSTER`. Der Handschlag ist derselbe wie auf Android — `AUTH_CHALLENGE` →
+`AUTH_RESPONSE` mit `HMAC-SHA256(teamSecret, nonce)` → `AUTH_OK`, danach das `PRSYNC2`-Paket.
+
+Was auf iOS **nicht** geht, und das ist die entscheidende Einschränkung: Von allen Funkwegen
+trägt hier nur das **WLAN**. Bluetooth, Wi-Fi Direct und AWDL helfen zwischen Android und iPhone
+nicht — AWDL ist Apples eigener Weg und spricht nur mit Apple-Geräten. Beide Geräte müssen also
+im selben Netz hängen; der Hotspot eines der beiden Telefone genügt. Auf freiem Feld ohne Netz
+und ohne Hotspot finden sie sich nicht, dann bleibt Weg 1. Zwischen zwei Android-Geräten gilt das
+nicht: dort bleibt der volle Funkweg über Bluetooth und Wi-Fi Direct.
+
+Drei Dinge, die beim Nachbauen Zeit kosten, wenn man sie nicht weiß:
+
+- **Das Paket hat keinen brauchbaren Tag.** Der einzige ist `v0.0.1-ios` von November 2021 und
+  liegt lange vor dem Swift-Paket. `project.yml` nagelt deshalb eine Revision fest. Ein Branch
+  wäre die schlechtere Wahl: Dann änderte ein fremder Push den eigenen Bau, unbemerkt.
+- **`NSBonjourServices` muss den richtigen Typ enthalten.** Nearby leitet ihn aus der
+  Dienstkennung ab: `_` + erste sechs Byte von `SHA-256(Dienstkennung)` in Großhex + `._tcp`,
+  hier also `_EA0A851F84A0._tcp`. Steht der falsche Typ dort, blockt iOS die Suche seit Version
+  14 lautlos — kein Absturz, kein Log, nur nie ein gefundenes Gerät. `NearbyDienst.swift` rechnet
+  ihn aus, `NearbyDienstTests` prüft die Ableitung gegen Googles eigenes Beispiel, und ein
+  CI-Schritt prüft den Wert in der **gebauten** App.
+- **Das Paket bringt kein Datenschutz-Manifest mit** (`find . -name "*.xcprivacy"` im Nearby-Repo
+  findet nichts). Damit fällt die Frage, welche begründungspflichtigen Schnittstellen es benutzt,
+  auf diese App zurück. Sie ist beantwortet — siehe unten.
 
 Ein Abgleich über einen eigenen Relay-Server ist als späterer Zusatzweg vorgesehen, aber nicht
 Voraussetzung.
@@ -306,16 +338,42 @@ und als einzige begründungspflichtige Schnittstelle `UserDefaults` (hinter jede
 Ein CI-Schritt prüft, dass sie im gebauten Bundle landet — fehlt sie, fiele das sonst erst beim
 Einreichen auf.
 
+**Warum das seit dem Funk-Abgleich nicht mehr am Quelltext zu beantworten ist:** Apple prüft am
+fertigen Programm, und darin steckt nun auch alles, was Nearby Connections mitbringt — abseil,
+BoringSSL, protobuf, ein C++-Kern. Deren Quellen liegen nicht in diesem Repo, und ein eigenes
+Datenschutz-Manifest liefert Nearby nicht. Ein zweiter CI-Schritt durchsucht deshalb das
+**gebaute Programm** mit `nm` und `otool` nach den begründungspflichtigen Symbolen und schlägt
+fehl, sobald etwas auftaucht, das im Manifest nicht steht.
+
+Zwei Dinge dazu, damit der Schritt nicht mehr verspricht, als er hält:
+
+- Er sieht **nur direkte Aufrufe**. Was ein Systemframework für die App erledigt, steht nicht im
+  Programm — `@AppStorage` etwa greift innerhalb von SwiftUI auf `UserDefaults` zu und taucht
+  deshalb nicht auf, obwohl die App es benutzt. Für eigenen Swift-Code bleibt der Quelltext
+  maßgeblich; der Symbolscan ist für die mitgebrachten C- und C++-Bibliotheken da, die libc
+  direkt aufrufen.
+- Er **prüft sich selbst** an `malloc` und sagt es laut, wenn er nichts sieht. Ohne das wäre ein
+  leeres Ergebnis nicht von „nichts gefunden" zu unterscheiden, und die Aufgabe würde grün,
+  gerade weil sie blind ist.
+
+**Und genau das ist bisher der Fall.** Der Scan hat am gebauten Programm mehrfach nichts gesehen —
+erst weil `nm -u` bei Xcodes *chained fixups* die Importe nicht findet, dann weil das
+Kontrollsymbol schlecht gewählt war. Für Nearbys C++-Kern ist die Frage damit **nicht
+abschließend geklärt**. Verbindlich ist ohnehin Apples eigene Prüfung beim Hochladen; kommt von
+dort eine Meldung (ITMS-91053), stehen die passenden Begründungscodes in
+`App/PrivacyInfo.xcprivacy` bereit. Ohne Entwicklerkonto ist hier nicht mehr zu holen, und ein
+Manifest, das mehr behauptet, wäre schlechter als eines, das die Lücke benennt.
+
 ## Was Android kann und iOS nicht — und warum
 
 Vier Dinge fehlen. Bei dreien ist das keine offene Aufgabe, sondern das Ergebnis.
 
-**Nearby Connections.** Android gleicht per Funk ab, ohne Netz, über Bluetooth und Wi-Fi Direct.
-Diese Schnittstelle gehört zu den Play-Diensten; auf iOS gibt es sie nicht, und es gibt auch
-keinen Client, der ihr Protokoll spricht. Betroffen sind der Funk-Abgleich, der Handywechsel über
-Nearby und die „Teamaufnahme" mit rollendem QR-Code. **Ersatz:** das Sync-Paket als Datei über den
-Teilen-Dialog — Messenger, Mail, AirDrop, Dateien-App. Das braucht Netz oder AirDrop, dafür
-funktioniert es zwischen Android und iPhone in beide Richtungen.
+**Funk-Abgleich ohne Netz.** Der Funk-Abgleich selbst gibt es inzwischen (siehe oben), aber nicht
+in derselben Reichweite: Android verbindet sich auch ohne Netz über Bluetooth und Wi-Fi Direct,
+zwischen Android und iPhone trägt nur das WLAN. Ebenfalls offen bleiben der Handywechsel über
+Nearby und die „Teamaufnahme" mit rollendem QR-Code — beide sind eigene Abläufe über demselben
+Transport, keine Folge der Plattform. **Ersatz für den netzlosen Fall:** das Sync-Paket als Datei
+über den Teilen-Dialog. Das braucht Netz oder AirDrop, funktioniert dafür in beide Richtungen.
 
 **Offline-Kartenkacheln.** Android nutzt osmdroid und legt die Kacheln selbst ab. MapKit gibt
 seinen Kachelspeicher nicht heraus. Offlinekarten sind auf iOS seit 17 eine Systemfunktion —

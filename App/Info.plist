@@ -70,6 +70,27 @@
 	</array>
 
 	<!--
+	  Der Funk-Abgleich mit Android über Nearby Connections. Auf iOS traegt dabei nur das WLAN,
+	  und das laeuft ueber Bonjour.
+
+	  BEIDE Eintraege sind Pflicht, und BEIDE scheitern lautlos:
+	  - Ohne NSLocalNetworkUsageDescription beendet iOS die App beim ersten Suchlauf.
+	  - Ohne den passenden Eintrag in NSBonjourServices blockt iOS seit 14 jede Suche nach
+	    diesem Typ. Kein Absturz, kein Log - es wird einfach nie ein Geraet gefunden.
+
+	  Der Typ ist NICHT frei waehlbar. Nearby leitet ihn aus der Dienstkennung ab:
+	  "_" + erste sechs Byte von SHA-256("de.bsw.plakatradar.LOCAL_SYNC") in Grosshex + "._tcp".
+	  Gerechnet wird das in NearbyDienst.swift, und NearbyDienstTests haelt den Wert hier fest -
+	  samt Gegenprobe an Googles eigenem Beispiel.
+	-->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Für den Abgleich mit den Geräten deines Teams in der Nähe. Angesprochen werden nur Geräte mit demselben Team-Schlüssel, und die Daten verlassen das lokale Netz nicht.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_EA0A851F84A0._tcp</string>
+	</array>
+
+	<!--
 	  Der Kern des Android-iOS-Abgleichs: Damit taucht Plakat Kompass in "Öffnen mit" auf,
 	  wenn ein Sync-Paket aus einem Messenger, aus Mail oder per AirDrop hereinkommt.
 	  Die Endung .prsync und der Typ entsprechen dem, was die Android-App verschickt.

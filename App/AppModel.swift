@@ -17,6 +17,10 @@ final class AppModel: ObservableObject {
 
     private let repo: LocalRepository
 
+    /// Der Funk-Abgleich mit Android. `lazy`, weil er `self` braucht — und weil er nichts tut,
+    /// solange ihn niemand startet: Ohne `start()` gibt es weder Sichtbarkeit noch Suche.
+    lazy private(set) var nearby = NearbyAbgleich(model: self)
+
     init() {
         do {
             // AppModel ist @MainActor, hier ist UIDevice.current.name erlaubt.
@@ -292,12 +296,12 @@ final class AppModel: ObservableObject {
 
     /// Legt ein Team an. Das Geheimnis verlässt das Gerät nur als Hash im Sync-Paket.
     func legeTeamAn(name: String) {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         var neu = state
         neu.teamId = UUID().uuidString
         neu.teamName = name
-        neu.teamSecret = bytes.map { String(format: "%02x", $0) }.joined()
+        // Dieselben 32 Zufallsbytes als Hex wie auf Android — jetzt aus `Crypto`, wo die
+        // Erzeugung ohnehin für den Handschlag gebraucht wird.
+        neu.teamSecret = Crypto.randomNonceHex()
         neu.role = .LEADER
         neu.devices = [
             DeviceRecord(
@@ -418,6 +422,10 @@ final class AppModel: ObservableObject {
         try repo.save(neu)
         state = neu
         Task { await Erinnerungen.planeNeu(fuer: neu) }
+        // Aus demselben Grund hier: Wer gerade ein Plakat erfasst hat, soll es nicht erst beim
+        // nächsten Verbindungsaufbau auf den anderen Geräten sehen. Läuft der Funk-Abgleich
+        // nicht, kostet der Aufruf nichts.
+        nearby.zustandGeaendert()
     }
 }
 

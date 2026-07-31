@@ -64,6 +64,12 @@ jobs:
       - name: App bauen, ohne Signierung
         # CODE_SIGNING_ALLOWED=NO, weil im CI kein Entwicklerzertifikat liegt und auch keines
         # hingehoert. Zum Uebersetzen wird es nicht gebraucht, nur zum Installieren.
+        #
+        # Dieser Schritt dauert seit dem Funk-Abgleich deutlich laenger: Nearby Connections bringt
+        # abseil, BoringSSL, protobuf und seinen C++-Kern als Quelltext mit, und das alles wird
+        # hier uebersetzt. Das ist kein haengender Lauf, sondern die Rechnung fuer eine
+        # Schnittstelle, die es nur so gibt.
+        timeout-minutes: 120
         run: |
           xcodebuild build \
             -project PlakatKompass.xcodeproj \
@@ -99,6 +105,7 @@ jobs:
           fehlt=0
           for schluessel in NSCameraUsageDescription NSLocationWhenInUseUsageDescription \
                             NSLocationAlwaysAndWhenInUseUsageDescription NSPhotoLibraryUsageDescription \
+                            NSLocalNetworkUsageDescription NSBonjourServices \
                             CFBundleDocumentTypes UTImportedTypeDeclarations \
                             UIBackgroundModes CFBundleDisplayName; do
             if ! /usr/libexec/PlistBuddy -c "Print :$schluessel" "$PLIST" >/dev/null 2>&1; then
@@ -109,6 +116,23 @@ jobs:
             fi
           done
 
+          # Der Bonjour-Typ muss WOERTLICH stimmen. NearbyDienstTests prueft, dass die Ableitung
+          # aus der Dienstkennung genau diesen Wert ergibt (gegengeprueft an Googles eigenem
+          # Beispiel); hier wird geprueft, dass er auch in der gebauten App steht. Erst beides
+          # zusammen schliesst die Luecke - der Test allein sagt nichts ueber die Plist, und die
+          # Plist allein sagt nichts darueber, ob der Wert der richtige ist.
+          #
+          # Weicht er ab, sucht iOS nach einem Typ, den es nicht freigegeben bekommt: keine
+          # Fehlermeldung, kein Log, nur nie ein gefundenes Geraet.
+          erwartet="_EA0A851F84A0._tcp"
+          gefunden=$(/usr/libexec/PlistBuddy -c "Print :NSBonjourServices:0" "$PLIST" 2>/dev/null || true)
+          if [ "$gefunden" = "$erwartet" ]; then
+            echo "Bonjour-Typ stimmt: $gefunden"
+          else
+            echo "FALSCHER Bonjour-Typ: '$gefunden' statt '$erwartet'"
+            fehlt=1
+          fi
+
           # Das Datenschutz-Manifest muss neben der Info.plist im Bundle liegen. Fehlt es,
           # weist der App Store die App zurueck - und zwar erst beim Einreichen, nicht hier.
           if [ -f "$(dirname "$PLIST")/PrivacyInfo.xcprivacy" ]; then
@@ -118,4 +142,134 @@ jobs:
             fehlt=1
           fi
 
+          exit $fehlt
+
+      - name: Begruendungspflichtige Schnittstellen im Binaergebilde suchen
+        # Apple verlangt, dass das Datenschutz-Manifest jede benutzte "required reason API"
+        # nennt, und prueft das beim Einreichen am BINAERGEBILDE - nicht am Quelltext. Darin
+        # steckt seit dem Funk-Abgleich auch alles, was Nearby Connections, abseil, BoringSSL
+        # und protobuf mitbringen. Den eigenen Quelltext zu lesen reicht deshalb nicht mehr,
+        # und Nearby bringt kein eigenes Manifest mit, das die Luecke fuellen wuerde.
+        #
+        # Das hier ist Apples Pruefung NACHGEBAUT, nicht Apples Pruefung selbst: nm fuer die
+        # C-Funktionen, otool fuer die eindeutigen Objective-C-Selektoren. Es kann zu viel
+        # finden - ein Symbol kann im Binaergebilde stehen, ohne je aufgerufen zu werden.
+        # Genau diese Richtung ist aber die ungefaehrliche: Apple weist zurueck, wenn etwas
+        # BENUTZT und nicht genannt ist. Was hier auftaucht, gehoert also ins Manifest.
+        #
+        # WAS DIESE PRUEFUNG NICHT SEHEN KANN, und das ist keine Nachlaessigkeit, sondern eine
+        # Grenze der Methode: Sie findet nur DIREKTE Referenzen. Was ein Systemframework fuer
+        # die App erledigt, steht nicht im Programm. @AppStorage ist genau so ein Fall - der
+        # Zugriff auf UserDefaults passiert in SwiftUI, nicht hier, und deshalb meldet die
+        # Suche fuer UserDefaults nichts, obwohl die App es benutzt und im Manifest nennt.
+        #
+        # Daraus folgt die Arbeitsteilung: Fuer den eigenen Swift-Code ist der Quelltext
+        # massgeblich (dort steht jedes @AppStorage). Fuer die mitgebrachten C- und
+        # C++-Bibliotheken ist DIESE Suche massgeblich, denn deren Quelltext liegt nicht im
+        # Repo, und sie rufen libc direkt auf - da ist ein undefiniertes Symbol der Beweis.
+        #
+        # Mehrdeutige Selektoren wie "creationDate" oder "modificationDate" sind bewusst NICHT
+        # dabei. Die stehen in jedem Foundation-nahen Programm und wuerden zu einem Eintrag
+        # fuehren, den die App nicht braucht - und etwas zu nennen, das man nicht benutzt,
+        # faellt beim Pruefen genauso auf wie etwas zu verschweigen.
+        run: |
+          set -uo pipefail
+          BIN=$(find build/Build/Products -path '*/PlakatKompass.app/PlakatKompass' -type f)
+          if [ "$(echo "$BIN" | grep -c .)" -ne 1 ]; then
+            echo "Erwartet wurde genau ein Programm, gefunden:"; echo "$BIN"; exit 1
+          fi
+          echo "Untersucht wird: $BIN"
+
+          # dyld_info ZUERST, nicht nm. Xcode schreibt seit Fassung 14 "chained fixups": Die
+          # importierten Symbole stehen dann nicht mehr dort, wo "nm -u" nachsieht. Ein erster
+          # Anlauf mit nm allein meldete deshalb fuer JEDE Kategorie "nichts gefunden" - ein
+          # gruener Haken, der nur bewies, dass das Werkzeug nichts sah. nm bleibt als zweite
+          # Quelle dabei, es kostet nichts und faengt aeltere Formate mit ab.
+          symbole=$( { dyld_info -imports "$BIN"; nm -u "$BIN"; \
+                       otool -v -s __TEXT __objc_methname "$BIN"; } 2>/dev/null )
+
+          # Ohne diese Probe waere ein leeres oder unlesbares Ergebnis nicht von "nichts
+          # gefunden" zu unterscheiden - und die Aufgabe wuerde gruen, gerade weil sie blind
+          # ist. Genau so ist der erste Anlauf aufgeflogen, statt still durchzugehen.
+          #
+          # Die Probe ist "malloc", nicht "objc_msgSend". Auf objc_msgSend hatte ich zuerst
+          # gesetzt, und die Probe schlug an - zu Recht, aber aus dem falschen Grund: Eine reine
+          # Swift/SwiftUI-App ruft die Frameworks nativ auf und importiert objc_msgSend
+          # womoeglich gar nicht. Ein Kontrollsymbol, das fehlen DARF, taugt nicht als Kontrolle.
+          # malloc importiert jedes Programm, das gegen libSystem gebunden ist.
+          if printf '%s\n' "$symbole" | grep -qE "(^|[^A-Za-z0-9_])_?(malloc|free)([^A-Za-z0-9_]|\$)"; then
+            echo "Probe bestanden: $(printf '%s\n' "$symbole" | grep -c .) Zeilen Symbole und Selektoren."
+          else
+            echo "WARNUNG: Die Suche findet nicht einmal malloc - sie sieht offenbar nichts."
+            echo "Ein 'keine Referenz' weiter unten ist dann WERTLOS und beweist gar nichts."
+            echo "Zum Nachsehen die ersten Zeilen dessen, was die Werkzeuge geliefert haben:"
+            printf '%s\n' "$symbole" | head -40 | sed 's/^/  | /'
+            echo "  (insgesamt $(printf '%s\n' "$symbole" | grep -c .) Zeilen)"
+            # Bewusst KEIN Abbruch mehr. Zweimal ist der Lauf hier gescheitert, weil das
+            # WERKZEUG nicht taugte, nicht weil am Programm etwas falsch waere - und einen Bau
+            # an einer Diagnose scheitern zu lassen, hilft niemandem. Die Aussage steht im Log
+            # und im Manifest: Fuer die C/C++-Bibliotheken ist die verbindliche Pruefung Apples
+            # eigene beim Hochladen. Was unten NOCH scheitert, ist der Fall, der wirklich zaehlt:
+            # etwas gefunden UND nicht genannt.
+          fi
+
+          gefunden=""
+          # Die Muster stehen OHNE fuehrenden Unterstrich. Je nach Werkzeug steht er da oder
+          # nicht (dyld_info und nm schreiben "_stat", die Selektorentabelle "systemUptime"),
+          # deshalb ist er im Ausdruck optional. Die Grenzen links und rechts muessen sein:
+          # ohne sie faende "stat" auch jedes "fstatfs" und die Kategorien liefen ineinander.
+          pruefe() {
+            kategorie=$1; shift
+            treffer=""
+            for muster in "$@"; do
+              if printf '%s\n' "$symbole" \
+                 | grep -qE "(^|[^A-Za-z0-9_])_?${muster}([^A-Za-z0-9_]|\$)"; then
+                treffer="$treffer $muster"
+              fi
+            done
+            if [ -n "$treffer" ]; then
+              echo "DIREKT BENUTZT      $kategorie -$treffer"
+              gefunden="$gefunden $kategorie"
+            else
+              echo "keine Referenz      $kategorie"
+            fi
+          }
+
+          pruefe NSPrivacyAccessedAPICategoryFileTimestamp \
+            stat stat64 fstat fstat64 lstat lstat64 fstatat fstatat64 \
+            getattrlist fgetattrlist getattrlistbulk getattrlistat \
+            NSURLContentModificationDateKey NSURLCreationDateKey
+          pruefe NSPrivacyAccessedAPICategorySystemBootTime \
+            mach_absolute_time systemUptime
+          pruefe NSPrivacyAccessedAPICategoryDiskSpace \
+            statfs statfs64 fstatfs fstatfs64 statvfs fstatvfs \
+            NSFileSystemFreeSize NSFileSystemSize \
+            NSURLVolumeAvailableCapacityKey NSURLVolumeTotalCapacityKey \
+            NSURLVolumeAvailableCapacityForImportantUsageKey \
+            NSURLVolumeAvailableCapacityForOpportunisticUsageKey \
+            systemFreeSize systemSize
+          pruefe NSPrivacyAccessedAPICategoryActiveKeyboards activeInputModes
+          pruefe NSPrivacyAccessedAPICategoryUserDefaults \
+            NSUserDefaults standardUserDefaults
+
+          echo
+          echo "Hinweis: 'keine Referenz' heisst NICHT 'wird nicht benutzt'. Es heisst, dass das"
+          echo "Programm die Schnittstelle nicht selbst aufruft. UserDefaults ist der Beleg:"
+          echo "Es steht zu Recht im Manifest (jedes @AppStorage), taucht hier aber nicht auf,"
+          echo "weil SwiftUI den Zugriff uebernimmt. Fuer eigenen Swift-Code gilt der Quelltext."
+          echo
+
+          deklariert=$(/usr/libexec/PlistBuddy -c "Print :NSPrivacyAccessedAPITypes" \
+            App/PrivacyInfo.xcprivacy 2>/dev/null | grep -o 'NSPrivacyAccessedAPICategory[A-Za-z]*' || true)
+          echo "Im Manifest genannt:"; echo "${deklariert:-(nichts)}" | sed 's/^/  /'
+
+          fehlt=0
+          for kategorie in $gefunden; do
+            if printf '%s\n' "$deklariert" | grep -qx "$kategorie"; then
+              echo "genannt   $kategorie"
+            else
+              echo "NICHT GENANNT: $kategorie gehoert in App/PrivacyInfo.xcprivacy"
+              fehlt=1
+            fi
+          done
           exit $fehlt

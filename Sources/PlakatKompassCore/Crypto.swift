@@ -38,6 +38,19 @@ public enum Crypto {
         data.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Gegenstück zu `randomNonceHex(bytes)` in `core/Hashing.kt` — 32 Byte, Kleinbuchstaben.
+    ///
+    /// Die Länge ist kein Geschmack: Der Nonce ist die einzige Zufallszahl im Handschlag. Wer ihn
+    /// erraten könnte, bereitete eine gültige Antwort vor, ohne den Team-Schlüssel zu kennen.
+    ///
+    /// `SymmetricKey(size:)` statt `Int.random` oder `SecRandomCopyBytes`: CryptoKit zieht
+    /// Schlüsselmaterial aus derselben Quelle, kann dabei nicht fehlschlagen und ist hier ohnehin
+    /// schon importiert. `Int.random` wäre an dieser Stelle schlicht falsch — das ist ein
+    /// Zufallsgenerator für Spielkarten, nicht für Krypto.
+    public static func randomNonceHex(bytes: Int = 32) -> String {
+        hex(SymmetricKey(size: .init(bitCount: bytes * 8)).withUnsafeBytes { Data($0) })
+    }
+
     /// Vergleich in konstanter Zeit, Gegenstück zu `constantTimeEqualsHex`.
     ///
     /// Ein `==` auf Strings bricht beim ersten ungleichen Zeichen ab. Wer viele Pakete schickt und

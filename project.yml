@@ -26,6 +26,21 @@ packages:
   PlakatKompassCore:
     path: .
 
+  # Google Nearby Connections als Swift-Paket. Damit gleicht das iPhone per Funk direkt mit der
+  # Android-App ab, statt nur ueber eine verschickte Datei.
+  #
+  # AUF EINE REVISION FESTGENAGELT, nicht auf eine Fassung: Das Repo hat keinen brauchbaren Tag.
+  # Der einzige ist v0.0.1-ios von November 2021 und liegt lange vor dem Swift-Paket. "branch:
+  # main" waere die schlechtere Wahl - dann aenderte ein fremder Push den eigenen Bau, unbemerkt.
+  #
+  # BEWUSST NICHT IN Package.swift: Das Paket zieht abseil, BoringSSL, protobuf und den ganzen
+  # C++-Kern von Nearby mit und uebersetzt sie aus dem Quelltext. Stuende es dort, muesste jedes
+  # "swift build" und jedes "swift test" das mitbauen - fuer einen Kern, der davon kein Byte
+  # benutzt. Der Funk-Abgleich ist Sache der App, nicht des geteilten Kerns.
+  NearbyConnections:
+    url: https://github.com/google/nearby
+    revision: de5d309af13e1b929c22d0c97f9a401cef93c7b1
+
 targets:
   PlakatKompass:
     type: application
@@ -47,6 +62,8 @@ targets:
     dependencies:
       - package: PlakatKompassCore
         product: PlakatKompassCore
+      - package: NearbyConnections
+        product: NearbyConnections
     # HIER STAND EIN "info:"-BLOCK. Er hat App/Info.plist ERZEUGT und damit die
     # eingecheckte Fassung ueberschrieben - mitsamt den Berechtigungstexten und den
     # Dateityp-Angaben. Auf dem Bau-Rechner blieb eine Plist mit zwei Eintraegen uebrig.
