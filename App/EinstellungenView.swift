@@ -11,6 +11,7 @@ import UserNotifications
 /// Schalter zu zeigen, die nichts tun. Stattdessen führt ein Verweis dorthin.
 struct EinstellungenView: View {
     @EnvironmentObject private var model: AppModel
+    @AppStorage(Kurzanleitung.schluessel) private var anleitungGesehen = ""
 
     @AppStorage("pausenErinnerung") private var pausenErinnerung = false
     @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
@@ -28,6 +29,7 @@ struct EinstellungenView: View {
             pausenAbschnitt
             berechtigungenAbschnitt
             geraeteAbschnitt
+            kurzanleitungAbschnitt
             Section {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
                 // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
@@ -47,6 +49,31 @@ struct EinstellungenView: View {
         .onChange(of: pausenMinuten) { _, neu in
             guard pausenErinnerung else { return }
             Task { await Erinnerungen.startePause(minuten: neu) }
+        }
+    }
+
+    /// Die Kurzanleitung noch einmal von vorn.
+    ///
+    /// Der Zähler ist nicht Zierrat: Ohne ihn ist nicht zu erkennen, ob der Knopf etwas getan
+    /// hat — die Erklärungen erscheinen ja erst beim nächsten Öffnen eines Bereichs, also
+    /// irgendwann später und woanders.
+    @ViewBuilder private var kurzanleitungAbschnitt: some View {
+        let gesehen = Kurzanleitung.anzahlGesehen(anleitungGesehen)
+        Section {
+            Button {
+                anleitungGesehen = ""
+                model.meldung = "Die Kurzanleitung erscheint wieder in jedem Bereich."
+            } label: {
+                Label("Kurzanleitung erneut zeigen", systemImage: "graduationcap")
+            }
+            .disabled(gesehen == 0)
+        } header: {
+            Text("Kurzanleitung")
+        } footer: {
+            Text(gesehen == 0
+                 ? "Noch kein Bereich erklärt — die Anleitung erscheint von selbst, sobald du einen öffnest."
+                 : "\(gesehen) von \(Kurzanleitung.bereiche.count) Bereichen gesehen. Danach erscheint "
+                   + "die Erklärung wieder, sobald du einen Bereich öffnest.")
         }
     }
 

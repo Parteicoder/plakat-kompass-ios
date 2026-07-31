@@ -43,21 +43,43 @@ struct PlakatKompassApp: App {
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
 
+    /// Der TabView hat jetzt eine Auswahl, weil die Kurzanleitung wissen muss, welcher Bereich
+    /// gerade offen ist. Die Zeichenketten sind zugleich die Schlüssel in [Kurzanleitung].
+    @State private var reiter = "start"
+    @AppStorage(Kurzanleitung.schluessel) private var gesehen = ""
+
     var body: some View {
-        TabView {
+        TabView(selection: $reiter) {
             StartView()
                 .tabItem { Label("Start", systemImage: "house") }
+                .tag("start")
             CaptureView()
                 .tabItem { Label("Erfassen", systemImage: "camera") }
+                .tag("erfassen")
             PosterListView()
                 .tabItem { Label("Liste", systemImage: "list.bullet") }
                 // Die Zahl der fälligen Abnahmen am Reiter. Wer die App öffnet, soll nicht erst
                 // suchen müssen, ob etwas ansteht.
                 .badge(model.faelligeAbnahmen)
+                .tag("liste")
             PosterMapView()
                 .tabItem { Label("Karte", systemImage: "map") }
+                .tag("karte")
             SyncView()
                 .tabItem { Label("Abgleich", systemImage: "arrow.triangle.2.circlepath") }
+                .tag("abgleich")
+        }
+        // Die Erklärung liegt ÜBER dem echten Bildschirm, nicht davor. Deshalb ein overlay und
+        // kein sheet: Wer liest „Filter oben links", soll den Filter oben links sehen.
+        .overlay {
+            if Kurzanleitung.zeigen(reiter, gesehen: gesehen), let bereich = Kurzanleitung.fuer(reiter) {
+                KurzanleitungOverlay(bereich: bereich) {
+                    withAnimation { gesehen = Kurzanleitung.gemerkt(reiter, gesehen: gesehen) }
+                }
+                // Ohne eigene Identität behält SwiftUI beim Reiterwechsel die alte Seitenzahl
+                // bei, und die zweite Anleitung startet mitten drin.
+                .id(reiter)
+            }
         }
         .alert("Fehler", isPresented: .constant(model.fehler != nil)) {
             Button("OK") { model.fehler = nil }

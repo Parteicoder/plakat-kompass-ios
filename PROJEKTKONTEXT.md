@@ -110,6 +110,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Erinnerungen | `Erinnerungen.swift` |
 | Startseite, Erfassen, Liste, Karte, Abgleich | `StartView`, `CaptureView`, `PosterListView`, `PosterMapView`, `SyncView` |
 | Funk-Abgleich mit Android | `NearbyAbgleich.swift`, `NearbyDienst.swift` |
+| Kurzanleitung je Bereich | `Kurzanleitung.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
