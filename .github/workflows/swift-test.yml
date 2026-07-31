@@ -48,6 +48,41 @@ jobs:
         # koennen, das weder von ihm noch von der Kotlin-Seite erzeugt wurde.
         run: swift test
 
+      - name: Jede Abhaengigkeit steht auf der Lizenzseite
+        # WARUM DIESE AUFGABE EXISTIERT: Genau dieser Fehler ist passiert. Der Funk-Abgleich
+        # brachte Google Nearby in die App - und die Lizenzseite nannte monatelang weiter nur
+        # ZIPFoundation. Namensnennung, die fehlt, ist bei einer AGPL-App kein Schoenheits-
+        # fehler, sondern ein Lizenzverstoss. Und er faellt von selbst nie auf: Die App baut,
+        # startet und laeuft einwandfrei ohne die Nennung.
+        #
+        # Geprueft wird die schwache, aber wartungsfreie Richtung: Jedes Paket, das in
+        # Package.swift oder project.yml als Abhaengigkeit steht, muss auf der Lizenzseite
+        # namentlich vorkommen. Was Nearby SEINERSEITS mitbringt, steht hier nicht - das
+        # nennt kein Manifest dieses Projekts. Diese sechs sind in EinstellungenView.swift
+        # aus Package.swift und .gitmodules von google/nearby abgeschrieben und dort als
+        # eigener Abschnitt begruendet.
+        run: |
+          seite=App/EinstellungenView.swift
+          fehlt=0
+          # Paketnamen aus beiden Manifesten: "url: .../nearby" -> nearby,
+          # ".package(url:" in Package.swift genauso. Der letzte Pfadteil ohne .git.
+          pakete=$(grep -hoE 'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' \
+                     Package.swift project.yml 2>/dev/null \
+                   | sed 's|.*/||; s|\.git$||' | sort -u)
+          echo "Abhaengigkeiten laut Manifest:"; echo "${pakete:-(keine)}" | sed 's/^/  /'
+          echo
+          for paket in $pakete; do
+            # Ohne -i waere "ZIPFoundation" gegen "zipfoundation" blind, ohne den Wortstamm
+            # scheiterte "nearby" an "Nearby Connections". Deshalb Teilstring, klein.
+            if grep -qi "$paket" "$seite"; then
+              echo "genannt         $paket"
+            else
+              echo "NICHT GENANNT:  $paket fehlt in $seite"
+              fehlt=1
+            fi
+          done
+          exit $fehlt
+
   app:
     name: iOS-App bauen
     runs-on: macos-15
