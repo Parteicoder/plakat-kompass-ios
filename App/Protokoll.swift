@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Ein Protokoll, das den Neustart überlebt — Gegenstück zu `util/AppLogStore.kt` und
 /// `util/CrashLogStore.kt`.
@@ -103,7 +104,10 @@ final class Protokoll: ObservableObject {
         // Erst jetzt anmelden: MetricKit liefert unmittelbar nach dem Anmelden, und die Zeilen
         // sollen hinter "App gestartet" stehen, nicht davor.
         Absturzberichte.geteilt.melde_an()
-        schreibe("App gestartet.")
+        // Fassung und iOS-Stand in die Startzeile. Ein geteiltes Protokoll landet Tage spaeter
+        // bei jemandem, der nicht mehr weiss, welche Fassung darauf lief - und dann ist die
+        // erste Rueckfrage immer dieselbe.
+        schreibe("App gestartet. Fassung \(Fassung.anzeige), iOS \(UIDevice.current.systemVersion)")
     }
 
     /// Beim geordneten Wechsel in den Hintergrund aufrufen. Nimmt die Marke wieder weg.
