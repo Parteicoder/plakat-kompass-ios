@@ -38,6 +38,8 @@ struct StartView: View {
                         Teamaufnahme(nearby: model.nearby)
                     }
 
+                    UnterstuetzenUndGemeinschaft()
+
                     if let treffer = naechstes {
                         NaechstesPlakat(treffer: treffer)
                     } else if standort.abgelehnt && !model.state.posters.isEmpty {
@@ -94,6 +96,71 @@ struct StartView: View {
 
 /// Der einzige Hinweis, der auffallen muss. Alles andere auf dieser Seite ist Information,
 /// das hier ist eine Frist.
+/// „Support & Community" — die drei runden Knöpfe von der Android-Startseite.
+///
+/// Die Ziele sind aus `ModernHomeScreen.kt` übernommen, nicht geraten:
+/// `SUPPORT_URL`, `C3_DISCORD_URL` und `X_URL`.
+///
+/// **Warum hier Systemsymbole stehen und keine Markenzeichen.** Android benutzt eigene Grafiken
+/// (`ic_kofi`, `ic_c3`, `ic_x_logo`). Die liegen in diesem Repo nicht, und sie nachzuzeichnen
+/// wäre die falsche Art von Genauigkeit: Fremde Wort- und Bildmarken gehören nicht ohne
+/// Nutzungsrecht in ein Bundle. Ein Systemsymbol mit dem Namen darunter sagt dasselbe und ist
+/// obendrein für VoiceOver besser — ein Logo ohne Beschriftung ist dort ein leerer Knopf.
+private struct UnterstuetzenUndGemeinschaft: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("SUPPORT & COMMUNITY")
+                .font(.caption2.weight(.semibold))
+                .kerning(1.2)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 22) {
+                Knopf(ziel: "https://ko-fi.com/parteicoder",
+                      symbol: "cup.and.saucer.fill",
+                      titel: "Ko-fi",
+                      vorlesen: "Ko-fi unterstützen")
+                Knopf(ziel: "https://discord.gg/6GxADmF5Re",
+                      symbol: "bubble.left.and.bubble.right.fill",
+                      titel: "Discord",
+                      vorlesen: "C3-Discord")
+                Knopf(ziel: "https://x.com/Plakatkompass",
+                      symbol: "at",
+                      titel: "X",
+                      vorlesen: "X, at Plakatkompass")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
+    private struct Knopf: View {
+        let ziel: String
+        let symbol: String
+        let titel: String
+        let vorlesen: String
+
+        var body: some View {
+            // Ein fehlerhaftes Ziel laesst hier lieber den Knopf weg, als die App mit einem
+            // erzwungenen Auspacken zu beenden. Die drei Adressen sind fest, aber ein Tippfehler
+            // beim naechsten Aendern soll niemanden etwas kosten.
+            if let url = URL(string: ziel) {
+                Link(destination: url) {
+                    VStack(spacing: 5) {
+                        Image(systemName: symbol)
+                            .font(.system(size: 20))
+                            .frame(width: 52, height: 52)
+                            .background(.thinMaterial, in: Circle())
+                            .overlay(Circle().strokeBorder(.secondary.opacity(0.25)))
+                        Text(titel).font(.caption2)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(vorlesen)
+            }
+        }
+    }
+}
+
 /// „Teamaufnahme" auf der Startseite — Gegenstück zu `ModernTeamQrCard.kt`.
 ///
 /// **Der Schalter tut zwei Dinge, und das zweite ist der eigentliche Punkt:** Er zeigt den
