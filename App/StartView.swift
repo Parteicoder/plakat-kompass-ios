@@ -94,18 +94,22 @@ struct StartView: View {
     }
 }
 
-/// Der einzige Hinweis, der auffallen muss. Alles andere auf dieser Seite ist Information,
-/// das hier ist eine Frist.
 /// „Support & Community" — die drei runden Knöpfe von der Android-Startseite.
 ///
 /// Die Ziele sind aus `ModernHomeScreen.kt` übernommen, nicht geraten:
 /// `SUPPORT_URL`, `C3_DISCORD_URL` und `X_URL`.
 ///
-/// **Warum hier Systemsymbole stehen und keine Markenzeichen.** Android benutzt eigene Grafiken
-/// (`ic_kofi`, `ic_c3`, `ic_x_logo`). Die liegen in diesem Repo nicht, und sie nachzuzeichnen
-/// wäre die falsche Art von Genauigkeit: Fremde Wort- und Bildmarken gehören nicht ohne
-/// Nutzungsrecht in ein Bundle. Ein Systemsymbol mit dem Namen darunter sagt dasselbe und ist
-/// obendrein für VoiceOver besser — ein Logo ohne Beschriftung ist dort ein leerer Knopf.
+/// **Die Symbole sind die echten aus der Android-Fassung**, aus deren `res/drawable` übernommen:
+/// `ic_kofi.png`, `ic_c3.png` und `ic_x_logo.xml`. Hier stand zuerst ein Ersatz aus
+/// Systemzeichen — der war nur nötig, solange ich die Dateien nicht gefunden hatte.
+///
+/// Beim X-Zeichen war das ein Glücksfall: Androids `pathData` **ist** SVG-Syntax. Der Pfad
+/// konnte wörtlich in eine SVG-Hülle übernommen werden, statt ihn nachzuzeichnen — und
+/// Xcode legt SVG als echten Vektor ab. Als Schablone eingebunden, damit das schwarze Zeichen
+/// im dunklen Erscheinungsbild nicht verschwindet; Ko-fi und C3 bleiben farbig, das sind Logos.
+///
+/// Die Beschriftungen bleiben unter den Symbolen stehen. Für VoiceOver ist ein Logo ohne Text
+/// ein leerer Knopf, und die Vorlesetexte sind wörtlich die `contentDescription` von drüben.
 private struct UnterstuetzenUndGemeinschaft: View {
     var body: some View {
         VStack(spacing: 10) {
@@ -116,17 +120,14 @@ private struct UnterstuetzenUndGemeinschaft: View {
 
             HStack(spacing: 22) {
                 Knopf(ziel: "https://ko-fi.com/parteicoder",
-                      symbol: "cup.and.saucer.fill",
-                      titel: "Ko-fi",
-                      vorlesen: "Ko-fi unterstützen")
+                      bild: "SymbolKofi", schablone: false,
+                      titel: "Ko-fi", vorlesen: "Ko-fi unterstützen")
                 Knopf(ziel: "https://discord.gg/6GxADmF5Re",
-                      symbol: "bubble.left.and.bubble.right.fill",
-                      titel: "Discord",
-                      vorlesen: "C3-Discord")
+                      bild: "SymbolC3", schablone: false,
+                      titel: "C3", vorlesen: "C3-Discord")
                 Knopf(ziel: "https://x.com/Plakatkompass",
-                      symbol: "at",
-                      titel: "X",
-                      vorlesen: "X, at Plakatkompass")
+                      bild: "SymbolX", schablone: true,
+                      titel: "X", vorlesen: "X, at Plakatkompass")
             }
         }
         .frame(maxWidth: .infinity)
@@ -135,7 +136,11 @@ private struct UnterstuetzenUndGemeinschaft: View {
 
     private struct Knopf: View {
         let ziel: String
-        let symbol: String
+        let bild: String
+        /// Nur fuer das X-Zeichen: Es ist einfarbig schwarz und muesste im dunklen
+        /// Erscheinungsbild sonst gegen einen dunklen Grund antreten. Ko-fi und C3 sind
+        /// mehrfarbige Logos und bleiben, wie sie sind.
+        let schablone: Bool
         let titel: String
         let vorlesen: String
 
@@ -146,8 +151,11 @@ private struct UnterstuetzenUndGemeinschaft: View {
             if let url = URL(string: ziel) {
                 Link(destination: url) {
                     VStack(spacing: 5) {
-                        Image(systemName: symbol)
-                            .font(.system(size: 20))
+                        Image(bild)
+                            .renderingMode(schablone ? .template : .original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
                             .frame(width: 52, height: 52)
                             .background(.thinMaterial, in: Circle())
                             .overlay(Circle().strokeBorder(.secondary.opacity(0.25)))
@@ -219,6 +227,8 @@ private struct Teamaufnahme: View {
     }
 }
 
+/// Der einzige Hinweis, der auffallen muss. Alles andere auf dieser Seite ist Information,
+/// das hier ist eine Frist.
 private struct Faelliges: View {
     let anzahl: Int
 
