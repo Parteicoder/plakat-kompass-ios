@@ -182,16 +182,7 @@ private struct NaechstesPlakat: View {
                 Spacer()
             }
 
-            // Die Navigation überlassen wir Apple Maps - wie in der Detailansicht auch.
-            Button {
-                let ziel = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(
-                    latitude: treffer.poster.latitude, longitude: treffer.poster.longitude
-                )))
-                ziel.name = treffer.poster.addressHint.isEmpty ? "Plakat" : treffer.poster.addressHint
-                ziel.openInMaps(launchOptions: [
-                    MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
-                ])
-            } label: {
+            Button { treffer.poster.hinlaufen() } label: {
                 Label("Hinlaufen", systemImage: "figure.walk")
                     .font(.subheadline)
             }
