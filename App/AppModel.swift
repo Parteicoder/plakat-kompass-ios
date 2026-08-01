@@ -21,6 +21,13 @@ final class AppModel: ObservableObject {
     /// solange ihn niemand startet: Ohne `start()` gibt es weder Sichtbarkeit noch Suche.
     lazy private(set) var nearby = NearbyAbgleich(model: self)
 
+    /// Der Handywechsel gehoert dem Modell, nicht dem Experten-Bildschirm.
+    ///
+    /// Er lag dort als @StateObject und war damit nur erreichbar, wenn schon ein Team
+    /// eingerichtet war - also ausgerechnet fuer ein FRISCHES Geraet nicht, das genau deshalb
+    /// umziehen will. Man haette erst ein Team anlegen muessen, um es sofort zu ueberschreiben.
+    lazy private(set) var handywechsel = HandywechselNearby(model: self)
+
     init() {
         do {
             // AppModel ist @MainActor, hier ist UIDevice.current.name erlaubt.

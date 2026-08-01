@@ -8,31 +8,25 @@ import SwiftUI
 /// und wenn etwas nicht geht und jemand fragt, was im Protokoll steht.
 struct ExpertenView: View {
     @EnvironmentObject private var model: AppModel
-    @StateObject private var umzug: HandywechselNearby
-
     @State private var empfangBestaetigen = false
     @State private var protokollDatei: URL?
 
-    init(model: AppModel) {
-        _umzug = StateObject(wrappedValue: HandywechselNearby(model: model))
-    }
-
     var body: some View {
         List {
-            Handywechsel(umzug: umzug, empfangBestaetigen: $empfangBestaetigen)
-            Diagnose(umzug: umzug)
+            Handywechsel(umzug: model.handywechsel, empfangBestaetigen: $empfangBestaetigen)
+            Diagnose(umzug: model.handywechsel)
             Fehlerbericht(protokollDatei: $protokollDatei)
         }
         .sheet(item: $protokollDatei) { datei in TeilenDialog(dateien: [datei]) }
         .navigationTitle("Experten")
         .navigationBarTitleDisplayMode(.inline)
-        .onDisappear { umzug.stop() }
+        .onDisappear { model.handywechsel.stop() }
         .confirmationDialog(
             "Alles auf diesem Gerät überschreiben?",
             isPresented: $empfangBestaetigen,
             titleVisibility: .visible
         ) {
-            Button("Backup empfangen", role: .destructive) { umzug.empfange() }
+            Button("Backup empfangen", role: .destructive) { model.handywechsel.empfange() }
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("""

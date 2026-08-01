@@ -141,6 +141,20 @@ struct SyncView: View {
                         ohne Team plakatierst. Erst danach lässt sich erfassen.
                         """)
                     }
+
+                    // HIER FEHLTE DER UMZUG, UND DAS WAR EIN ABLAUF-FEHLER, KEIN SCHOENHEITSFEHLER.
+                    //
+                    // Der Handywechsel-Empfang lag nur unter Einstellungen → Experten. Dorthin
+                    // kommt man aber erst mit eingerichtetem Team - man haette also auf dem NEUEN
+                    // Telefon erst ein Team anlegen muessen, um es Sekunden spaeter vom Backup
+                    // ueberschreiben zu lassen. Auf Android steht "Backup empfangen" direkt auf
+                    // dem Einrichtungsbildschirm, und genau dort gehoert es hin: Ein frisches
+                    // Geraet hat nichts, und das ist der Moment, in dem man umzieht.
+                    //
+                    // Der Abschnitt steht NUR hier, im nicht eingerichteten Zustand. Wer schon ein
+                    // Team hat, findet den Umzug weiterhin unter Experten - dort mit Rueckfrage,
+                    // weil dann tatsaechlich etwas ueberschrieben wuerde.
+                    UmzugBeimEinrichten(umzug: model.handywechsel)
                 }
             }
             .navigationTitle("Abgleich")
@@ -211,6 +225,58 @@ private struct FunkAbgleich: View {
             Hotspot eines der beiden Telefone genügt. Ohne Netz finden sie sich nicht, dann bleibt \
             das Sync-Paket als Datei. Beim ersten Mal fragt iOS nach dem lokalen Netzwerk — wer \
             hier ablehnt, sieht danach nie ein Gerät, ohne dass es eine Meldung gäbe.
+            """)
+        }
+    }
+}
+
+/// „Backup empfangen" für ein Telefon, auf dem noch nichts eingerichtet ist.
+///
+/// **Ohne Rückfrage, anders als im Experten-Bildschirm.** Dort überschreibt der Empfang einen
+/// vorhandenen Stand und muss deshalb bestätigt werden. Hier ist nichts da, was
+/// überschrieben werden könnte — eine Warnung „alles wird ersetzt" wäre schlicht unwahr.
+private struct UmzugBeimEinrichten: View {
+    @ObservedObject var umzug: HandywechselNearby
+
+    var body: some View {
+        Section {
+            switch umzug.zustand {
+            case .aus:
+                Button {
+                    umzug.empfange()
+                } label: {
+                    Label("Backup empfangen", systemImage: "iphone.and.arrow.forward")
+                }
+
+            case .sucht:
+                HStack {
+                    ProgressView()
+                    Text("Warte auf das alte Gerät …").padding(.leading, 8)
+                }
+                Button("Abbrechen", role: .cancel) { umzug.stop() }
+
+            case .uebertraegt:
+                HStack {
+                    ProgressView()
+                    Text("Übertragung läuft …").padding(.leading, 8)
+                }
+
+            case .fertig(let text):
+                Label(text, systemImage: "checkmark.circle").foregroundStyle(.green)
+
+            case .fehler(let text):
+                Label(text, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                Button("Noch einmal") { umzug.stop() }
+            }
+        } header: {
+            Text("Vom alten Handy umziehen")
+        } footer: {
+            Text("""
+            Wechselst du von einem alten Telefon? Dann hier empfangen, statt ein neues Team \
+            anzulegen — Plakate, Fotos, Touren, Team und Rolle kommen vollständig mit.
+
+            Auf dem **alten** Gerät dazu Einstellungen → Experten → „Auf ein neues Gerät \
+            umziehen" wählen. Beide Telefone müssen im selben WLAN sein.
             """)
         }
     }

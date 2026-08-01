@@ -42,6 +42,42 @@ enum Farben {
     /// sondern eine Unstimmigkeit.
     static let flaeche = paar(hell: 0xFDF8F6, dunkel: 0x1E1815)
 
+    // MARK: - Flächen und Rahmen
+    //
+    // Die restlichen Token aus AppColors.kt, Wert für Wert übernommen. Sie tragen die
+    // Gestaltung: Das warme Anthrazit im Dunkeln ist dort ausdrücklich als „freigegeben per
+    // Mockup" vermerkt, und ein Grauton daneben sieht sofort nach einer anderen App aus.
+    //
+    // WAS HIER BEWUSST NICHT STEHT: die fünf Textfarben (textPrimary, textBody, textSecondary,
+    // textMuted, textStrong). Dafür bleiben `.primary` und `.secondary` zuständig. Die folgen
+    // nicht nur Hell und Dunkel, sondern auch „Kontrast erhöhen" und „Ohne Farbe" aus den
+    // Bedienungshilfen. Ein festes #64748B sähe exakt aus wie drüben — und ignorierte jemanden,
+    // der die Schrift kontrastreicher gestellt hat. Wer strikte Gleichheit will, ergänzt sie
+    // hier; der Preis steht damit wenigstens dabei.
+
+    /// Karten und erhabene Flächen. Hell reines Weiss, dunkel das warme Anthrazit.
+    static let karte = paar(hell: 0xFFFFFF, dunkel: 0x26201C)
+
+    /// Der ruhigere Zweitgrund — Android nimmt ihn für Felder und abgesetzte Bereiche.
+    static let flaecheAlt = paar(hell: 0xF8FAFC, dunkel: 0x2E2721)
+
+    /// Grund der Reiterleiste.
+    static let leiste = paar(hell: 0xFFFFFF, dunkel: 0x221D19)
+
+    /// Trennlinien und Umrandungen.
+    static let rahmen = paar(hell: 0xE2E8F0, dunkel: 0x3A322C)
+
+    /// Der dreistufige Seitenverlauf aus `AppColors.screenGradient`, von oben nach unten.
+    ///
+    /// Er steht hier vollständig, auch wenn [flaeche] als einzelne Fläche der Regelfall bleibt:
+    /// Unter einer `List` wäre ein Verlauf verdeckt. Wer ihn auf einem freien Bildschirm
+    /// einsetzen will, soll die Werte nicht ein zweites Mal abschreiben müssen.
+    static let seitenVerlauf = [
+        paar(hell: 0xFDF8F6, dunkel: 0x1E1815),
+        paar(hell: 0xF8F1EE, dunkel: 0x181310),
+        paar(hell: 0xFFFFFF, dunkel: 0x26201C)
+    ]
+
     private static func paar(hell: UInt32, dunkel: UInt32) -> Color {
         Color(uiColor: UIColor { merkmale in
             merkmale.userInterfaceStyle == .dark
