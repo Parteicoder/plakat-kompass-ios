@@ -333,6 +333,25 @@ jobs:
             fi
           done
 
+          # Die Fassungsnummer muss ERSETZT in der gebauten App stehen.
+          #
+          # App/Info.plist enthaelt absichtlich nur die Platzhalter $(MARKETING_VERSION) und
+          # $(CURRENT_PROJECT_VERSION); die Werte stehen in project.yml. Gepflegt wird die Zahl
+          # damit an genau einer Stelle - aber nur, solange Xcode sie tatsaechlich einsetzt.
+          #
+          # Faellt die Kette auseinander (Platzhalter aus der Plist geloescht, Einstellung in
+          # project.yml umbenannt, GENERATE_INFOPLIST_FILE wieder auf YES), uebersetzt die App
+          # weiterhin fehlerfrei. Auf dem Bildschirm "Lizenzen und Dank" stuende dann woertlich
+          # "$(MARKETING_VERSION)" oder "unbekannt" - und im Fehlerbericht ebenso.
+          for schluessel in CFBundleShortVersionString CFBundleVersion; do
+            wert=$(/usr/libexec/PlistBuddy -c "Print :$schluessel" "$PLIST" 2>/dev/null || true)
+            case "$wert" in
+              "")     echo "FEHLT: $schluessel"; fehlt=1 ;;
+              *'$('*) echo "NICHT ERSETZT: $schluessel steht als '$wert' in der gebauten App"; fehlt=1 ;;
+              *)      echo "vorhanden: $schluessel = $wert" ;;
+            esac
+          done
+
           # Das Datenschutz-Manifest muss neben der Info.plist im Bundle liegen. Fehlt es,
           # weist der App Store die App zurueck - und zwar erst beim Einreichen, nicht hier.
           if [ -f "$(dirname "$PLIST")/PrivacyInfo.xcprivacy" ]; then
