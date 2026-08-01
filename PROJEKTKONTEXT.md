@@ -111,6 +111,12 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Startseite, Erfassen, Liste, Karte, Abgleich | `StartView`, `CaptureView`, `PosterListView`, `PosterMapView`, `SyncView` |
 | Funk-Abgleich mit Android | `NearbyAbgleich.swift`, `NearbyDienst.swift` |
 | Kurzanleitung je Bereich | `Kurzanleitung.swift` |
+| Handywechsel-Backup (`PRBACKUP2`) | `DeviceBackupCodec.swift`, `HandywechselNearby.swift` |
+| Experten-Bildschirm mit Diagnose | `ExpertenView.swift` |
+| Dauerhaftes Protokoll und Absturzberichte | `Protokoll.swift`, `Absturzberichte.swift` |
+| Sozialdaten-Zwischenspeicher auf der Platte | `SozialdatenCache.swift`, `SozialCachePolitik.swift` |
+| Darstellung hell/dunkel/automatisch | `Darstellung.swift` |
+| Adresssuche auf der Karte | `PosterMapView.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
@@ -143,29 +149,82 @@ eine Kampagne hinweg spürbar träge.
 
 ---
 
-## 5. Was Android kann und diese Fassung nicht
+## 5. Stand des Ports: was noch offen ist
 
-Das README führt das aus. Kurz, und mit einer Berichtigung:
+Der Abgleich Android ↔ iOS ist **funktionsweise durchgegangen**, in drei Durchläufen: die Dateien
+des Kerns gegeneinander, dann die Funktionen über ihre Symbole, zuletzt die **Bildschirminhalte
+Feld für Feld**. Der dritte Durchgang war der ergiebigste — er hat eine Lücke gefunden, die die
+ersten beiden nicht zeigen konnten (siehe „Adresse von Hand" unten).
 
-**Nearby Connections** — hier stand, es gebe die Schnittstelle auf iOS nicht und werde sie nie
-geben. Das war schlicht falsch, und zwar in beiden Hälften: Google liefert Nearby Connections als
-Swift-Paket, und der Abgleich zwischen Android und iOS ist ausdrücklich vorgesehen. Er ist in
-`App/NearbyAbgleich.swift` gebaut. Was bleibt, ist eine kleinere Einschränkung als behauptet:
-Zwischen den Plattformen trägt nur das WLAN, nicht Bluetooth oder Wi-Fi Direct — beide Geräte
-müssen also im selben Netz sein, notfalls über den Hotspot eines der beiden. Für den netzlosen
-Fall bleibt das Sync-Paket als Datei über den Teilen-Dialog.
+**Eine Warnung zur Methode, weil sie zweimal in die Irre geführt hat:** Nach Android-Namen zu
+suchen findet Lücken, die es nicht gibt. `FirstCaptureHintStore` heisst auf iOS
+`hatFotoAufgenommen`, `NearestPoster` liegt in `HomeStats.swift`, `EventHistoryPolicy` in
+`RemovalDeadlinePolicy.swift`. Wer eine Lücke vermutet, sucht nach **Verhalten**, nicht nach
+Bezeichnern.
 
-**Offline-Kacheln** — MapKit gibt seinen Kachelspeicher nicht heraus. Offlinekarten sind auf iOS
-seit 17 Systemfunktion.
+### 5.1 Geht nicht — Plattformgrenze
 
-**Handywechsel-Backup (`PRBACKUP2`)** — auf iOS unnötig, weil alles unter „Application Support"
-liegt und mit dem iCloud-Backup mitwandert.
+**Offline-Kartencache.** Android zeichnet OSM-Kacheln selbst (osmdroid) und kann sie deshalb
+vorhalten. MapKit gibt seinen Kachelspeicher nicht heraus. Kein Aufwandsproblem, sondern eine
+Grenze der Schnittstelle. Offlinekarten sind auf iOS seit 17 Systemfunktion und stehen
+ausserhalb der App zur Verfügung.
 
-**Relay-Abgleich** — hier ist das README ungenau: Es liest sich so, als fehle nur die
-iOS-Anbindung. Tatsächlich hat **auch Android keinen Relay-Client**;
-`grep -rl "relay" app/src/main/java` im Android-Repo findet nichts. Das Backend-Repository
-existiert, aber es ist an keine der beiden Apps angebunden. Wer das angeht, fängt auf beiden
-Seiten bei null an.
+### 5.2 Geht nur teilweise
+
+**Absturzprotokoll.** Android fängt mit `Thread.setDefaultUncaughtExceptionHandler` jeden Absturz
+ab. Auf iOS gibt es dafür kein Gegenstück:
+
+- `NSSetUncaughtExceptionHandler` fängt nur Objective-C-Ausnahmen — ist gebaut.
+- Swift-Laufzeitfehler (`fatalError`, Index über das Ende, `nil` beim Auspacken) lösen keine
+  Ausnahme aus, sondern ein `SIGTRAP`. Ein Signal-Handler dafür dürfte weder Swift noch
+  Objective-C noch `malloc` benutzen; Apple rät ausdrücklich davon ab, und selbst ausgereifte
+  Fremdpakete verdecken damit gelegentlich den echten Absturz. **Bewusst nicht gebaut.**
+- Stattdessen **MetricKit** (`Absturzberichte.swift`): liefert Grund und Aufrufliste, Swift-Traps
+  eingeschlossen — das ist *mehr* als Android hat. Aber **nur auf echten Geräten**, praktisch
+  erst über TestFlight. Im Simulator kommt nichts an, der CI kann es nicht prüfen.
+- Die Marke in `Protokoll.swift` deckt die Lücke halb: Sie merkt überall, **dass** der vorige
+  Lauf nicht geordnet endete — nur nicht, warum.
+
+### 5.3 Anders platziert, nicht fehlend
+
+Auf der Android-Startseite liegen **QR-Scan** und **Ko-fi**. Auf iOS gibt es beides, aber
+woanders: der QR-Scan unter „Abgleich" (`TeamView`), Ko-fi in den Einstellungen. Bewusst so —
+die iOS-Startseite ist der Bildschirm für „was steht an", nicht für Einrichtung.
+
+### 5.4 Gebaut, aber noch nicht gemergt
+
+**Adresse von Hand beim Erfassen** (PR #24). Bis dahin gilt auf iOS: ohne Ortung **kein**
+Plakat, der Speichern-Knopf bleibt grau. Android lässt die Adresse tippen und geokodiert sie.
+Trifft jeden, der in einer Häuserschlucht steht oder die Ortung einmal abgelehnt hat.
+
+### 5.5 Kein Unterschied zu Android — beide haben es nicht
+
+**Relay-Abgleich.** Das README liest sich, als fehle nur die iOS-Anbindung. Tatsächlich hat
+**auch Android keinen Relay-Client**; `grep -rl "relay" app/src/main/java` findet nichts. Das
+Backend-Repository existiert, ist aber an keine der beiden Apps angebunden. Wer das angeht,
+fängt auf beiden Seiten bei null an.
+
+### 5.6 Nicht offen, sondern ungeprüft — und das ist der wichtigere Punkt
+
+Diese Dinge sind **gebaut und übersetzt**, aber nie in ihrer eigentlichen Funktion gelaufen. Der
+CI baut für den Simulator, und der hat weder Kamera noch Funkgegenüber:
+
+| | erster echter Beweis wäre |
+|---|---|
+| Funk-Abgleich mit Android | iPhone und Android-Gerät im selben WLAN, Abgleich in beide Richtungen mit Foto |
+| Handywechsel | zwei iPhones, auf dem alten „umziehen", auf dem neuen „übernehmen" |
+| Kamera und Foto-Verkleinerung | ein Gerät |
+| Hintergrundortung der Flyer-Touren | ein Gerät, Telefon in der Tasche, eine echte Runde |
+| MetricKit-Absturzberichte | ein Gerät über TestFlight |
+
+Fällt beim Funk-Abgleich etwas aus, sind die beiden ersten Verdächtigen die Berechtigung fürs
+lokale Netzwerk und die Frage, ob beide Geräte wirklich im selben Netz hängen — **nicht** der
+Team-Schlüssel. Der Hinweis nach 25 Sekunden Stille in `NearbyAbgleich` sagt genau das.
+
+**Berichtigung an dieser Stelle:** Hier stand früher, der Handywechsel sei „auf iOS unnötig, weil
+alles mit dem iCloud-Backup mitwandert". Das stimmt für den Regelfall und war trotzdem die
+falsche Entscheidung — es setzt voraus, dass iCloud-Backup an ist, genug Platz hat und das alte
+Gerät noch läuft. Der Umzug ist inzwischen gebaut und ist geräteseitig unabhängig von Apple.
 
 ---
 
