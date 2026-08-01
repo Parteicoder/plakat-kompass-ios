@@ -32,6 +32,12 @@ struct StartView: View {
 
                     Zahlenreihe(zahlen: zahlen)
 
+                    // Nur fuer die Teamleitung, genau wie auf Android (AccessPolicy.canShowQr).
+                    // Wer keinen QR ausgeben darf, soll den Schalter gar nicht erst sehen.
+                    if AccessPolicy.canShowQr(model.state) {
+                        Teamaufnahme(nearby: model.nearby)
+                    }
+
                     if let treffer = naechstes {
                         NaechstesPlakat(treffer: treffer)
                     } else if standort.abgelehnt && !model.state.posters.isEmpty {
@@ -88,6 +94,64 @@ struct StartView: View {
 
 /// Der einzige Hinweis, der auffallen muss. Alles andere auf dieser Seite ist Information,
 /// das hier ist eine Frist.
+/// „Teamaufnahme" auf der Startseite — Gegenstück zu `ModernTeamQrCard.kt`.
+///
+/// **Der Schalter tut zwei Dinge, und das zweite ist der eigentliche Punkt:** Er zeigt den
+/// Team-QR *und* startet den Funk-Abgleich. Auf Android hängt beides an
+/// `setTeamJoinWindowActive`, und das hat einen handfesten Grund — der QR allein genügt nicht.
+/// Wer ihn scannt, hat den Team-Schlüssel, aber ohne laufenden Funk gibt es keinen Rückkanal:
+/// Das neue Gerät kann sich nicht melden, und die Teamleitung sieht es nicht in ihrer Liste.
+///
+/// Genau das war auf iOS die Lücke. `TeamQrView` lag unter „Abgleich" und zeigte brav einen
+/// rollenden Code — den Funk musste man daneben von Hand einschalten und daran denken. Wer es
+/// vergaß, hielt einen gültigen QR hin, der nichts bewirkte.
+private struct Teamaufnahme: View {
+    @ObservedObject var nearby: NearbyAbgleich
+
+    @State private var aufnahmeLaeuft = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Team-QR").font(.headline)
+                Spacer()
+                Toggle("Teamaufnahme", isOn: Binding(
+                    get: { aufnahmeLaeuft },
+                    set: { an in
+                        aufnahmeLaeuft = an
+                        an ? nearby.start() : nearby.stop()
+                    }
+                ))
+                .labelsHidden()
+            }
+
+            Text(aufnahmeLaeuft ? "Teamaufnahme aktiv" : "Teamaufnahme starten")
+                .font(.subheadline)
+                .foregroundStyle(aufnahmeLaeuft ? .primary : .secondary)
+
+            if aufnahmeLaeuft {
+                TeamQrView()
+            } else {
+                Text("""
+                Schaltet den Funk ein und zeigt den QR-Code. Beides zusammen — ohne Funk hat das \
+                neue Gerät zwar den Code, aber keinen Weg zurück.
+                """)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        // Der Funk endet, sobald die App in den Hintergrund geht (siehe PlakatKompassApp).
+        // Ohne diese Zeile behauptete der Schalter danach weiter „aktiv", und die Teamleitung
+        // hielte einen QR hin, der ins Leere zeigt.
+        .onChange(of: nearby.laeuft) { _, laeuft in
+            if !laeuft { aufnahmeLaeuft = false }
+        }
+    }
+}
+
 private struct Faelliges: View {
     let anzahl: Int
 
