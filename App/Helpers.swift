@@ -1,4 +1,6 @@
 import CoreLocation
+import MapKit
+import PlakatKompassCore
 import SwiftUI
 import UIKit
 
@@ -20,6 +22,26 @@ import UIKit
 enum Fassung {
     static let anzeige: String =
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unbekannt"
+}
+
+extension Poster {
+    /// Der Fußweg zu diesem Plakat, in Apple Karten.
+    ///
+    /// Steht hier, weil es inzwischen drei Aufrufer sind: Startseite, Kartenblatt und Liste.
+    /// Dreimal dasselbe `MKMapItem` aufzubauen heißt, beim nächsten Ändern zwei davon zu
+    /// vergessen — etwa den Namen, den Apple Karten als Ziel anzeigt.
+    ///
+    /// Die Routenführung selbst überlassen wir Apple. Eine eigene wäre Monate Arbeit für etwas,
+    /// das jedes iPhone schon kann.
+    func hinlaufen() {
+        let ziel = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(
+            latitude: latitude, longitude: longitude
+        )))
+        ziel.name = addressHint.isEmpty ? "Plakat" : addressHint
+        ziel.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
+        ])
+    }
 }
 
 /// Kamera über den Systemdialog. `UIImagePickerController` statt eigener AVFoundation-Oberfläche:

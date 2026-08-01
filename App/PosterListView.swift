@@ -63,6 +63,13 @@ private struct PosterZeile: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(plakat.addressHint.isEmpty ? plakat.type.beschriftung : plakat.addressHint)
                         .font(.headline)
+                    // Nur wenn die Adresse schon oben steht - sonst stünde die Art zweimal da.
+                    // Drüben ist sie die Unterzeile: „Rödgener Straße 16" sagt, wo man suchen
+                    // muss, „Laternenmast" sagt, wonach.
+                    if !plakat.addressHint.isEmpty {
+                        Text(plakat.type.beschriftung)
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
                     Text(plakat.status.beschriftung)
                         .font(.subheadline).foregroundStyle(plakat.status.farbe)
                     if let text = RemovalDeadlinePolicy.removalCountdownText(plakat.plannedRemovalAt) {
@@ -73,12 +80,25 @@ private struct PosterZeile: View {
                 }
             }
 
-            Menu("Status ändern") {
-                ForEach(PosterStatus.allCases, id: \.self) { status in
-                    Button(status.beschriftung) { model.setzeStatus(plakat, status) }
+            HStack {
+                Menu("Status ändern") {
+                    ForEach(PosterStatus.allCases, id: \.self) { status in
+                        Button(status.beschriftung) { model.setzeStatus(plakat, status) }
+                    }
                 }
+                Spacer()
+                // Drüben heißt dieser Knopf „Standort" und steht auf jeder Karte in der Liste.
+                // Auf iOS führte der einzige Weg dorthin über die Karte: Reiter wechseln, den
+                // richtigen Punkt unter womöglich zwanzig finden, antippen, dann navigieren.
+                // Wer die Liste abarbeitet, will von der Zeile aus loslaufen.
+                Button { plakat.hinlaufen() } label: {
+                    Label("Standort", systemImage: "location.fill")
+                }
+                .accessibilityLabel("Weg zu diesem Plakat")
             }
             .font(.footnote)
+            // Ohne das löst in einer List jeder Tipper irgendwo in der Zeile beide Knöpfe aus.
+            .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
         .swipeActions {
