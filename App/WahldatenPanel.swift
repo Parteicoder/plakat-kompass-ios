@@ -10,7 +10,7 @@ final class WahldatenAnzeige: ObservableObject {
     longitude: Double, latitude: Double, wahlart: Wahlart, erzwingen: Bool = false
   ) async {
     if !erzwingen,
-      case let .success(_, ergebnis, flaeche?) = zustand,
+      case .success(_, let ergebnis, let flaeche?) = zustand,
       ergebnis.wahl.art == wahlart,
       flaecheAn([flaeche], longitude: longitude, latitude: latitude) != nil
     {

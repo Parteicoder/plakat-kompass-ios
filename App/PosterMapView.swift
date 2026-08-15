@@ -53,7 +53,7 @@ struct PosterMapView: View {
           }
         }
         if wahldatenAktiv,
-          case let .success(_, _, flaeche?) = wahldaten.zustand
+          case .success(_, _, let flaeche?) = wahldaten.zustand
         {
           ForEach(Array(flaeche.ringe.enumerated()), id: \.offset) { _, ring in
             let punkte = stride(from: 0, to: ring.count - 1, by: 2).map {
