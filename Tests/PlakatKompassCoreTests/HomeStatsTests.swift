@@ -75,6 +75,36 @@ final class HomeStatsTests: XCTestCase {
         XCTAssertNil(NearestPoster.find([plakat("weg", .REMOVED)], latitude: 51.46, longitude: 12.63))
     }
 
+    // MARK: - Richtung
+
+    func testKompassZeigtInDieVierHimmelsrichtungen() {
+        let myLat = 51.4614, myLng = 12.6353
+        // Die Kompassnadel haengt an diesen Werten: 0 = Norden, 90 = Osten.
+        XCTAssertEqual(
+            NearestPoster.bearingDegrees(fromLat: myLat, fromLon: myLng, toLat: myLat + 0.01, toLon: myLng),
+            0, accuracy: 1.0
+        )
+        XCTAssertEqual(
+            NearestPoster.bearingDegrees(fromLat: myLat, fromLon: myLng, toLat: myLat, toLon: myLng + 0.01),
+            90, accuracy: 1.0
+        )
+        XCTAssertEqual(
+            NearestPoster.bearingDegrees(fromLat: myLat, fromLon: myLng, toLat: myLat - 0.01, toLon: myLng),
+            180, accuracy: 1.0
+        )
+        XCTAssertEqual(
+            NearestPoster.bearingDegrees(fromLat: myLat, fromLon: myLng, toLat: myLat, toLon: myLng - 0.01),
+            270, accuracy: 1.0
+        )
+    }
+
+    func testKompassBleibtInnerhalbDesVollenKreises() {
+        let suedwesten = NearestPoster.bearingDegrees(
+            fromLat: 51.4614, fromLon: 12.6353, toLat: 51.4514, toLon: 12.6253
+        )
+        XCTAssertTrue((180.0...270.0).contains(suedwesten))
+    }
+
     // MARK: - Text
 
     func testEntfernungsText() {

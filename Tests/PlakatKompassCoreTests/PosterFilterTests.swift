@@ -46,6 +46,17 @@ final class PosterFilterTests: XCTestCase {
         XCTAssertFalse(PosterFilter.probleme.passt(plakat(status: .CHECKED), jetzt: jetzt))
     }
 
+    func testKontrolliertNurStatusChecked() {
+        XCTAssertTrue(PosterFilter.kontrolliert.passt(plakat(status: .CHECKED), jetzt: jetzt))
+        XCTAssertFalse(PosterFilter.kontrolliert.passt(plakat(status: .HANGING), jetzt: jetzt))
+        XCTAssertFalse(PosterFilter.kontrolliert.passt(plakat(status: .REMOVED), jetzt: jetzt))
+    }
+
+    func testEntferntNurStatusRemoved() {
+        XCTAssertTrue(PosterFilter.entfernt.passt(plakat(status: .REMOVED), jetzt: jetzt))
+        XCTAssertFalse(PosterFilter.entfernt.passt(plakat(status: .HANGING), jetzt: jetzt))
+    }
+
     func testAlleLaesstAllesDurch() {
         for status in PosterStatus.allCases {
             XCTAssertTrue(PosterFilter.alle.passt(plakat(status: status), jetzt: jetzt))
