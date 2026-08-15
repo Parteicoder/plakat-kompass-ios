@@ -12,7 +12,7 @@ ein.
 Der Schwesterrepo `Parteicoder/plakat-radar-intern` enthält die Android-Fassung — die ältere,
 größere und funktional führende — und ein eigenes `PROJEKTKONTEXT.md`.
 
-Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `50f718c`.
+Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `9790970`.
 
 ---
 
@@ -118,6 +118,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Darstellung hell/dunkel/automatisch | `Darstellung.swift` |
 | Adresssuche auf der Karte | `PosterMapView.swift` |
 | Fassungsanzeige aus dem Bundle (Lizenzseite, Protokoll-Startzeile) | `Helpers.swift` (`Fassung`), `EinstellungenView.swift`, `Protokoll.swift` |
+| Standort-Knopf in der Liste, wie auf Android jede Zeile | `PosterListView.swift`, `Helpers.swift` (`Poster.hinlaufen()`) |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
@@ -204,12 +205,6 @@ Trifft jeden, der in einer Häuserschlucht steht oder die Ortung einmal abgelehn
 gerade umzieht. Dieselbe PR holt außerdem den Team-QR-Schalter (bisher nur unter „Abgleich") und
 die Support-&-Community-Knöpfe (Ko-fi, C3-Discord, X) auf die Startseite — auf Android stehen
 beide dort schon lange, `ModernHomeScreen.kt` ist die Vorlage.
-
-**Standort-Knopf in der Liste** (PR #27). Bis dahin führte Navigation zu einem Plakat nur über
-das Kartenblatt oder die Startseiten-Kachel für das nächstgelegene. Android hat auf jeder
-Listenzeile einen „Standort"-Knopf (`MODERN_POSTER_NAVIGATE_BUTTON`); wer die Liste abarbeitet —
-der Regelfall bei einer Kontrollrunde —, musste auf iOS für jedes einzelne Plakat erst zur Karte
-wechseln.
 
 ### 5.5 Kein Unterschied zu Android — beide haben es nicht
 
