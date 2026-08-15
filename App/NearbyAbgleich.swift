@@ -60,6 +60,9 @@ final class NearbyAbgleich: ObservableObject {
     private var bestaetigtUns: Set<EndpointID> = []
     /// Zuletzt bestätigt gesendeter Stand je Endpunkt — verhindert das Hin und Her.
     private var letzterStand: [EndpointID: LocalTeamState] = [:]
+    /// Endpunkt → Geräte-ID, aus `senderDeviceId` im Handschlag. Erlaubt [verstosseGeraet], gezielt
+    /// **ein** Gerät zu trennen statt mit [stop] alle Verbindungen zu kappen.
+    private var endpunktGeraeteId: [EndpointID: String] = [:]
     private var eigeneSendungen: [PayloadID: Sendung] = [:]
     /// Hereinkommende Pakete: Sendung → Ort auf der Platte. Vollständig erst bei `.success`.
     private var eingehendeDateien: [PayloadID: URL] = [:]
@@ -98,12 +101,12 @@ final class NearbyAbgleich: ObservableObject {
 
         let name = Data(endpunktName(model.state).utf8)
         werber.startAdvertising(using: name) { fehler in
-            let text = fehler.map { "Sichtbarkeit fehlgeschlagen: \($0.localizedDescription)" }
+            let text = fehler.map { "Sichtbarkeit fehlgeschlagen: \(NearbyFehlertext.fuer($0))" }
                 ?? "Dieses iPhone ist für Teamgeräte sichtbar."
             Task { @MainActor [weak self] in self?.melde(text) }
         }
         sucher.startDiscovery { fehler in
-            let text = fehler.map { "Suche fehlgeschlagen: \($0.localizedDescription)" }
+            let text = fehler.map { "Suche fehlgeschlagen: \(NearbyFehlertext.fuer($0))" }
                 ?? "Suche nach Teamgeräten läuft."
             Task { @MainActor [weak self] in self?.melde(text) }
         }
@@ -134,6 +137,7 @@ final class NearbyAbgleich: ObservableObject {
         geprueft.removeAll()
         bestaetigtUns.removeAll()
         letzterStand.removeAll()
+        endpunktGeraeteId.removeAll()
         eingehendeDateien.removeAll()
         gepruefteGeraete = 0
         laeuft = false
@@ -204,6 +208,10 @@ final class NearbyAbgleich: ObservableObject {
             return
         }
 
+        if let geraeteId = nachricht["senderDeviceId"], !geraeteId.isEmpty {
+            endpunktGeraeteId[endpunkt] = geraeteId
+        }
+
         switch nachricht["kind"] {
         case "AUTH_CHALLENGE":
             guard let nonce = nachricht["nonce"], !nonce.isEmpty,
@@ -264,7 +272,7 @@ final class NearbyAbgleich: ObservableObject {
                 // Nicht abgeschickt: Stand **nicht** als gesendet merken, damit es erneut
                 // versucht wird, statt denselben Stand für immer zu überspringen.
                 self?.raeumeSendungAuf(sendung)
-                self?.melde("Senden fehlgeschlagen: \(fehler.localizedDescription)")
+                self?.melde("Senden fehlgeschlagen: \(NearbyFehlertext.fuer(fehler))")
             }
         }
     }
@@ -280,11 +288,30 @@ final class NearbyAbgleich: ObservableObject {
         geprueft.remove(endpunkt)
         bestaetigtUns.remove(endpunkt)
         letzterStand.removeValue(forKey: endpunkt)
+        endpunktGeraeteId.removeValue(forKey: endpunkt)
         gepruefteGeraete = geprueft.count
         eigeneSendungen
             .filter { $0.value.endpunkt == endpunkt }
             .map(\.key)
             .forEach(raeumeSendungAuf)
+    }
+
+    /// Trennt sofort die laufende Verbindung zu genau **einem** Gerät — z. B. wenn die Teamleitung
+    /// dieses Gerät gerade gesperrt hat. Gegenstück zu `NearbySyncManager.disconnectDevice`.
+    ///
+    /// Ohne das hier bliebe ein gesperrtes Gerät bis zum natürlichen Verbindungsabbruch weiter im
+    /// Live-Abgleich — Minuten, in denen es noch Sync-Pakete empfängt, obwohl sein Zugang gerade
+    /// entzogen wurde. [stop] wäre die falsche Antwort: Es kappte auch alle anderen, noch
+    /// berechtigten Teamgeräte.
+    func verstosseGeraet(deviceId: String) {
+        guard laeuft else { return }
+        let betroffen = endpunktGeraeteId.filter { $0.value == deviceId }.keys
+        guard !betroffen.isEmpty else { return }
+        betroffen.forEach { endpunkt in
+            manager?.disconnect(from: endpunkt)
+            vergiss(endpunkt)
+        }
+        melde("Gesperrtes Gerät getrennt.")
     }
 }
 
