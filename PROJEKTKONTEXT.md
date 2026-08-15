@@ -12,7 +12,7 @@ ein.
 Der Schwesterrepo `Parteicoder/plakat-radar-intern` enthält die Android-Fassung — die ältere,
 größere und funktional führende — und ein eigenes `PROJEKTKONTEXT.md`.
 
-Stand dieses Dokuments: 30. Juli 2026, Basis `main` bei Commit `dafe28f`.
+Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `9790970`.
 
 ---
 
@@ -97,7 +97,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 |---|---|
 | Domäne, JSON, Merge, Tombstones | `Domain.swift`, `TeamStateJson.swift`, `SyncMerge.swift` |
 | Krypto und `PRSYNC2` | `Crypto.swift`, `SyncBundleCodec.swift` |
-| Team-QR und Beitritt | `TeamInvite.swift`, `TeamView.swift` |
+| Team-QR, Beitritt und Geräteverwaltung (freigeben/sperren, Schlüssel erneuern) | `TeamInvite.swift`, `TeamView.swift`, `SyncView.swift` |
 | Rechte und Rollen | `AccessPolicy.swift` |
 | Abnahmefristen samt Statusautomatik | `RemovalDeadlinePolicy.swift` |
 | Amtlicher Export | `OfficialExport.swift` |
@@ -117,6 +117,10 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Sozialdaten-Zwischenspeicher auf der Platte | `SozialdatenCache.swift`, `SozialCachePolitik.swift` |
 | Darstellung hell/dunkel/automatisch | `Darstellung.swift` |
 | Adresssuche auf der Karte | `PosterMapView.swift` |
+| Fassungsanzeige aus dem Bundle (Lizenzseite, Protokoll-Startzeile) | `Helpers.swift` (`Fassung`), `EinstellungenView.swift`, `Protokoll.swift` |
+| Standort-Knopf in der Liste, wie auf Android jede Zeile | `PosterListView.swift`, `Helpers.swift` (`Poster.hinlaufen()`) |
+| Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift` (`Teamaufnahme`, `UnterstuetzenUndGemeinschaft`) |
+| Adresse von Hand beim Erfassen, wenn die Ortung nichts liefert | `AdresseAufloesen.swift`, `CaptureView.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
@@ -153,8 +157,10 @@ eine Kampagne hinweg spürbar träge.
 
 Der Abgleich Android ↔ iOS ist **funktionsweise durchgegangen**, in drei Durchläufen: die Dateien
 des Kerns gegeneinander, dann die Funktionen über ihre Symbole, zuletzt die **Bildschirminhalte
-Feld für Feld**. Der dritte Durchgang war der ergiebigste — er hat eine Lücke gefunden, die die
-ersten beiden nicht zeigen konnten (siehe „Adresse von Hand" unten).
+Feld für Feld**. Der dritte Durchgang war der ergiebigste — er hat mehrere Lücken gefunden, die die
+ersten beiden nicht zeigen konnten: die Adresse von Hand beim Erfassen, den Backup-Empfang auf
+dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite, den
+Standort-Knopf in der Liste. Alle vier sind inzwischen in Abschnitt 3 als fertig gelistet.
 
 **Eine Warnung zur Methode, weil sie zweimal in die Irre geführt hat:** Nach Android-Namen zu
 suchen findet Lücken, die es nicht gibt. `FirstCaptureHintStore` heisst auf iOS
@@ -185,26 +191,14 @@ ab. Auf iOS gibt es dafür kein Gegenstück:
 - Die Marke in `Protokoll.swift` deckt die Lücke halb: Sie merkt überall, **dass** der vorige
   Lauf nicht geordnet endete — nur nicht, warum.
 
-### 5.3 Anders platziert, nicht fehlend
-
-Auf der Android-Startseite liegen **QR-Scan** und **Ko-fi**. Auf iOS gibt es beides, aber
-woanders: der QR-Scan unter „Abgleich" (`TeamView`), Ko-fi in den Einstellungen. Bewusst so —
-die iOS-Startseite ist der Bildschirm für „was steht an", nicht für Einrichtung.
-
-### 5.4 Gebaut, aber noch nicht gemergt
-
-**Adresse von Hand beim Erfassen** (PR #24). Bis dahin gilt auf iOS: ohne Ortung **kein**
-Plakat, der Speichern-Knopf bleibt grau. Android lässt die Adresse tippen und geokodiert sie.
-Trifft jeden, der in einer Häuserschlucht steht oder die Ortung einmal abgelehnt hat.
-
-### 5.5 Kein Unterschied zu Android — beide haben es nicht
+### 5.3 Kein Unterschied zu Android — beide haben es nicht
 
 **Relay-Abgleich.** Das README liest sich, als fehle nur die iOS-Anbindung. Tatsächlich hat
 **auch Android keinen Relay-Client**; `grep -rl "relay" app/src/main/java` findet nichts. Das
 Backend-Repository existiert, ist aber an keine der beiden Apps angebunden. Wer das angeht,
 fängt auf beiden Seiten bei null an.
 
-### 5.6 Nicht offen, sondern ungeprüft — und das ist der wichtigere Punkt
+### 5.4 Nicht offen, sondern ungeprüft — und das ist der wichtigere Punkt
 
 Diese Dinge sind **gebaut und übersetzt**, aber nie in ihrer eigentlichen Funktion gelaufen. Der
 CI baut für den Simulator, und der hat weder Kamera noch Funkgegenüber:
@@ -214,6 +208,7 @@ CI baut für den Simulator, und der hat weder Kamera noch Funkgegenüber:
 | Funk-Abgleich mit Android | iPhone und Android-Gerät im selben WLAN, Abgleich in beide Richtungen mit Foto |
 | Handywechsel | zwei iPhones, auf dem alten „umziehen", auf dem neuen „übernehmen" |
 | Kamera und Foto-Verkleinerung | ein Gerät |
+| Adresse von Hand beim Erfassen | ein Gerät mit Netz, Anfrage zu einer echten deutschen Adresse |
 | Hintergrundortung der Flyer-Touren | ein Gerät, Telefon in der Tasche, eine echte Runde |
 | MetricKit-Absturzberichte | ein Gerät über TestFlight |
 
@@ -225,6 +220,43 @@ Team-Schlüssel. Der Hinweis nach 25 Sekunden Stille in `NearbyAbgleich` sagt ge
 alles mit dem iCloud-Backup mitwandert". Das stimmt für den Regelfall und war trotzdem die
 falsche Entscheidung — es setzt voraus, dass iCloud-Backup an ist, genug Platz hat und das alte
 Gerät noch läuft. Der Umzug ist inzwischen gebaut und ist geräteseitig unabhängig von Apple.
+
+### 5.5 Baugleich, aber mit anderen Zahlen als Android
+
+Zwei Stellen lösen dasselbe Problem wie Android, mit einem eigenen, nicht abgeschriebenen Wert —
+das ist keine Lücke, aber wer Verhalten zwischen den Plattformen vergleicht, sollte es kennen.
+
+**Flyer-Tour-Aufzeichnung.** Android verlangt eine Positionsgenauigkeit besser als 25 m und einen
+Mindestabstand von `max(20 m, Genauigkeit × 1.5)` zwischen zwei Wegpunkten, abgefragt alle 8
+Sekunden über einen Vordergrunddienst. iOS hat keinen Dienst, den es am Leben halten könnte —
+`CLLocationManager` liefert im Hintergrund, solange „Immer" erlaubt ist, und der Takt bestimmt
+das System. Der Ausreißer-Filter lässt hier bis 100 m Ungenauigkeit durch (Android: 25 m) und der
+Mindestabstand steht fest bei 20 m, ohne Genauigkeits-Skalierung (`TourAufzeichnung.swift`,
+`mindestabstandMeter`/`nimmAuf`). Die maximale Dauer von 5 Stunden ist dagegen identisch
+übernommen. Ob die lockereren Werte im Feld zu unruhigeren Strecken führen als auf Android, ist
+ungeprüft — siehe 5.4, echte Hintergrundortung wurde noch auf keinem Gerät erprobt.
+
+**Sozialdaten-Bewegungsschwelle.** Android bricht eine laufende Zensus-Abfrage erst ab, wenn sich
+der Mittelpunkt um `SOCIAL_CENTER_MIN_MOVE_METERS = 80` Meter bewegt hat — ohne diese Schwelle
+brach jede Mikrobewegung der Karte die 15-Sekunden-Abfrage ab und im Panel standen dauerhaft
+veraltete Werte (Android-`PROJEKTKONTEXT.md`, Abschnitt 5). iOS löst dasselbe Problem anders, nicht
+schlechter: Die Koordinate im Abfrageschlüssel wird auf drei Nachkommastellen gerundet
+(`SozialdatenView.swift`, `aufrufSchluessel` — bei diesem Breitengrad rund 100 m), und SwiftUIs
+`.task(id:)` bricht die alte Abfrage beim Schlüsselwechsel automatisch ab. Kein eigener Debounce
+nötig, aber auch keine baugleiche Zahl.
+
+### 5.6 Fehlt vollständig — geplant, aber noch nicht begonnen
+
+**Wahldaten.** Auf Android ein eigenständiges Feature (`feature/wahldaten/`, ~1450 Zeilen):
+Amtliche Wahlergebnisse — Bundestags-, Landtags-, Kreistags- und Kommunalwahl, von der
+Bundeswahlleiterin bzw. den Landeswahlleitungen — für den Wahlkreis unter der Kartenmitte, mit
+Wahlbeteiligung und Parteianteilen als eigener Chip im Kartenbildschirm (`WahldatenPanel.kt`,
+`ModernPosterMapScreen.kt`), im selben Stil wie die Sozialdaten. Auf iOS existiert davon **nichts**
+— keine Datei, kein Screen, kein Menüpunkt. Anders als die übrigen Lücken in diesem Abschnitt ist
+das kein übersehener Rest und keine Plattformgrenze, sondern ein eigener Port, der bewusst noch
+nicht begonnen wurde. Wer ihn angeht, portiert am besten von `WahldatenRepository.kt`,
+`WahldatenModels.kt` und `WahldatenGeometrie.kt` aus — dieselbe Struktur, die auch
+`SocialData.swift`/`SozialdatenView.swift` schon als Vorlage diente.
 
 ---
 
