@@ -14,6 +14,45 @@ größere und funktional führende — und ein eigenes `PROJEKTKONTEXT.md`.
 
 Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `18d3b63`.
 
+## 0. Laufende Session (15. August 2026) — drei offene Draft-PRs, noch nicht gemerged
+
+Diese Session hat einen 3-Agenten-Abgleich gegen Android gemacht und die gefundenen Lücken in
+drei aufeinander aufbauenden Draft-PRs behoben (jede baut auf der vorigen auf, GitHub verschiebt
+die Basis automatisch nach dem Mergen der Kette):
+
+- **#37** (`agent/android-ios-parity-nachzuegler` → `main`): **kritischer Fix** —
+  `SyncMerge.verify()` kannte den Fall „Teamleitung empfängt unbekannten, frisch beigetretenen
+  Absender" nicht (Android-Fix vom 3.8., Issues #233/#235). Jeder Team-Beitritt war dadurch kaputt.
+  Dazu: `syncImportSummary`, `NearestPoster.bearingDegrees` + Kompassnadel auf der Startseite,
+  Fristen-Countdown, tanbare Start-Kacheln (`PosterFilter` um `.kontrolliert`/`.entfernt`
+  erweitert), eigener Erinnerungs-Schalter, Kamera-/Ortungsstatus in den Einstellungen,
+  Karten-Offline-Hinweis, Karten-Status-Chips mit Live-Zahlen/Mehrfachauswahl, Protokoll
+  abschaltbar.
+- **#38** (`agent/android-ios-parity-rest` → #37): Notizen inline in der Liste, „Im Team laufen
+  X weitere Touren"-Hinweis, **Geräte-Schlüsselbund** (`DeviceKeyringPolicy`/`DeviceKeyRecord`,
+  neu in `Sources/PlakatKompassCore/`) — dabei auch `DeviceBackupCodec.swift` repariert, das dafür
+  einen veralteten Platzhalter-Kommentar hatte („iOS kennt das Feld nicht", stimmte nicht mehr).
+- **#40** (`agent/android-ios-rollenwechsel` → #38): **„Rolle wechseln"** — ein bereits
+  eingerichtetes Gerät hatte keinen Weg zurück zur Team-Auswahl (kein Team wechseln, keine Rolle
+  ändern, außer Neuinstallation). Neuer Menüpunkt in den Einstellungen, Rückfrage „Daten
+  behalten"/„Daten löschen" (neu: `LocalRepository.setzeAllesZurueck`). **Bewusst nicht
+  verändert:** `legeTeamAn`/`losOhneTeam`/`beigetreten` lassen lokale Plakate beim Wechsel in Ruhe
+  — das ist eine schon bestehende, dokumentierte iOS-Entscheidung (siehe `SyncView.swift`-Footer),
+  keine Lücke, die an Android angeglichen werden sollte.
+
+**Wichtige Einschränkung:** Nichts davon ist compilergetestet — auf der Windows-Maschine, auf der
+das entstand, ist kein funktionierender Swift-Compiler verfügbar (der winget-Build
+`Swift.Toolchain` installierte sich zwar fehlerfrei, der Windows-Stdlib-Teil fehlt aber im Paket).
+Alles ist sorgfältig von Hand gegen den Android-Quelltext geprüft. **Vor dem Mergen: `swift build`
+und `swift test` laufen lassen.**
+
+**Offen/als Nächstes:** Ein vierter Recherche-Durchgang lief beim Abbruch dieser Session noch —
+er sollte Verlauf (`VerlaufView.swift`), Lizenzen (`LizenzenView.swift`), amtlichen Export, die
+Team-QR-Anzeige (Gegenstück zu `TeamBeitrittView`, das ist die Beitritts-Seite) und die
+Sozial-/Wahldaten-Bildschirme auf verbleibende Lücken prüfen. Ergebnis lag beim Abbruch noch nicht
+vor — das ist der nächste sinnvolle Schritt für eine Folge-Session, nicht als Lücke bestätigt,
+nur als ungeprüft.
+
 ---
 
 ## 1. Wozu die App da ist

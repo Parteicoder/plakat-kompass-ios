@@ -31,6 +31,9 @@ struct EinstellungenView: View {
   @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
   @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
   @State private var neuerName = ""
+  @State private var rolleWechselnAnfrage = false
+  @State private var rolleWechselnMitLoeschenBestaetigen = false
+  @State private var rollenauswahlOffen = false
 
   // Die Abschnitte stehen einzeln, nicht als ein grosses `body`.
   //
@@ -53,11 +56,47 @@ struct EinstellungenView: View {
         // geaendert hat - wichtig, wenn im Team Unklarheit ueber ein Plakat entsteht.
         NavigationLink("Verlauf") { VerlaufView() }
         NavigationLink("Experten") { ExpertenView() }
+        if model.istEingerichtet {
+          // Gegenstück zu MoreRoleSwitchCard/ModernRoleSwitchDialog auf Android: Bisher gab es
+          // auf iOS keinen Weg zurück zur Team-Auswahl, sobald einmal eingerichtet - wer die
+          // Rolle wechseln oder ein anderes Team beitreten wollte, kam nur mit einer
+          // Neuinstallation heran.
+          Button("Rolle wechseln") { rolleWechselnAnfrage = true }
+        }
         NavigationLink("Lizenzen und Dank") { LizenzenView() }
       }
     }
     .navigationTitle("Einstellungen")
     .navigationBarTitleDisplayMode(.inline)
+    .confirmationDialog(
+      "Zur Rollenauswahl zurück?",
+      isPresented: $rolleWechselnAnfrage,
+      titleVisibility: .visible
+    ) {
+      Button("Daten behalten") { rollenauswahlOffen = true }
+      Button("Daten löschen", role: .destructive) { rolleWechselnMitLoeschenBestaetigen = true }
+      Button("Abbrechen", role: .cancel) {}
+    } message: {
+      Text("""
+      Aktuelle Rolle: \(model.state.role == .LEADER ? "Teamleitung" : "Mitglied"). Beim \
+      Wechsel bleiben bisherige Plakate, Touren und Team-Daten auf dem Gerät erhalten — \
+      außer du löschst sie ausdrücklich.
+      """)
+    }
+    .confirmationDialog(
+      "Lokale Daten wirklich löschen?",
+      isPresented: $rolleWechselnMitLoeschenBestaetigen,
+      titleVisibility: .visible
+    ) {
+      Button("Löschen", role: .destructive) {
+        model.setzeAllesZurueck()
+        rollenauswahlOffen = true
+      }
+      Button("Abbrechen", role: .cancel) {}
+    } message: {
+      Text("Plakate, Touren, Fotos und die Team-Zugehörigkeit dieses Geräts gehen dabei unwiderruflich verloren.")
+    }
+    .sheet(isPresented: $rollenauswahlOffen) { TeamBeitrittView() }
     .task {
       meldungenErlaubt = await UNUserNotificationCenter.current().notificationSettings()
         .authorizationStatus

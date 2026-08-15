@@ -179,6 +179,25 @@ final class LocalRepositoryTests: XCTestCase {
         )
     }
 
+    func testSetzeAllesZurueckLoeschtFotosUndTeam() throws {
+        let repo = try LocalRepository(ordner: ordner, geraeteName: "Testgerät")
+        let foto = try repo.speichereFoto(Data("bild".utf8))
+        var stand = vollerStand()
+        stand.posters[0].localPhotoFileName = foto
+        try repo.save(stand)
+
+        let leer = try repo.setzeAllesZurueck(deviceId: stand.deviceId)
+
+        XCTAssertEqual(leer.deviceId, stand.deviceId, "Die Geräte-Kennung identifiziert das Telefon, nicht das Team.")
+        XCTAssertNil(leer.teamId)
+        XCTAssertTrue(leer.posters.isEmpty)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: repo.photoURL(foto).path),
+            "Ein Rollenwechsel mit Datenlöschen soll auch die Fotos wegräumen."
+        )
+        XCTAssertEqual(repo.load(), leer, "Der leere Stand muss auch auf der Platte stehen.")
+    }
+
     func testSnapshotBrauchtEinTeam() throws {
         let repo = try LocalRepository(ordner: ordner, geraeteName: "Testgerät")
         var ohneTeam = vollerStand()
