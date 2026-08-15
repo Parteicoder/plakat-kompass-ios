@@ -15,9 +15,9 @@ struct EinstellungenView: View {
 
     @AppStorage(Darstellung.schluessel) private var darstellung = Darstellung.system.rawValue
     @AppStorage(SozialdatenCache.tageSchluessel) private var sozialCacheTage = SozialdatenCache.vorgabeTage
-    @AppStorage(WahldatenEinstellungen.tageSchluessel) private var wahldatenCacheTage =
+    @AppStorage("wahldatenCacheTage") private var wahldatenCacheTage =
         WahldatenEinstellungen.vorgabeTage
-    @AppStorage(WahldatenEinstellungen.alleParteienSchluessel) private var wahldatenAlleParteien = false
+    @AppStorage("wahldatenAlleParteien") private var wahldatenAlleParteien = false
     @State private var wahldatenCacheBytes: Int64 = 0
     /// Die Zahl der Einträge ist kein @Published — der Cache ist absichtlich kein
     /// ObservableObject, sonst zeichnete jede Antwort im Hintergrund die Oberfläche neu.

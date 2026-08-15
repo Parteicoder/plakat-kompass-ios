@@ -35,7 +35,7 @@ struct WahldatenPanel: View {
     let onEinklappen: () -> Void
     let onSchliessen: () -> Void
 
-    @AppStorage(WahldatenEinstellungen.alleParteienSchluessel)
+    @AppStorage("wahldatenAlleParteien")
     private var alleParteien = false
 
     var body: some View {
