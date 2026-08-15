@@ -296,8 +296,27 @@ final class Gemeindegrenze: ObservableObject {
       grenze = vorhanden
       return
     }
-    guard let ziel = URL(string: CommuneBoundaryQuery.url(latitude: latitude, longitude: longitude))
-    else { return }
+
+    // Erst Gemeinde/Kreis (Ebene 6/8) versuchen; kommt dort nichts zurueck, das Bundesland
+    // (Ebene 4). Berlin, Hamburg und Bremen sind Stadtstaaten - ein Land fuer sich, ohne eigene,
+    // von der Landesgrenze getrennte Gemeindegrenze. Ohne diesen zweiten Versuch bliebe die Karte
+    // dort ohne Umriss. Gegenstueck zu CommuneBoundaryClient.fetch() auf Android.
+    var gefunden = await frage(ebenen: CommuneBoundaryQuery.ebenenGemeinde, latitude: latitude, longitude: longitude)
+    if gefunden == nil {
+      gefunden = await frage(ebenen: CommuneBoundaryQuery.ebenenBundesland, latitude: latitude, longitude: longitude)
+    }
+
+    zwischenspeicher[schluessel] = gefunden
+    grenze = gefunden
+  }
+
+  /// Ein einzelner Overpass-Abruf fuer eine `admin_level`-Ebene. `nil` bei jedem Fehlschlag -
+  /// fehlender URL, HTTP-Fehler oder einer Antwort ohne passende Verwaltungsebene -, damit
+  /// `hole()` unabhaengig vom Grund auf die naechste Ebene ausweichen kann.
+  private func frage(ebenen: String, latitude: Double, longitude: Double) async -> CommuneBoundary? {
+    guard
+      let ziel = URL(string: CommuneBoundaryQuery.url(latitude: latitude, longitude: longitude, ebenen: ebenen))
+    else { return nil }
 
     let anfrage: URLRequest = {
       var anfrage = URLRequest(url: ziel)
@@ -318,11 +337,9 @@ final class Gemeindegrenze: ObservableObject {
         try? await URLSession.shared.data(for: anfrage)
       }),
       let http = antwort as? HTTPURLResponse, (200...299).contains(http.statusCode)
-    else { return }
+    else { return nil }
 
-    let gefunden = CommuneBoundaryQuery.parse(String(decoding: daten, as: UTF8.self))
-    zwischenspeicher[schluessel] = gefunden
-    grenze = gefunden
+    return CommuneBoundaryQuery.parse(String(decoding: daten, as: UTF8.self))
   }
 }
 
