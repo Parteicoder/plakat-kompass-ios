@@ -85,4 +85,55 @@ final class HomeStatsTests: XCTestCase {
         // Ab zehn Kilometern ohne Nachkommastelle: "12,4 km" hilft niemandem weiter als "12 km".
         XCTAssertEqual(NearestPoster.distanceText(12_400), "12 km")
     }
+
+    // MARK: - Bewertung
+
+    func testBewertungsfensterWartetUndErscheintHoechstensDreimal() {
+        let jetzt = Date(timeIntervalSince1970: 2_000_000_000)
+        let elfTage = RatingPromptPolicy.wartezeit + 24 * 60 * 60
+        let ersterStart = jetzt.addingTimeInterval(-elfTage)
+
+        XCTAssertFalse(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: nil, letzteAnfrage: nil, anzahl: 0, jetzt: jetzt
+            )
+        )
+        XCTAssertFalse(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: jetzt.addingTimeInterval(-RatingPromptPolicy.wartezeit + 1),
+                letzteAnfrage: nil,
+                anzahl: 0,
+                jetzt: jetzt
+            )
+        )
+        XCTAssertTrue(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: ersterStart, letzteAnfrage: nil, anzahl: 0, jetzt: jetzt
+            )
+        )
+        XCTAssertFalse(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: ersterStart,
+                letzteAnfrage: jetzt.addingTimeInterval(-RatingPromptPolicy.wartezeit + 1),
+                anzahl: 1,
+                jetzt: jetzt
+            )
+        )
+        XCTAssertTrue(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: ersterStart,
+                letzteAnfrage: jetzt.addingTimeInterval(-elfTage),
+                anzahl: 1,
+                jetzt: jetzt
+            )
+        )
+        XCTAssertFalse(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: ersterStart,
+                letzteAnfrage: nil,
+                anzahl: RatingPromptPolicy.maximaleAnfragen,
+                jetzt: jetzt
+            )
+        )
+    }
 }

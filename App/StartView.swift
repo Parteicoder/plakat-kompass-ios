@@ -1,6 +1,7 @@
 import CoreLocation
 import MapKit
 import PlakatKompassCore
+import StoreKit
 import SwiftUI
 
 /// Die Startseite. Gegenstück zu `ModernHomeScreen` auf Android.
@@ -11,7 +12,11 @@ import SwiftUI
 /// Zumutung.
 struct StartView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.requestReview) private var bewertungAnfragen
     @StateObject private var standort = Standort()
+    @AppStorage("bewertungErsterStart") private var bewertungErsterStart = 0.0
+    @AppStorage("bewertungLetzteAnfrage") private var bewertungLetzteAnfrage = 0.0
+    @AppStorage("bewertungAnzahl") private var bewertungAnzahl = 0
 
     private var zahlen: HomeStats { HomeStats(posters: model.state.posters) }
 
@@ -38,7 +43,10 @@ struct StartView: View {
                         Teamaufnahme(nearby: model.nearby)
                     }
 
-                    UnterstuetzenUndGemeinschaft()
+                    UnterstuetzenUndGemeinschaft {
+                        bewertungAnzahl = RatingPromptPolicy.maximaleAnfragen
+                        bewertungAnfragen()
+                    }
 
                     if let treffer = naechstes {
                         NaechstesPlakat(treffer: treffer)
@@ -81,7 +89,30 @@ struct StartView: View {
             }
             .onAppear { standort.starte() }
             .onDisappear { standort.stoppe() }
+            .task { pruefeBewertungsfenster() }
         }
+    }
+
+    private func pruefeBewertungsfenster() {
+        let jetzt = Date()
+        guard bewertungErsterStart > 0 else {
+            bewertungErsterStart = jetzt.timeIntervalSince1970
+            return
+        }
+
+        let letzteAnfrage = bewertungLetzteAnfrage > 0
+            ? Date(timeIntervalSince1970: bewertungLetzteAnfrage)
+            : nil
+        guard RatingPromptPolicy.sollAnzeigen(
+            ersterStart: Date(timeIntervalSince1970: bewertungErsterStart),
+            letzteAnfrage: letzteAnfrage,
+            anzahl: bewertungAnzahl,
+            jetzt: jetzt
+        ) else { return }
+
+        bewertungAnzahl += 1
+        bewertungLetzteAnfrage = jetzt.timeIntervalSince1970
+        bewertungAnfragen()
     }
 
     private var naechstes: NearestPoster.Treffer? {
@@ -111,6 +142,8 @@ struct StartView: View {
 /// Die Beschriftungen bleiben unter den Symbolen stehen. Für VoiceOver ist ein Logo ohne Text
 /// ein leerer Knopf, und die Vorlesetexte sind wörtlich die `contentDescription` von drüben.
 private struct UnterstuetzenUndGemeinschaft: View {
+    let bewerten: () -> Void
+
     var body: some View {
         VStack(spacing: 10) {
             Text("SUPPORT & COMMUNITY")
@@ -129,6 +162,20 @@ private struct UnterstuetzenUndGemeinschaft: View {
                       bild: "SymbolX", schablone: true,
                       titel: "X", vorlesen: "X, at Plakatkompass")
             }
+
+            Button(action: bewerten) {
+                VStack(spacing: 5) {
+                    Text("APP BEWERTEN")
+                        .font(.caption2.weight(.semibold))
+                    HStack(spacing: 4) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            Image(systemName: "star.fill")
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("App bewerten")
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
