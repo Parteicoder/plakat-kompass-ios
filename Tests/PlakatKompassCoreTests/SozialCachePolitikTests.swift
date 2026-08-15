@@ -20,9 +20,10 @@ final class SozialCachePolitikTests: XCTestCase {
         XCTAssertFalse(SozialCachePolitik.istFrisch(alterSekunden: 10, tage: -3))
     }
 
-    func testVorgabeSindSiebenTage() {
-        XCTAssertEqual(SozialCachePolitik.vorgabeTage, 7)
-        XCTAssertEqual(SozialCachePolitik.haltbarkeit(tage: 7), 7 * tag)
+    func testVorgabeSindDreissigTage() {
+        // Wortgleich mit Android SocialDataSettingsStore.SOCIAL_CACHE_TTL_DEFAULT_DAYS.
+        XCTAssertEqual(SozialCachePolitik.vorgabeTage, 30)
+        XCTAssertEqual(SozialCachePolitik.haltbarkeit(tage: 30), 30 * tag)
     }
 
     /// Ein zu grosser Eintrag soll begrenzen, nicht abschalten.
