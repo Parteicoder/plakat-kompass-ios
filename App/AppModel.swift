@@ -501,6 +501,11 @@ final class AppModel: ObservableObject {
     func sperre(_ geraet: DeviceRecord) {
         do {
             state = try repo.setDeviceBlocked(state, deviceId: geraet.deviceId, blocked: true)
+            // Sofort auch die laufende Live-Verbindung kappen, statt auf den natuerlichen Abbruch
+            // zu warten - sonst empfaengt ein gerade gesperrtes Geraet noch minutenlang weiter
+            // Sync-Pakete. Nur die Nearby-Instanz dieses Geraets kennt ueberhaupt eine laufende
+            // Verbindung; nur trennen, gibt nichts zu speichern zurueck.
+            nearby.verstosseGeraet(deviceId: geraet.deviceId)
             meldung = "\(geraet.displayName) gesperrt."
         } catch {
             fehler = error.localizedDescription

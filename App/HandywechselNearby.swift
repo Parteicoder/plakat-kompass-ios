@@ -116,13 +116,13 @@ final class HandywechselNearby: ObservableObject {
         werber.startAdvertising(using: name) { fehler in
             guard let fehler else { return }
             Task { @MainActor [weak self] in
-                self?.brichAb("Sichtbarkeit fehlgeschlagen: \(fehler.localizedDescription)")
+                self?.brichAb("Sichtbarkeit fehlgeschlagen: \(NearbyFehlertext.fuer(fehler))")
             }
         }
         sucher.startDiscovery { fehler in
             guard let fehler else { return }
             Task { @MainActor [weak self] in
-                self?.brichAb("Suche fehlgeschlagen: \(fehler.localizedDescription)")
+                self?.brichAb("Suche fehlgeschlagen: \(NearbyFehlertext.fuer(fehler))")
             }
         }
 
@@ -202,7 +202,7 @@ final class HandywechselNearby: ObservableObject {
         ) { fehler in
             guard let fehler else { return }
             Task { @MainActor [weak self] in
-                self?.brichAb("Senden fehlgeschlagen: \(fehler.localizedDescription)")
+                self?.brichAb("Senden fehlgeschlagen: \(NearbyFehlertext.fuer(fehler))")
             }
         }
     }
