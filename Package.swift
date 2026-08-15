@@ -34,7 +34,13 @@ let package = Package(
             // Bundeswahlkreis-Umrisse fuer die Wahldaten-Gebietssuche. Dieselbe Datei wie im
             // Android-Repo (app/src/main/assets/wahlkreise_btw25.geojson) - eine zweite Herleitung
             // waere nur eine zweite Fehlerquelle.
-            resources: [.copy("Resources/wahlkreise_btw25.geojson")]
+            //
+            // Der ganze Ordner wird kopiert, nicht nur die Datei - genau wie "Vektoren" beim
+            // Testziel unten. Ein .copy() auf eine einzelne verschachtelte Datei legt sie an die
+            // Wurzel des Ressourcen-Bundles, ein .copy() auf den Ordner behaelt "Resources/" als
+            // Unterverzeichnis - und nur dafuer nimmt Bundle.module.url(...) den
+            // subdirectory-Parameter zuverlaessig an.
+            resources: [.copy("Resources")]
         ),
         .testTarget(
             name: "PlakatKompassCoreTests",
