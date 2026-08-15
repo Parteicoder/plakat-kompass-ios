@@ -31,9 +31,12 @@ final class AdresseAufloesen: ObservableObject {
         fehler = nil
         treffer = nil
 
-        // "DE" mitgeben: Ohne Land findet Apple zu "Bahnhofstraße 1" auch die in Oesterreich
-        // und der Schweiz - und nimmt womoeglich die falsche.
-        geokodierer.geocodeAddressString(text, in: nil, preferredLocale: Locale(identifier: "de_DE")) {
+        // "Deutschland" an die Suche haengen: "preferredLocale" unten steuert nur die Sprache
+        // der Antwort, nicht welches Land durchsucht wird. Ohne diesen Zusatz findet Apple zu
+        // "Bahnhofstraße 1" auch die in Oesterreich und der Schweiz - und nimmt womoeglich die
+        // falsche.
+        let suchtext = text.localizedCaseInsensitiveContains("deutschland") ? text : "\(text), Deutschland"
+        geokodierer.geocodeAddressString(suchtext, in: nil, preferredLocale: Locale(identifier: "de_DE")) {
             [weak self] plaetze, fehlerObjekt in
             Task { @MainActor in
                 guard let self else { return }
