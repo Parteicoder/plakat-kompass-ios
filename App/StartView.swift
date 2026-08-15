@@ -181,9 +181,11 @@ private struct UnterstuetzenUndGemeinschaft: View {
 /// rollenden Code — den Funk musste man daneben von Hand einschalten und daran denken. Wer es
 /// vergaß, hielt einen gültigen QR hin, der nichts bewirkte.
 private struct Teamaufnahme: View {
+    // Bindet direkt an nearby.laeuft, wie der bestehende Funk-Regler in SyncView.swift -
+    // statt an ein eigenes @State, das den Startwert nicht kennt: Wer den Funk schon vom
+    // Abgleich-Tab aus gestartet hatte, saehe hier trotzdem "aus" und keinen QR-Code, obwohl
+    // der Abgleich laengst lief.
     @ObservedObject var nearby: NearbyAbgleich
-
-    @State private var aufnahmeLaeuft = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -191,20 +193,17 @@ private struct Teamaufnahme: View {
                 Text("Team-QR").font(.headline)
                 Spacer()
                 Toggle("Teamaufnahme", isOn: Binding(
-                    get: { aufnahmeLaeuft },
-                    set: { an in
-                        aufnahmeLaeuft = an
-                        an ? nearby.start() : nearby.stop()
-                    }
+                    get: { nearby.laeuft },
+                    set: { $0 ? nearby.start() : nearby.stop() }
                 ))
                 .labelsHidden()
             }
 
-            Text(aufnahmeLaeuft ? "Teamaufnahme aktiv" : "Teamaufnahme starten")
+            Text(nearby.laeuft ? "Teamaufnahme aktiv" : "Teamaufnahme starten")
                 .font(.subheadline)
-                .foregroundStyle(aufnahmeLaeuft ? .primary : .secondary)
+                .foregroundStyle(nearby.laeuft ? .primary : .secondary)
 
-            if aufnahmeLaeuft {
+            if nearby.laeuft {
                 TeamQrView()
             } else {
                 Text("""
@@ -218,12 +217,6 @@ private struct Teamaufnahme: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        // Der Funk endet, sobald die App in den Hintergrund geht (siehe PlakatKompassApp).
-        // Ohne diese Zeile behauptete der Schalter danach weiter „aktiv", und die Teamleitung
-        // hielte einen QR hin, der ins Leere zeigt.
-        .onChange(of: nearby.laeuft) { _, laeuft in
-            if !laeuft { aufnahmeLaeuft = false }
-        }
     }
 }
 
