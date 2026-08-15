@@ -60,6 +60,38 @@ public struct DeviceRecord: Equatable, Sendable {
     }
 }
 
+/// Lokaler Geräte-Schlüsselbund — Gegenstück zu `DeviceKeyRecord` in `core/Domain.kt`.
+///
+/// Reiner Sicherheitszustand, nie Teil eines `SyncSnapshot`: Die Teamleitung hält Einträge für
+/// bekannte Teamgeräte, ein Mitglied nur seinen eigenen. `DeviceKeyringPolicy` baut ihn.
+public struct DeviceKeyRecord: Equatable, Sendable {
+    public var deviceId: String
+    public var displayName: String
+    public var role: MemberRole
+    public var teamSecretHash: String
+    public var keyVersion: Int64
+    public var createdAt: Int64
+    public var active: Bool
+
+    public init(
+        deviceId: String,
+        displayName: String,
+        role: MemberRole,
+        teamSecretHash: String,
+        keyVersion: Int64 = 1,
+        createdAt: Int64 = Date.nowMillis,
+        active: Bool = true
+    ) {
+        self.deviceId = deviceId
+        self.displayName = displayName
+        self.role = role
+        self.teamSecretHash = teamSecretHash
+        self.keyVersion = keyVersion
+        self.createdAt = createdAt
+        self.active = active
+    }
+}
+
 public struct Poster: Equatable, Identifiable, Sendable {
     public var id: String
     public var teamId: String
@@ -227,6 +259,7 @@ public struct LocalTeamState: Equatable, Sendable {
     public var deletedPosters: [PosterTombstone]
     public var events: [PosterEvent]
     public var flyerTours: [FlyerTour]
+    public var deviceKeyring: [DeviceKeyRecord]
 
     public init(
         deviceId: String,
@@ -239,7 +272,8 @@ public struct LocalTeamState: Equatable, Sendable {
         posters: [Poster] = [],
         deletedPosters: [PosterTombstone] = [],
         events: [PosterEvent] = [],
-        flyerTours: [FlyerTour] = []
+        flyerTours: [FlyerTour] = [],
+        deviceKeyring: [DeviceKeyRecord] = []
     ) {
         self.deviceId = deviceId
         self.deviceName = deviceName
@@ -252,6 +286,7 @@ public struct LocalTeamState: Equatable, Sendable {
         self.deletedPosters = deletedPosters
         self.events = events
         self.flyerTours = flyerTours
+        self.deviceKeyring = deviceKeyring
     }
 }
 

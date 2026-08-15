@@ -50,7 +50,7 @@ final class LocalRepositoryTests: XCTestCase {
         ohneExtras.plannedRemovalAt = nil
         ohneExtras.addressHint = ""
 
-        return LocalTeamState(
+        var stand = LocalTeamState(
             deviceId: "device-1",
             deviceName: "Davids iPhone",
             role: .LEADER,
@@ -93,6 +93,10 @@ final class LocalRepositoryTests: XCTestCase {
                 )
             ]
         )
+        // Genau wie bei der Fristautomatik: schon "abgeschlossen", damit `save` den
+        // Schlüsselbund nicht mehr ändert und dieser Test rein den JSON-Weg prüft.
+        stand.deviceKeyring = DeviceKeyringPolicy.normalizedFor(stand)
+        return stand
     }
 
     func testSchreibenUndLesenAendertNichts() throws {
