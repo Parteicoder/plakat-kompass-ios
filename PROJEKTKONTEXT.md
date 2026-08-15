@@ -12,7 +12,7 @@ ein.
 Der Schwesterrepo `Parteicoder/plakat-radar-intern` enthält die Android-Fassung — die ältere,
 größere und funktional führende — und ein eigenes `PROJEKTKONTEXT.md`.
 
-Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `9790970`.
+Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `18d3b63`.
 
 ---
 
@@ -245,18 +245,48 @@ schlechter: Die Koordinate im Abfrageschlüssel wird auf drei Nachkommastellen g
 `.task(id:)` bricht die alte Abfrage beim Schlüsselwechsel automatisch ab. Kein eigener Debounce
 nötig, aber auch keine baugleiche Zahl.
 
-### 5.6 Fehlt vollständig — geplant, aber noch nicht begonnen
+### 5.6 Wahldaten — im Aufbau, in vier Teilen
 
-**Wahldaten.** Auf Android ein eigenständiges Feature (`feature/wahldaten/`, ~1450 Zeilen):
-Amtliche Wahlergebnisse — Bundestags-, Landtags-, Kreistags- und Kommunalwahl, von der
-Bundeswahlleiterin bzw. den Landeswahlleitungen — für den Wahlkreis unter der Kartenmitte, mit
-Wahlbeteiligung und Parteianteilen als eigener Chip im Kartenbildschirm (`WahldatenPanel.kt`,
-`ModernPosterMapScreen.kt`), im selben Stil wie die Sozialdaten. Auf iOS existiert davon **nichts**
-— keine Datei, kein Screen, kein Menüpunkt. Anders als die übrigen Lücken in diesem Abschnitt ist
-das kein übersehener Rest und keine Plattformgrenze, sondern ein eigener Port, der bewusst noch
-nicht begonnen wurde. Wer ihn angeht, portiert am besten von `WahldatenRepository.kt`,
-`WahldatenModels.kt` und `WahldatenGeometrie.kt` aus — dieselbe Struktur, die auch
-`SocialData.swift`/`SozialdatenView.swift` schon als Vorlage diente.
+Auf Android ein eigenständiges Feature (`feature/wahldaten/`, ~1450 Zeilen): amtliche
+Wahlergebnisse — Bundestags-, Landtags-, Kreistags- und Kommunalwahl, von der Bundeswahlleiterin
+bzw. den Landeswahlleitungen — für den Wahlkreis unter der Kartenmitte, mit Wahlbeteiligung und
+Parteianteilen als eigener Chip im Kartenbildschirm (`WahldatenPanel.kt`,
+`ModernPosterMapScreen.kt`), im selben Stil wie die Sozialdaten. Bis vor Kurzem existierte davon
+auf iOS **nichts** — keine Datei, kein Screen, kein Menüpunkt. Anders als die übrigen Lücken in
+diesem Abschnitt war das kein übersehener Rest und keine Plattformgrenze, sondern ein eigener
+Port, der jetzt läuft.
+
+**Design-Entscheidung, bewusst getroffen statt der naheliegenden Abkürzung:** iOS hat auf der
+Karte selbst gar kein Sozialdaten-Panel — `SozialdatenView` ist dort ein eigener
+Vollbildschirm, an den aktuellen GPS-Standort gebunden, nicht an die Kartenmitte. Die kleinere,
+billigere Option wäre gewesen, Wahldaten als dritte Quelle in genau diesen Screen zu hängen. Die
+Entscheidung fiel stattdessen für echte Verhaltensgleichheit mit Android: ein Panel direkt auf
+`PosterMapView`, live bei Kartenbewegung aktualisiert — man kann damit einen Wahlkreis
+nachschlagen, ohne dort zu stehen, genau wie drüben. Mehr Bauaufwand, aber keine stille
+Funktionsminderung gegenüber Android.
+
+**Vier Teile, je ein eigener PR** (Reihenfolge nach Testbarkeit — erst, was ganz ohne Netzwerk und
+Oberfläche prüfbar ist, zuletzt die Oberfläche, die laut Abschnitt 9 ohnehin nur lesend geprüft
+werden kann):
+
+1. **Kern** — Modelle, Geometrie (Ray-Casting, Zero-Padding-Fix für Wahlkreis-Kennungen), der
+   gemeinsame Ergebnisdatei-Parser, Kleinparteien-Bündelung, die 299 Bundeswahlkreis-Umrisse als
+   Package-Ressource, dazu 35 Tests. `WahldatenModels.swift`, `WahldatenGeometrie.swift`,
+   `LandtagJsonParser.swift`, `WahldatenParser.swift`, `WahlkreisGrenzen.swift`.
+2. **Netzwerk und Repository** — `URLSession`-Abruf der Ergebnisdatei mit Festplatten-Cache,
+   Overpass-Abfrage für Kreis-/Gemeindeschlüssel (mit einem neuen, app-weiten Ratenbegrenzer —
+   `Gemeindegrenze` in `PosterMapView.swift` ist bislang der einzige Overpass-Aufrufer und läuft
+   ungebremst), Dispatch je Wahlart samt Hamburg-Kommunal-Fallback auf Landtag.
+3. **Oberfläche** — Toolbar-Toggle auf `PosterMapView` neben dem bestehenden
+   „Gemeindegrenze"-Toggle, Panel mit Wahlart-Chip-Reihe, Beteiligung, Parteiliste, Einstellungen
+   für Cache-Dauer und „alle Parteien anzeigen", Quellenangabe unter „Lizenzen und Dank".
+4. **Verifikation** — `swift test`, `xcodebuild` für den Simulator, die sechs bekannten
+   Koordinaten aus dem Android-Test als schnellste Prüfung der portierten Geometrie.
+
+Wer hier weiterarbeitet, portiert am besten von `WahldatenRepository.kt`, `WahldatenModels.kt`
+und `WahldatenGeometrie.kt` aus — dieselbe Struktur, die auch `SocialData.swift`/
+`SozialdatenView.swift` schon als Vorlage diente, plus `Gemeindegrenze` in `PosterMapView.swift`
+als Vorbild für ein kartenbewegungs-getriebenes Panel.
 
 ---
 
