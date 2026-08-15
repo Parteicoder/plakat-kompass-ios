@@ -2,6 +2,26 @@ import CoreLocation
 import SwiftUI
 import UIKit
 
+/// Welche Fassung hier läuft.
+///
+/// **Gepflegt wird sie an genau einer Stelle:** `MARKETING_VERSION` in `project.yml`. Von dort
+/// setzt Xcode sie beim Bauen in den Platzhalter `$(MARKETING_VERSION)` in `App/Info.plist` ein,
+/// und hier wird sie zur Laufzeit aus dem Bundle gelesen.
+///
+/// Eine Konstante im Quelltext wäre die naheliegende und die falsche Lösung: Sie stünde neben der
+/// Zahl, mit der die App tatsächlich gebaut und eingereicht wird, und beide gingen früher oder
+/// später auseinander. Dann zeigte der Bildschirm „Lizenzen und Dank" eine Fassung an, die es nie
+/// gab — und der Fehlerbericht nennte sie ebenfalls.
+///
+/// **Die Baunummer steht hier bewusst nicht.** `CFBundleVersion` unterscheidet mehrere
+/// Einreichungen derselben Fassung — das interessiert beim Hochladen in den App Store, nicht den
+/// Menschen, der wissen will, welche Fassung er benutzt. Wer sie doch braucht, hängt sie an
+/// dieser einen Stelle an.
+enum Fassung {
+    static let anzeige: String =
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unbekannt"
+}
+
 /// Kamera über den Systemdialog. `UIImagePickerController` statt eigener AVFoundation-Oberfläche:
 /// Die Kamera ist eine Plattformfunktion, sie muss nicht nachgebaut werden.
 struct KameraAufnahme: UIViewControllerRepresentable {

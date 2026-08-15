@@ -291,11 +291,19 @@ private struct VerlaufView: View {
 private struct LizenzenView: View {
     var body: some View {
         List {
-            Section("Diese App") {
+            Section {
+                LabeledContent("Fassung", value: Fassung.anzeige)
                 Text("""
                 Plakat Kompass steht unter der GNU Affero General Public License, Version 3 \
                 (AGPL-3.0). Der Lizenztext liegt der Quelle als Datei LICENSE bei.
                 """)
+            } header: {
+                Text("Diese App")
+            } footer: {
+                // Die AGPL verlangt, dass der Empfänger an den Quelltext SEINER Fassung kommt.
+                // Ohne Nummer weiss er nicht, welche das ist — der Anspruch stünde da und liefe
+                // ins Leere.
+                Text("Die Nummer gehört in jeden Fehlerbericht: Ohne sie lässt sich nicht sagen, ob ein Fehler noch besteht oder längst behoben ist.")
             }
             Section("Gemeindegrenzen") {
                 Text("""
