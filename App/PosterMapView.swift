@@ -221,14 +221,23 @@ final class Gemeindegrenze: ObservableObject {
         guard let ziel = URL(string: CommuneBoundaryQuery.url(latitude: latitude, longitude: longitude))
         else { return }
 
-        var anfrage = URLRequest(url: ziel)
-        anfrage.timeoutInterval = 30
-        anfrage.setValue("PlakatKompass/1.0 (iOS; Gemeindegrenzen)", forHTTPHeaderField: "User-Agent")
-        anfrage.setValue("application/json", forHTTPHeaderField: "Accept")
+        let anfrage: URLRequest = {
+            var anfrage = URLRequest(url: ziel)
+            anfrage.timeoutInterval = 30
+            anfrage.setValue("PlakatKompass/1.0 (iOS; Gemeindegrenzen)", forHTTPHeaderField: "User-Agent")
+            anfrage.setValue("application/json", forHTTPHeaderField: "Accept")
+            return anfrage
+        }()
 
         // Scheitert die Abfrage, bleibt die Karte einfach ohne Grenze. Eine Fehlermeldung waere
         // hier fehl am Platz - die Grenze ist eine Zugabe, keine Voraussetzung.
-        guard let (daten, antwort) = try? await URLSession.shared.data(for: anfrage),
+        //
+        // Ueber OverpassSchlange: seit die Wahldaten-Gebietssuche denselben Dienst aufruft, gibt
+        // es zwei unabhaengige Aufrufer - ohne die gemeinsame Warteschlange koennten sie sich bei
+        // einem Kartenschwenk gegenseitig in eine Drosselung laufen lassen.
+        guard let (daten, antwort) = await OverpassSchlange.geteilt.nacheinander({
+            try? await URLSession.shared.data(for: anfrage)
+        }),
               let http = antwort as? HTTPURLResponse, (200...299).contains(http.statusCode)
         else { return }
 
