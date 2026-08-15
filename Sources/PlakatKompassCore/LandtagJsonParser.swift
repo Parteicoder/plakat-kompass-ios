@@ -30,19 +30,23 @@ public func parseLandtagJson(bytes: Data, gebietsschluessel: String, wahl: WahlK
     for (partei, wert) in parteienRoh {
         // 0,0-%-Einträge verwerfen: eine Partei, die nicht angetreten ist oder auf null gerundet
         // wurde, soll nicht als Zeile mit "0,0 %" auftauchen.
-        guard let prozent = alsZahl(wert), prozent > 0 else { continue }
+        guard let prozent = zahlAusJson(wert), prozent > 0 else { continue }
         parteienWerte[partei] = prozent
     }
-    guard !parteienWerte.isEmpty else { return nil }
 
     // Werte außerhalb [0,100] (z. B. der Sachsen->100-%-Briefwahl-Artefakt) auf nil setzen statt
     // eine falsche Zahl anzuzeigen — die Parteiwerte bleiben davon unberührt.
-    let beteiligung: Double? = (gebiet["beteiligung"]).flatMap(alsZahl).flatMap {
+    let beteiligung: Double? = (gebiet["beteiligung"]).flatMap(zahlAusJson).flatMap {
         (0...100).contains($0) ? $0 : nil
     }
 
+    // Nur wenn WEDER Parteien noch Beteiligung etwas Brauchbares liefern, ist das Gebiet leer.
+    // Eine kleine Gemeinde, in der jede Partei auf 0,0 % rundet, hat trotzdem eine echte
+    // Beteiligung — die darf nicht mit verworfen werden, nur weil parteienWerte leer ist.
+    guard !parteienWerte.isEmpty || beteiligung != nil else { return nil }
+
     let titel = (root["titel"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? wahl.titel
-    let jahr = root["jahr"].flatMap(alsZahl).map(Int.init) ?? wahl.jahr
+    let jahr = root["jahr"].flatMap(zahlAusJson).flatMap(intAusJson) ?? wahl.jahr
     let neueWahl = WahlKennung(art: wahl.art, jahr: jahr, ebene: wahl.ebene, titel: titel, quelle: wahl.quelle)
 
     return Wahlergebnis(
@@ -76,16 +80,4 @@ private func quellenangabe(_ root: [String: Any]) -> String {
         return "\(quelle) (\(lizenz))"
     }
     return quelle
-}
-
-// Int/Double zuerst versucht, NSNumber als Rückfall: welchen konkreten Zahlentyp
-// JSONSerialization für eine JSON-Zahl liefert, unterscheidet sich zwischen Apples Foundation
-// und swift-corelibs-foundation unter Linux (der Kern baut laut Package.swift ausdrücklich auch
-// dort).
-private func alsZahl(_ roh: Any) -> Double? {
-    if let zahl = roh as? Double { return zahl.isFinite ? zahl : nil }
-    if let zahl = roh as? Int { return Double(zahl) }
-    if let zahl = roh as? NSNumber { return zahl.doubleValue.isFinite ? zahl.doubleValue : nil }
-    if let text = roh as? String, let zahl = Double(text), zahl.isFinite { return zahl }
-    return nil
 }

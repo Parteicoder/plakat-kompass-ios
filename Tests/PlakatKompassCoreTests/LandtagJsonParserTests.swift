@@ -147,4 +147,48 @@ final class LandtagJsonParserTests: XCTestCase {
         let ergebnis = parseLandtagJson(bytes: mitBom, gebietsschluessel: "14612000", wahl: platzhalter)!
         XCTAssertEqual(ergebnis.parteien.first { $0.partei == "CDU" }?.prozent ?? 0, 30.9, accuracy: 0.001)
     }
+
+    /// Eine kleine Gemeinde, in der jede Partei auf 0,0 % rundet, hat trotzdem eine echte
+    /// Beteiligung — die darf nicht verworfen werden, nur weil die Parteienliste danach leer ist.
+    func testAlleParteienAufNullGerundetVerwirftNichtDieBeteiligung() {
+        let json = """
+        {"titel": "t", "jahr": 2024, "quelle": "x",
+         "gebiete": {"14000000": {"name": "Kleinstgemeinde", "beteiligung": 62.5,
+                                   "parteien": {"CDU": 0.0, "SPD": 0.0}}}}
+        """.data(using: .utf8)!
+        let ergebnis = parseLandtagJson(bytes: json, gebietsschluessel: "14000000", wahl: platzhalter)!
+        XCTAssertEqual(ergebnis.beteiligung!, 62.5, accuracy: 0.001)
+        XCTAssertTrue(ergebnis.parteien.isEmpty)
+    }
+
+    /// Ein Gebiet ganz ohne verwertbare Parteien UND ohne Beteiligung ist tatsächlich leer.
+    func testWederParteienNochBeteiligungLiefertNil() {
+        let json = """
+        {"titel": "t", "jahr": 2024, "quelle": "x",
+         "gebiete": {"14000000": {"name": "Leer", "parteien": {"CDU": 0.0}}}}
+        """.data(using: .utf8)!
+        XCTAssertNil(parseLandtagJson(bytes: json, gebietsschluessel: "14000000", wahl: platzhalter))
+    }
+
+    /// Ein `jahr`, das endlich, aber zu groß für `Int` ist, darf die App nicht zum Absturz
+    /// bringen — die aufrufende `WahlKennung` liefert das Jahr stattdessen.
+    func testUeberlaufendesJahrStuerztNichtAbUndFaelltAufDenAufrufer() {
+        let json = """
+        {"titel": "t", "jahr": 1e20, "quelle": "x",
+         "gebiete": {"14000000": {"name": "X", "beteiligung": 50.0, "parteien": {"CDU": 100.0}}}}
+        """.data(using: .utf8)!
+        let ergebnis = parseLandtagJson(bytes: json, gebietsschluessel: "14000000", wahl: platzhalter)!
+        XCTAssertEqual(ergebnis.wahl.jahr, platzhalter.jahr)
+    }
+
+    /// Eine Beteiligung, die im JSON als `true` statt als Zahl steht, darf nicht als 1 % erscheinen
+    /// — `JSONSerialization` bildet ein JSON-Bool sonst unbemerkt auf eine Double-fähige NSNumber ab.
+    func testBooleanBeteiligungWirdNichtAlsZahlGelesen() {
+        let json = """
+        {"titel": "t", "jahr": 2024, "quelle": "x",
+         "gebiete": {"14000000": {"name": "X", "beteiligung": true, "parteien": {"CDU": 100.0}}}}
+        """.data(using: .utf8)!
+        let ergebnis = parseLandtagJson(bytes: json, gebietsschluessel: "14000000", wahl: platzhalter)!
+        XCTAssertNil(ergebnis.beteiligung)
+    }
 }

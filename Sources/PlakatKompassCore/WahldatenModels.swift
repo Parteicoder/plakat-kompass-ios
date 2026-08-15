@@ -18,11 +18,6 @@ public enum Wahlart: String, CaseIterable, Sendable, Equatable {
         case .kommunal: return "Gemeinderatswahl"
         }
     }
-
-    /// Freigabe-Schalter für einen späteren gestaffelten Rollout: eine Wahlart kann im Code
-    /// stehen, aber in der Oberfläche ausgegraut bleiben, bis ihre Datenquelle geprüft ist. Beim
-    /// Start dieses Ports sind alle fünf gleichzeitig freigegeben.
-    public var freigegeben: Bool { true }
 }
 
 /// Verwaltungsebene, auf der ein Ergebnis vorliegt.
@@ -111,7 +106,9 @@ public struct WahlKennung: Sendable, Equatable {
         self.quelle = quelle
     }
 
-    public func istArchiv(aktuellesJahr: Int) -> Bool { jahr < aktuellesJahr }
+    /// `jahr == 0` heißt bei `.landDatei`-Quellen "noch nicht geparst", nicht "sehr alt" — vor dem
+    /// ersten `parseLandtagJson`-Aufruf gilt eine Wahl deshalb als weder archiviert noch aktuell.
+    public func istArchiv(aktuellesJahr: Int) -> Bool { jahr != 0 && jahr < aktuellesJahr }
 
     /// Mit anderer Ebene — der Kandidat kennt seine tatsächliche Ebene erst nach der
     /// Gebietssuche, davor steht nur die Wahlart fest.
@@ -154,3 +151,24 @@ public enum WahldatenUiState: Sendable, Equatable {
     case empty
     case error(String)
 }
+
+/// Geteilte JSON-Zahl-Konvertierung für `LandtagJsonParser.swift` und `WahldatenGeometrie.swift` —
+/// beide lasen bislang denselben Code je einmal für sich, siehe `CommuneBoundary.kommazahl` für
+/// den ursprünglichen Grund (Apples Foundation und swift-corelibs-foundation bilden eine
+/// JSON-Zahl auf unterschiedliche konkrete Typen ab).
+///
+/// `Bool` wird ausdrücklich zuerst ausgeschlossen: `JSONSerialization` liefert ein JSON `true`
+/// unter Apples Foundation als `__NSCFBoolean`, eine private `NSNumber`-Unterklasse, die sonst
+/// unbemerkt als `1.0` durchginge (`roh as? Double` würde sonst erfolgreich sein).
+func zahlAusJson(_ roh: Any) -> Double? {
+    if let zahl = roh as? NSNumber, CFGetTypeID(zahl) == CFBooleanGetTypeID() { return nil }
+    if let zahl = roh as? Double { return zahl.isFinite ? zahl : nil }
+    if let zahl = roh as? Int { return Double(zahl) }
+    if let zahl = roh as? NSNumber { return zahl.doubleValue.isFinite ? zahl.doubleValue : nil }
+    if let text = roh as? String, let zahl = Double(text), zahl.isFinite { return zahl }
+    return nil
+}
+
+/// `Int(Double)` ohne Absturz: `Int.init(Double)` trapt bei einem endlichen, aber
+/// bereichsüberschreitenden Wert (z. B. `1e20`) statt `nil` zu liefern.
+func intAusJson(_ zahl: Double) -> Int? { Int(exactly: zahl) }
