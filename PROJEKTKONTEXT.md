@@ -245,7 +245,7 @@ schlechter: Die Koordinate im Abfrageschlüssel wird auf drei Nachkommastellen g
 `.task(id:)` bricht die alte Abfrage beim Schlüsselwechsel automatisch ab. Kein eigener Debounce
 nötig, aber auch keine baugleiche Zahl.
 
-### 5.6 Wahldaten — im Aufbau, in vier Teilen
+### 5.6 Wahldaten — vollständig in vier Teilen
 
 Auf Android ein eigenständiges Feature (`feature/wahldaten/`, ~1450 Zeilen): amtliche
 Wahlergebnisse — Bundestags-, Landtags-, Kreistags- und Kommunalwahl, von der Bundeswahlleiterin
@@ -265,9 +265,8 @@ Entscheidung fiel stattdessen für echte Verhaltensgleichheit mit Android: ein P
 nachschlagen, ohne dort zu stehen, genau wie drüben. Mehr Bauaufwand, aber keine stille
 Funktionsminderung gegenüber Android.
 
-**Vier Teile, je ein eigener PR** (Reihenfolge nach Testbarkeit — erst, was ganz ohne Netzwerk und
-Oberfläche prüfbar ist, zuletzt die Oberfläche, die laut Abschnitt 9 ohnehin nur lesend geprüft
-werden kann):
+**Vier Teile** (die ersten drei als Implementierungs-PRs, die Verifikation über die bestehende
+CI; Reihenfolge nach Testbarkeit — erst, was ganz ohne Netzwerk und Oberfläche prüfbar ist):
 
 1. **Kern** — Modelle, Geometrie (Ray-Casting, Zero-Padding-Fix für Wahlkreis-Kennungen), der
    gemeinsame Ergebnisdatei-Parser, Kleinparteien-Bündelung, die 299 Bundeswahlkreis-Umrisse als
@@ -280,8 +279,9 @@ werden kann):
 3. **Oberfläche** — Toolbar-Toggle auf `PosterMapView` neben dem bestehenden
    „Gemeindegrenze"-Toggle, Panel mit Wahlart-Chip-Reihe, Beteiligung, Parteiliste, Einstellungen
    für Cache-Dauer und „alle Parteien anzeigen", Quellenangabe unter „Lizenzen und Dank".
-4. **Verifikation** — `swift test`, `xcodebuild` für den Simulator, die sechs bekannten
-   Koordinaten aus dem Android-Test als schnellste Prüfung der portierten Geometrie.
+4. **Verifikation — abgeschlossen** — `swift test` und `xcodebuild` für den Simulator sind grün.
+   `WahlkreisBeilageTests` prüft dieselben sechs bekannten Koordinaten wie Android sowie alle 299
+   lückenlos nummerierten Wahlkreise.
 
 Wer hier weiterarbeitet, portiert am besten von `WahldatenRepository.kt`, `WahldatenModels.kt`
 und `WahldatenGeometrie.kt` aus — dieselbe Struktur, die auch `SocialData.swift`/
