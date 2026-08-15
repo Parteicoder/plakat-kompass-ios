@@ -84,13 +84,26 @@ final class CommuneBoundaryTests: XCTestCase {
         XCTAssertNil(CommuneBoundaryQuery.parse(json), "Ohne verwertbare Linie gibt es keine Grenze.")
     }
 
-    func testFremdeEbenenWerdenIgnoriert() {
-        // admin_level 4 ist das Bundesland. Das hilft beim Plakatieren nicht weiter.
+    func testEbeneFuenfWirdIgnoriert() {
+        // admin_level 5 (Regierungsbezirk) taucht in keiner der beiden Abfragen auf.
         let json = antwort(relation(
-            name: "Sachsen", ebene: "4",
+            name: "Regierungsbezirk Leipzig", ebene: "5",
             wege: weg("{\"lat\":51.0,\"lon\":13.0},{\"lat\":51.1,\"lon\":13.1}")
         ))
         XCTAssertNil(CommuneBoundaryQuery.parse(json))
+    }
+
+    func testEbeneVierWirdAlsStadtstaatFallbackGelesen() {
+        // admin_level 4 ist das Bundesland - normalerweise zu grob, aber die einzige Ebene, die
+        // es fuer Berlin, Hamburg und Bremen gibt. Kommt nur in der Antwort auf die
+        // Fallback-Abfrage (ebenenBundesland) vor; die normale Abfrage filtert das serverseitig.
+        let json = antwort(relation(
+            name: "Berlin", ebene: "4",
+            wege: weg("{\"lat\":52.5,\"lon\":13.4},{\"lat\":52.6,\"lon\":13.5}")
+        ))
+        let grenze = CommuneBoundaryQuery.parse(json)
+        XCTAssertEqual(grenze?.name, "Berlin")
+        XCTAssertEqual(grenze?.adminLevel, 4)
     }
 
     func testLeereUndKaputteAntwortenErgebenNichts() {
@@ -107,5 +120,17 @@ final class CommuneBoundaryTests: XCTestCase {
         XCTAssertTrue(klartext.contains("is_in(51.46,12.63)"))
         XCTAssertTrue(klartext.contains("^(6|8)$"), "Beide Ebenen abfragen, feinste nehmen.")
         XCTAssertFalse(url.contains(" "), "Leerzeichen muessen kodiert sein.")
+    }
+
+    func testDieFallbackAbfrageTraegtEbeneVier() {
+        // Gegenstueck zur zweiten Abfrage in CommuneBoundaryClient.fetch() auf Android - fuer
+        // Berlin, Hamburg und Bremen, wo es keine Gemeindegrenze getrennt vom Bundesland gibt.
+        let url = CommuneBoundaryQuery.url(
+            latitude: 52.52, longitude: 13.40, ebenen: CommuneBoundaryQuery.ebenenBundesland
+        )
+        let klartext = url.removingPercentEncoding ?? url
+
+        XCTAssertTrue(klartext.contains("is_in(52.52,13.4)"))
+        XCTAssertTrue(klartext.contains("^4$"), "Fallback fragt ausschliesslich die Landesebene ab.")
     }
 }

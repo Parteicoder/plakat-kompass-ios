@@ -30,19 +30,36 @@ public enum CommuneBoundaryQuery {
 
     public static let endpunkt = "https://overpass-api.de/api/interpreter"
 
+    /// `admin_level` der Gemeinde/Stadt bzw. kreisfreien Stadt — die normale Abfrage.
+    public static let ebenenGemeinde = "^(6|8)$"
+
+    /// `admin_level` des Bundeslands — Fallback fuer Berlin, Hamburg und Bremen. Diese drei
+    /// Stadtstaaten sind selbst ein Land; eine Gemeindegrenze getrennt von der Landesgrenze
+    /// existiert dort nicht. Ohne diesen Fallback bleibt die Karte dort ohne Umriss. Gegenstück
+    /// zu `admin_level=4` in `CommuneBoundaryClient.fetch()` auf Android.
+    public static let ebenenBundesland = "^4$"
+
     /// Die Abfrage.
     ///
     /// **Deutschland-Eigenheit:** `admin_level=8` ist die Gemeinde oder Stadt, aber kreisfreie
     /// Städte liegen teils nur auf `admin_level=6`. Beide werden abgefragt, und ausgewertet wird
     /// die feinste vorhandene Ebene — sonst bekäme man in Leipzig den ganzen Landkreis.
-    public static func url(latitude: Double, longitude: Double) -> String {
+    ///
+    /// `ebenen` ist die abgefragte `admin_level`-Regex. Der Aufrufer (`Gemeindegrenze.hole()`)
+    /// fragt zuerst mit `ebenenGemeinde`; kommt nichts zurück, ein zweites Mal mit
+    /// `ebenenBundesland`. Zwei Abrufe statt einem gemeinsamen `^(4|6|8)$`, weil `out geom` sonst
+    /// bei jeder Kartenbewegung den kompletten Umriss eines Bundeslandes mitschleppte — für einen
+    /// Fall, der nur in drei von sechzehn Ländern eintritt.
+    public static func url(latitude: Double, longitude: Double, ebenen: String = ebenenGemeinde) -> String {
         let abfrage = "[out:json][timeout:25];is_in(\(latitude),\(longitude))->.a;"
-            + "relation(pivot.a)[\"boundary\"=\"administrative\"][\"admin_level\"~\"^(6|8)$\"];out geom;"
+            + "relation(pivot.a)[\"boundary\"=\"administrative\"][\"admin_level\"~\"\(ebenen)\"];out geom;"
         let erlaubt = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
         return "\(endpunkt)?data=" + (abfrage.addingPercentEncoding(withAllowedCharacters: erlaubt) ?? abfrage)
     }
 
-    /// Wertet die Overpass-Antwort aus und nimmt die feinste vorhandene Verwaltungsebene.
+    /// Wertet die Overpass-Antwort aus und nimmt die feinste vorhandene Verwaltungsebene:
+    /// 8 vor 6 vor 4. Ebene 4 (Bundesland) taucht nur in der Antwort auf die Fallback-Abfrage
+    /// (`ebenenBundesland`) auf — die normale Abfrage filtert sie serverseitig schon heraus.
     public static func parse(_ rohJson: String) -> CommuneBoundary? {
         guard let daten = rohJson.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: daten) as? [String: Any],
@@ -55,7 +72,7 @@ public enum CommuneBoundaryQuery {
             guard element["type"] as? String == "relation",
                   let tags = element["tags"] as? [String: Any],
                   let ebene = ganzzahl(tags["admin_level"]),
-                  ebene == 6 || ebene == 8,
+                  ebene == 4 || ebene == 6 || ebene == 8,
                   let mitglieder = element["members"] as? [[String: Any]]
             else { continue }
 
