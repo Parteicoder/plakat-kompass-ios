@@ -94,6 +94,12 @@ private struct PosterZeile: View {
                 }
             }
 
+            // Notizen inline in der Zeile, wie auf Android (ModernPosterCard.ModernPosterNotes) -
+            // wer im Team unterwegs ist, will nicht erst jedes Plakat öffnen, um zu sehen, ob
+            // schon ein Vermerk dransteht.
+            Notizzeile(titel: "Verwaltung", text: plakat.officialNote)
+            Notizzeile(titel: "Intern", text: plakat.internalNote)
+
             HStack {
                 Menu("Status ändern") {
                     ForEach(PosterStatus.allCases, id: \.self) { status in
@@ -120,4 +126,20 @@ private struct PosterZeile: View {
         }
     }
 
+}
+
+/// Eine einzelne Notiz-Zeile, nur sichtbar wenn nicht leer. Gegenstück zu `ModernPosterNoteLine`.
+private struct Notizzeile: View {
+    let titel: String
+    let text: String
+
+    var body: some View {
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            (Text("\(titel) ").fontWeight(.bold) + Text(text).foregroundStyle(.secondary))
+                .font(.caption)
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
 }

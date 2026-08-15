@@ -17,12 +17,26 @@ struct FlyerTourenView: View {
         model.state.flyerTours.filter { !$0.points.isEmpty || $0.id == model.offeneTour?.id }
     }
 
+    /// Läuft `model.offeneTour` gerade nicht, gehört jede laufende/pausierte Tour automatisch
+    /// einem anderen Gerät. Gegenstück zu `activeTeamTours` in `ModernPosterMapScreen.kt`.
+    private var andereLaufendeTouren: Int {
+        model.state.flyerTours.filter { $0.status == .ACTIVE || $0.status == .PAUSED }.count
+    }
+
     var body: some View {
         List {
             Section {
                 if let offen = model.offeneTour {
                     LaufendeTour(tour: offen)
                 } else {
+                    // Nur ein Hinweis, keine Sperre: Die eigene Tour lässt sich trotzdem starten.
+                    if andereLaufendeTouren > 0 {
+                        Text(andereLaufendeTouren == 1
+                             ? "Im Team läuft 1 weitere Tour. Deine eigene kannst du trotzdem starten."
+                             : "Im Team laufen \(andereLaufendeTouren) weitere Touren. Deine eigene kannst du trotzdem starten.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     TextField("Name der Tour", text: $neuerName)
                     Button {
                         starte()
