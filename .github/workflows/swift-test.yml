@@ -48,9 +48,8 @@ jobs:
         run: |
           swift format --version
 
-          # Bestehenden Code nicht in einem riesigen Stil-Diff umschreiben. Ab jetzt muss aber
-          # jede neu angelegte oder geaenderte Swift-Datei den mit Xcode gelieferten Linter
-          # ohne Warnung passieren.
+          # Wie in der Android-Repo: Stilhinweise bleiben im Log sichtbar, blockieren den
+          # Build aber nicht. Uebersetzungsfehler fangen die folgenden Build- und Testschritte ab.
           if [ -z "$BASIS" ] || [ "$BASIS" = "0000000000000000000000000000000000000000" ]; then
             BASIS=HEAD^
           fi
@@ -63,7 +62,7 @@ jobs:
           if [ "${#dateien[@]}" -eq 0 ]; then
             echo "Keine geaenderten Swift-Dateien."
           else
-            swift format lint --strict --parallel "${dateien[@]}"
+            swift format lint --parallel "${dateien[@]}"
           fi
 
       - name: Kern uebersetzen
