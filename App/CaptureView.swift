@@ -1,3 +1,4 @@
+import CoreLocation
 import PlakatKompassCore
 import SwiftUI
 
@@ -12,6 +13,15 @@ struct CaptureView: View {
     @State private var abnahmeInTagen = 14
     @State private var amtlicheBemerkung = ""
     @State private var interneBemerkung = ""
+    @StateObject private var adressSuche = AdresseAufloesen()
+    @State private var manuelleAdresse = ""
+
+    /// Der Ort, der wirklich benutzt wird: Handeingabe schlaegt Ortung. Genau EINE Stelle, an
+    /// der das entschieden wird - sonst prueft der Speichern-Knopf etwas anderes als das, was
+    /// gespeichert wird, und das faellt erst auf, wenn ein Plakat am falschen Fleck steht.
+    private var wirksamerOrt: CLLocationCoordinate2D? {
+        adressSuche.treffer?.ort ?? standort.position?.coordinate
+    }
 
     var body: some View {
         NavigationStack {
@@ -57,9 +67,14 @@ struct CaptureView: View {
                 }
 
                 Section("Standort") {
-                    if standort.abgelehnt {
-                        Label("Ortung ist abgelehnt. Ohne Standort lässt sich kein Plakat erfassen.",
-                              systemImage: "location.slash")
+                    if let gefunden = adressSuche.treffer {
+                        // Die Handeingabe schlaegt das GPS, solange sie steht - wer sie benutzt
+                        // hat, hat sich bewusst dafuer entschieden.
+                        LabeledContent("Von Hand", value: gefunden.beschriftung)
+                        Button("Wieder Ortung benutzen") { adressSuche.verwirf() }
+                            .font(.footnote)
+                    } else if standort.abgelehnt {
+                        Label("Ortung ist abgelehnt.", systemImage: "location.slash")
                             .foregroundStyle(.red)
                     } else if let position = standort.position {
                         LabeledContent("Genauigkeit", value: "ca. \(Int(position.horizontalAccuracy)) m")
@@ -70,6 +85,45 @@ struct CaptureView: View {
                     } else {
                         Label("Standort wird gesucht …", systemImage: "location")
                             .foregroundStyle(.secondary)
+                    }
+                }
+
+                // HIER STAND NICHTS, UND DAS WAR DIE LUECKE: Ohne Standort blieb der
+                // Speichern-Knopf grau, und zwar endgueltig. Genau die Faelle, in denen man
+                // draussen steht und arbeiten will - Haeuserschlucht, Innenhof, einmal
+                // abgelehnte Ortung - endeten damit. Android laesst dort die Adresse tippen.
+                //
+                // Angeboten wird der Weg nur, wenn die Ortung tatsaechlich nichts liefert.
+                // Immer sichtbar waere er eine zweite Art, dasselbe zu tun, und die schlechtere.
+                if standort.position == nil && adressSuche.treffer == nil {
+                    Section {
+                        TextField("Straße Hausnummer, PLZ Stadt", text: $manuelleAdresse)
+                            .textContentType(.fullStreetAddress)
+                            .autocorrectionDisabled()
+                        Button {
+                            adressSuche.suche(manuelleAdresse)
+                        } label: {
+                            if adressSuche.laeuft {
+                                HStack { ProgressView(); Text("Wird gesucht …").padding(.leading, 8) }
+                            } else {
+                                Label("Adresse suchen", systemImage: "mappin.and.ellipse")
+                            }
+                        }
+                        .disabled(manuelleAdresse.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || adressSuche.laeuft)
+
+                        if let fehler = adressSuche.fehler {
+                            Text(fehler).font(.footnote).foregroundStyle(.red)
+                        }
+                    } header: {
+                        Text("Standort von Hand")
+                    } footer: {
+                        Text("""
+                        Wenn die Ortung nicht greift — enge Bebauung, Innenhof, abgelehnte \
+                        Berechtigung. Die Adresse wird über das Netz in Koordinaten umgesetzt; \
+                        dafür genügt Mobilfunk, GPS-Empfang braucht es nicht. Der Marker sollte \
+                        danach auf der Karte geprüft werden.
+                        """)
                     }
                 }
 
@@ -85,7 +139,7 @@ struct CaptureView: View {
 
                 Section {
                     Button("Plakat speichern") { speichere() }
-                        .disabled(foto == nil || standort.position == nil || !model.istEingerichtet)
+                        .disabled(foto == nil || wirksamerOrt == nil || !model.istEingerichtet)
                 }
             }
             .navigationTitle("Erfassen")
@@ -102,13 +156,18 @@ struct CaptureView: View {
     }
 
     private func speichere() {
-        guard let foto, let position = standort.position else { return }
+        guard let foto, let ort = wirksamerOrt else { return }
+
+        // Wer die Adresse von Hand gesucht hat und das Hinweisfeld leer liess, bekommt Apples
+        // saubere Schreibweise als Hinweis. Eigene Eingabe hat aber Vorrang - sie steht oft
+        // genauer da ("Laterne gegenueber Nr. 12").
+        let hinweis = adresse.isEmpty ? (adressSuche.treffer?.beschriftung ?? "") : adresse
 
         let geklappt = model.erfassePlakat(
             foto: foto,
-            latitude: position.coordinate.latitude,
-            longitude: position.coordinate.longitude,
-            adresse: adresse,
+            latitude: ort.latitude,
+            longitude: ort.longitude,
+            adresse: hinweis,
             typ: typ,
             abnahmeInTagen: abnahmeInTagen,
             amtlicheBemerkung: amtlicheBemerkung,
@@ -123,6 +182,10 @@ struct CaptureView: View {
         guard geklappt else { return }
         self.foto = nil
         adresse = ""
+        // Auch die Handeingabe zuruecksetzen: Das naechste Plakat steht woanders, und eine
+        // stehengebliebene Adresse waere der sicherste Weg zu zwei Plakaten auf einem Punkt.
+        manuelleAdresse = ""
+        adressSuche.verwirf()
         amtlicheBemerkung = ""
         interneBemerkung = ""
         // Art und Abnahmefrist bleiben stehen: Das nächste Plakat ist meistens dasselbe an der
