@@ -7,6 +7,16 @@ import Foundation
 /// hat. Jede Änderung hier gehört drüben genauso gemacht.
 public enum SyncMerge {
 
+    /// Darf dieses Paket überhaupt angefasst werden?
+    ///
+    /// Ein frisch beigetretenes Gerät steht in der Geräteliste der Teamleitung noch nicht — es
+    /// will sich mit genau diesem Paket erst anmelden. Eine Prüfung, die nur bekannte, freigegebene
+    /// Geräte durchlässt, weist deshalb jeden Erstbeitritt ab ("Fremdes oder ungültiges
+    /// Team-Paket"), obwohl QR und Team-Schlüssel stimmen. Deshalb: **unbekannt** ist nicht dasselbe
+    /// wie **abgelehnt**. Ein unbekannter Absender mit gültigem Team-Schlüssel darf sich anmelden —
+    /// aber nur bei der Teamleitung, sonst könnte sich ein Gerät an ihr vorbei ins Team schreiben.
+    /// Wie es danach in die Liste kommt, entscheidet `sanitizeIncomingDevice` (als Mitglied, nicht
+    /// als zweite Leitung). Muss mit `SyncMerge.kt` übereinstimmen.
     public static func verify(snapshot: SyncSnapshot, local: LocalTeamState) -> Bool {
         guard let localTeamId = local.teamId, let localSecret = local.teamSecret else { return false }
         guard snapshot.teamId == localTeamId else { return false }
@@ -14,9 +24,10 @@ public enum SyncMerge {
             return false
         }
         if snapshot.senderDeviceId == local.deviceId { return true }
-        return local.devices.contains {
-            $0.deviceId == snapshot.senderDeviceId && $0.approved && !$0.blocked
+        if let bekannt = local.devices.first(where: { $0.deviceId == snapshot.senderDeviceId }) {
+            return bekannt.approved && !bekannt.blocked
         }
+        return local.role == .LEADER
     }
 
     public static func merge(local: LocalTeamState, incoming: SyncSnapshot) throws -> LocalTeamState {
