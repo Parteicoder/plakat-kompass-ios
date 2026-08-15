@@ -55,14 +55,14 @@ struct PlakatKompassApp: App {
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
 
-    /// Der TabView hat jetzt eine Auswahl, weil die Kurzanleitung wissen muss, welcher Bereich
-    /// gerade offen ist. Die Zeichenketten sind zugleich die Schlüssel in [Kurzanleitung].
-    @State private var reiter = "start"
     @AppStorage(Kurzanleitung.schluessel) private var gesehen = ""
     @AppStorage(Darstellung.schluessel) private var darstellung = Darstellung.system.rawValue
 
     var body: some View {
-        TabView(selection: $reiter) {
+        // Die Auswahl liegt in AppModel, nicht als eigenes @State: Die Zeichenketten sind zugleich
+        // die Schlüssel in [Kurzanleitung], und eine angetippte Kachel auf der Startseite muss von
+        // aussen dorthin wechseln können.
+        TabView(selection: $model.reiter) {
             StartView()
                 .tabItem { Label("Start", systemImage: "house") }
                 .tag("start")
@@ -85,13 +85,14 @@ struct RootView: View {
         // Die Erklärung liegt ÜBER dem echten Bildschirm, nicht davor. Deshalb ein overlay und
         // kein sheet: Wer liest „Filter oben links", soll den Filter oben links sehen.
         .overlay {
-            if Kurzanleitung.zeigen(reiter, gesehen: gesehen), let bereich = Kurzanleitung.fuer(reiter) {
+            if Kurzanleitung.zeigen(model.reiter, gesehen: gesehen),
+               let bereich = Kurzanleitung.fuer(model.reiter) {
                 KurzanleitungOverlay(bereich: bereich) {
-                    withAnimation { gesehen = Kurzanleitung.gemerkt(reiter, gesehen: gesehen) }
+                    withAnimation { gesehen = Kurzanleitung.gemerkt(model.reiter, gesehen: gesehen) }
                 }
                 // Ohne eigene Identität behält SwiftUI beim Reiterwechsel die alte Seitenzahl
                 // bei, und die zweite Anleitung startet mitten drin.
-                .id(reiter)
+                .id(model.reiter)
             }
         }
         .alert("Fehler", isPresented: .constant(model.fehler != nil)) {
