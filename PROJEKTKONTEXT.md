@@ -12,7 +12,7 @@ ein.
 Der Schwesterrepo `Parteicoder/plakat-radar-intern` enthält die Android-Fassung — die ältere,
 größere und funktional führende — und ein eigenes `PROJEKTKONTEXT.md`.
 
-Stand dieses Dokuments: 30. Juli 2026, Basis `main` bei Commit `dafe28f`.
+Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `50f718c`.
 
 ---
 
@@ -97,7 +97,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 |---|---|
 | Domäne, JSON, Merge, Tombstones | `Domain.swift`, `TeamStateJson.swift`, `SyncMerge.swift` |
 | Krypto und `PRSYNC2` | `Crypto.swift`, `SyncBundleCodec.swift` |
-| Team-QR und Beitritt | `TeamInvite.swift`, `TeamView.swift` |
+| Team-QR, Beitritt und Geräteverwaltung (freigeben/sperren, Schlüssel erneuern) | `TeamInvite.swift`, `TeamView.swift`, `SyncView.swift` |
 | Rechte und Rollen | `AccessPolicy.swift` |
 | Abnahmefristen samt Statusautomatik | `RemovalDeadlinePolicy.swift` |
 | Amtlicher Export | `OfficialExport.swift` |
@@ -117,6 +117,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Sozialdaten-Zwischenspeicher auf der Platte | `SozialdatenCache.swift`, `SozialCachePolitik.swift` |
 | Darstellung hell/dunkel/automatisch | `Darstellung.swift` |
 | Adresssuche auf der Karte | `PosterMapView.swift` |
+| Fassungsanzeige aus dem Bundle (Lizenzseite, Protokoll-Startzeile) | `Helpers.swift` (`Fassung`), `EinstellungenView.swift`, `Protokoll.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
@@ -197,6 +198,19 @@ die iOS-Startseite ist der Bildschirm für „was steht an", nicht für Einricht
 Plakat, der Speichern-Knopf bleibt grau. Android lässt die Adresse tippen und geokodiert sie.
 Trifft jeden, der in einer Häuserschlucht steht oder die Ortung einmal abgelehnt hat.
 
+**Backup empfangen auf dem Einrichtungsbildschirm, Team-QR und Support auf der Startseite**
+(PR #26). Bis dahin lag der Handywechsel-Empfang ausschließlich unter Einstellungen → Experten
+— dorthin kommt man aber erst mit eingerichtetem Team, also nicht auf dem frischen Gerät, das
+gerade umzieht. Dieselbe PR holt außerdem den Team-QR-Schalter (bisher nur unter „Abgleich") und
+die Support-&-Community-Knöpfe (Ko-fi, C3-Discord, X) auf die Startseite — auf Android stehen
+beide dort schon lange, `ModernHomeScreen.kt` ist die Vorlage.
+
+**Standort-Knopf in der Liste** (PR #27). Bis dahin führte Navigation zu einem Plakat nur über
+das Kartenblatt oder die Startseiten-Kachel für das nächstgelegene. Android hat auf jeder
+Listenzeile einen „Standort"-Knopf (`MODERN_POSTER_NAVIGATE_BUTTON`); wer die Liste abarbeitet —
+der Regelfall bei einer Kontrollrunde —, musste auf iOS für jedes einzelne Plakat erst zur Karte
+wechseln.
+
 ### 5.5 Kein Unterschied zu Android — beide haben es nicht
 
 **Relay-Abgleich.** Das README liest sich, als fehle nur die iOS-Anbindung. Tatsächlich hat
@@ -225,6 +239,30 @@ Team-Schlüssel. Der Hinweis nach 25 Sekunden Stille in `NearbyAbgleich` sagt ge
 alles mit dem iCloud-Backup mitwandert". Das stimmt für den Regelfall und war trotzdem die
 falsche Entscheidung — es setzt voraus, dass iCloud-Backup an ist, genug Platz hat und das alte
 Gerät noch läuft. Der Umzug ist inzwischen gebaut und ist geräteseitig unabhängig von Apple.
+
+### 5.7 Baugleich, aber mit anderen Zahlen als Android
+
+Zwei Stellen lösen dasselbe Problem wie Android, mit einem eigenen, nicht abgeschriebenen Wert —
+das ist keine Lücke, aber wer Verhalten zwischen den Plattformen vergleicht, sollte es kennen.
+
+**Flyer-Tour-Aufzeichnung.** Android verlangt eine Positionsgenauigkeit besser als 25 m und einen
+Mindestabstand von `max(20 m, Genauigkeit × 1.5)` zwischen zwei Wegpunkten, abgefragt alle 8
+Sekunden über einen Vordergrunddienst. iOS hat keinen Dienst, den es am Leben halten könnte —
+`CLLocationManager` liefert im Hintergrund, solange „Immer" erlaubt ist, und der Takt bestimmt
+das System. Der Ausreißer-Filter lässt hier bis 100 m Ungenauigkeit durch (Android: 25 m) und der
+Mindestabstand steht fest bei 20 m, ohne Genauigkeits-Skalierung (`TourAufzeichnung.swift`,
+`mindestabstandMeter`/`nimmAuf`). Die maximale Dauer von 5 Stunden ist dagegen identisch
+übernommen. Ob die lockereren Werte im Feld zu unruhigeren Strecken führen als auf Android, ist
+ungeprüft — siehe 5.6, echte Hintergrundortung wurde noch auf keinem Gerät erprobt.
+
+**Sozialdaten-Bewegungsschwelle.** Android bricht eine laufende Zensus-Abfrage erst ab, wenn sich
+der Mittelpunkt um `SOCIAL_CENTER_MIN_MOVE_METERS = 80` Meter bewegt hat — ohne diese Schwelle
+brach jede Mikrobewegung der Karte die 15-Sekunden-Abfrage ab und im Panel standen dauerhaft
+veraltete Werte (Android-`PROJEKTKONTEXT.md`, Abschnitt 5). iOS löst dasselbe Problem anders, nicht
+schlechter: Die Koordinate im Abfrageschlüssel wird auf drei Nachkommastellen gerundet
+(`SozialdatenView.swift`, `aufrufSchluessel` — bei diesem Breitengrad rund 100 m), und SwiftUIs
+`.task(id:)` bricht die alte Abfrage beim Schlüsselwechsel automatisch ab. Kein eigener Debounce
+nötig, aber auch keine baugleiche Zahl.
 
 ---
 
