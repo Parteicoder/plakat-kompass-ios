@@ -26,6 +26,27 @@ final class WahldatenModelsTests: XCTestCase {
         XCTAssertFalse(kennung.istArchiv(aktuellesJahr: 2026))
     }
 
+    func testFasseKleineParteienZusammenUndSetztSonstigeAnsEnde() {
+        let ergebnis = fasseKleineZusammen([
+            Parteiergebnis(partei: "SPD", prozent: 24),
+            Parteiergebnis(partei: "Klein A", prozent: 1.2),
+            Parteiergebnis(partei: "Sonstige", prozent: 0.3),
+            Parteiergebnis(partei: "Klein B", prozent: 0.4),
+        ])
+
+        XCTAssertEqual(ergebnis.map(\.partei), ["SPD", "Sonstige"])
+        XCTAssertEqual(ergebnis[0].prozent, 24)
+        XCTAssertEqual(ergebnis[1].prozent, 1.9, accuracy: 0.0001)
+    }
+
+    func testFasseKleineParteienLaesstVollstaendigeListeUnveraendert() {
+        let parteien = [
+            Parteiergebnis(partei: "B", prozent: 4),
+            Parteiergebnis(partei: "A", prozent: 3),
+        ]
+        XCTAssertEqual(fasseKleineZusammen(parteien), parteien)
+    }
+
     // MARK: - zahlAusJson
 
     func testZahlAusJsonLehntBoolAb() {

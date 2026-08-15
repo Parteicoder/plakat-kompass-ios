@@ -9,8 +9,8 @@ enum WahldatenEinstellungen {
     static let vorgabeTage = 30
     static let minTage = 0
     static let maxTage = 90
-    private static let tageSchluessel = "wahldatenCacheTage"
-    private static let alleParteienSchluessel = "wahldatenAlleParteien"
+    static let tageSchluessel = "wahldatenCacheTage"
+    static let alleParteienSchluessel = "wahldatenAlleParteien"
 
     static var cacheTage: Int {
         get { (UserDefaults.standard.object(forKey: tageSchluessel) as? Int) ?? vorgabeTage }

@@ -7,7 +7,11 @@ struct PosterMapView: View {
     @State private var ausschnitt: MapCameraPosition = .automatic
     @State private var ausgewaehlt: Poster?
     @StateObject private var grenze = Gemeindegrenze()
+    @StateObject private var wahldaten = WahldatenAnzeige()
     @AppStorage("grenzeZeigen") private var grenzeZeigen = false
+    @AppStorage("wahldatenZeigen") private var wahldatenZeigen = false
+    @AppStorage("wahldatenWahlart") private var wahlartRoh = Wahlart.bundestag.rawValue
+    @State private var wahldatenEingeklappt = false
     @State private var mitte: CLLocationCoordinate2D?
     @State private var flyerkarte = false
     @State private var filter: PosterFilter = .aktiv
@@ -44,6 +48,16 @@ struct PosterMapView: View {
                             CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
                         })
                         .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.75), lineWidth: 3)
+                    }
+                }
+                if wahldatenAktiv,
+                   case let .success(_, _, flaeche?) = wahldaten.zustand {
+                    ForEach(Array(flaeche.ringe.enumerated()), id: \.offset) { _, ring in
+                        let punkte = stride(from: 0, to: ring.count - 1, by: 2).map {
+                            CLLocationCoordinate2D(latitude: ring[$0 + 1], longitude: ring[$0])
+                        }
+                        MapPolyline(coordinates: punkte)
+                            .stroke(.purple.opacity(0.8), style: StrokeStyle(lineWidth: 3, dash: [8, 5]))
                     }
                 }
                 if flyerkarte {
@@ -100,6 +114,12 @@ struct PosterMapView: View {
                 guard grenzeZeigen, let punkt = mitte else { return }
                 await grenze.hole(latitude: punkt.latitude, longitude: punkt.longitude)
             }
+            .task(id: wahldatenSchluessel) {
+                guard wahldatenAktiv, let punkt = mitte else { return }
+                await wahldaten.lade(
+                    longitude: punkt.longitude, latitude: punkt.latitude, wahlart: wahlart
+                )
+            }
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
             // Adresssuche ueber CLGeocoder - Apple kann das, eine eigene Suche waere Aufwand
@@ -120,6 +140,12 @@ struct PosterMapView: View {
                         }
                         .pickerStyle(.menu)
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Toggle(isOn: $wahldatenZeigen) {
+                        Label("Wahldaten", systemImage: "chart.bar")
+                    }
+                    .toggleStyle(.button)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Toggle(isOn: $flyerkarte) {
@@ -148,7 +174,29 @@ struct PosterMapView: View {
                     .presentationDetents([.medium])
             }
             .overlay(alignment: .bottom) {
-                if flyerkarte && touren.isEmpty {
+                if wahldatenAktiv {
+                    WahldatenPanel(
+                        zustand: wahldaten.zustand,
+                        wahlart: wahlart,
+                        eingeklappt: wahldatenEingeklappt,
+                        onWahlart: {
+                            wahlartRoh = $0.rawValue
+                            wahldatenEingeklappt = false
+                        },
+                        onErneut: {
+                            guard let punkt = mitte else { return }
+                            Task {
+                                await wahldaten.lade(
+                                    longitude: punkt.longitude, latitude: punkt.latitude,
+                                    wahlart: wahlart, erzwingen: true
+                                )
+                            }
+                        },
+                        onEinklappen: { wahldatenEingeklappt.toggle() },
+                        onSchliessen: { wahldatenZeigen = false }
+                    )
+                    .padding(.horizontal, 12).padding(.bottom, 8)
+                } else if flyerkarte && touren.isEmpty {
                     Text("Noch keine Flyer-Tour mit Wegpunkten. Unter „Start\u{201C} lässt sich eine aufzeichnen.")
                         .font(.footnote)
                         .multilineTextAlignment(.center)
@@ -198,6 +246,14 @@ private extension PosterMapView {
     var grenzeSchluessel: String {
         guard grenzeZeigen, let punkt = mitte else { return "aus" }
         return String(format: "%.2f|%.2f", punkt.latitude, punkt.longitude)
+    }
+
+    var wahlart: Wahlart { Wahlart(rawValue: wahlartRoh) ?? .bundestag }
+    var wahldatenAktiv: Bool { wahldatenZeigen && !flyerkarte }
+
+    var wahldatenSchluessel: String {
+        guard wahldatenAktiv, let punkt = mitte else { return "aus" }
+        return String(format: "%@|%.2f|%.2f", wahlart.rawValue, punkt.latitude, punkt.longitude)
     }
 }
 

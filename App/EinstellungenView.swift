@@ -15,6 +15,10 @@ struct EinstellungenView: View {
 
     @AppStorage(Darstellung.schluessel) private var darstellung = Darstellung.system.rawValue
     @AppStorage(SozialdatenCache.tageSchluessel) private var sozialCacheTage = SozialdatenCache.vorgabeTage
+    @AppStorage(WahldatenEinstellungen.tageSchluessel) private var wahldatenCacheTage =
+        WahldatenEinstellungen.vorgabeTage
+    @AppStorage(WahldatenEinstellungen.alleParteienSchluessel) private var wahldatenAlleParteien = false
+    @State private var wahldatenCacheBytes: Int64 = 0
     /// Die Zahl der Einträge ist kein @Published — der Cache ist absichtlich kein
     /// ObservableObject, sonst zeichnete jede Antwort im Hintergrund die Oberfläche neu.
     /// Beim Erscheinen einmal abfragen genügt.
@@ -38,6 +42,7 @@ struct EinstellungenView: View {
             geraeteAbschnitt
             kurzanleitungAbschnitt
             sozialdatenAbschnitt
+            wahldatenAbschnitt
             unterstuetzenAbschnitt
             Section {
                 // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
@@ -52,7 +57,10 @@ struct EinstellungenView: View {
         .task { meldungenErlaubt = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
         // Das Feld startet mit dem aktuellen Namen, statt leer. Ein leeres Feld sähe aus, als
         // gäbe es keinen Namen — und lüde dazu ein, versehentlich einen leeren zu speichern.
-        .onAppear { if neuerName.isEmpty { neuerName = model.state.deviceName } }
+        .onAppear {
+            if neuerName.isEmpty { neuerName = model.state.deviceName }
+            wahldatenCacheBytes = WahldatenRepository.cacheSizeBytes()
+        }
         .onChange(of: pausenErinnerung) { _, an in
             Task { an ? await Erinnerungen.startePause(minuten: pausenMinuten) : Erinnerungen.beendePause() }
         }
@@ -133,6 +141,34 @@ struct EinstellungenView: View {
             """)
         }
         .onAppear { cacheEintraege = SozialdatenCache.geteilt.anzahl }
+    }
+
+    @ViewBuilder private var wahldatenAbschnitt: some View {
+        Section {
+            Stepper(
+                value: $wahldatenCacheTage,
+                in: WahldatenEinstellungen.minTage...WahldatenEinstellungen.maxTage
+            ) {
+                Text(wahldatenCacheTage == 0
+                     ? "Nicht zwischenspeichern"
+                     : wahldatenCacheTage == 1
+                         ? "1 Tag behalten" : "\(wahldatenCacheTage) Tage behalten")
+            }
+            Toggle("Alle Parteien einzeln anzeigen", isOn: $wahldatenAlleParteien)
+            Button(role: .destructive) {
+                WahldatenRepository.clearCache()
+                wahldatenCacheBytes = 0
+            } label: {
+                LabeledContent("Zwischenspeicher leeren") {
+                    Text(ByteCountFormatter.string(fromByteCount: wahldatenCacheBytes, countStyle: .file))
+                }
+            }
+            .disabled(wahldatenCacheBytes == 0)
+        } header: {
+            Text("Wahldaten")
+        } footer: {
+            Text("Kleine Parteien werden sonst unter „Sonstige“ zusammengefasst. Die Ergebnisdateien sind amtlich und können mehrere hundert KB groß sein.")
+        }
     }
 
     /// Ko-fi — Gegenstück zu `ModernKofiSupportCard.kt`.
