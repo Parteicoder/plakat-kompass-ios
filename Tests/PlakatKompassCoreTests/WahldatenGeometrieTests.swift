@@ -106,4 +106,20 @@ final class WahldatenGeometrieTests: XCTestCase {
         """
         XCTAssertTrue(parseGeoJsonFlaechen(json).isEmpty)
     }
+
+    /// Eine kaputte Teilfläche eines MultiPolygons darf nicht lautlos verschwinden, während der
+    /// Rest als "vollständige" Wahlfläche zurückkommt — sonst würde ein Punkt in genau dieser
+    /// Teilfläche fälschlich als "außerhalb aller Wahlkreise" gemeldet.
+    func testMultiPolygonMitKaputterTeilflaecheWirdGanzVerworfen() {
+        let json = """
+        {"type":"FeatureCollection","features":[
+          {"type":"Feature","properties":{"WKR_NR":3,"WKR_NAME":"Drei"},
+           "geometry":{"type":"MultiPolygon","coordinates":[
+             [[[0,0],[1,0],[1,1],[0,1]]],
+             [[[2,2]]]
+           ]}}
+        ]}
+        """
+        XCTAssertTrue(parseGeoJsonFlaechen(json).isEmpty)
+    }
 }

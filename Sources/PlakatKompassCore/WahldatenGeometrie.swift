@@ -133,10 +133,17 @@ private func leseGeometrie(_ geometrie: [String: Any]) -> [[Double]] {
         guard let aussen = coordinates.first as? [Any], let flach = leseRing(aussen) else { return [] }
         return [flach]
     case "MultiPolygon":
-        return coordinates.compactMap { polygon -> [Double]? in
-            guard let ringe = polygon as? [Any], let aussen = ringe.first as? [Any] else { return nil }
-            return leseRing(aussen)
+        // Bewusst kein compactMap: eine kaputte Teilfläche soll die ganze Wahlfläche verwerfen,
+        // nicht lautlos verkleinert zurückgeben — sonst würde ein Punkt in genau dieser
+        // Teilfläche fälschlich als "außerhalb aller Wahlkreise" gemeldet.
+        var ringe: [[Double]] = []
+        for polygon in coordinates {
+            guard let ringGruppe = polygon as? [Any], let aussen = ringGruppe.first as? [Any],
+                  let flach = leseRing(aussen)
+            else { return [] }
+            ringe.append(flach)
         }
+        return ringe
     default:
         return []
     }
@@ -151,7 +158,7 @@ private func leseRing(_ punkte: [Any]) -> [Double]? {
     flach.reserveCapacity(punkte.count * 2)
     for punkt in punkte {
         guard let koordinate = punkt as? [Any], koordinate.count >= 2,
-              let lon = kommazahl(koordinate[0]), let lat = kommazahl(koordinate[1])
+              let lon = zahlAusJson(koordinate[0]), let lat = zahlAusJson(koordinate[1])
         else { return nil }
         flach.append(lon)
         flach.append(lat)
@@ -166,17 +173,15 @@ private func ersterWert(_ eigenschaften: [String: Any], _ schluessel: [String]) 
             if !text.isEmpty { return text }
             continue
         }
-        // Ganzzahlige Werte ohne ".0" darstellen, sonst wird aus 152 "152.0" statt "152".
-        if let zahl = kommazahl(wert) {
-            return zahl.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(zahl)) : String(zahl)
+        // Ganzzahlige Werte ohne ".0" darstellen, sonst wird aus 152 "152.0" statt "152". Fällt
+        // `intAusJson` mangels Ganzzahl-Bereich zurück auf nil (z. B. bei 1e20), bleibt die
+        // Dezimaldarstellung als Rückfall — besser eine unerwartete Zeichenkette als ein Absturz.
+        if let zahl = zahlAusJson(wert) {
+            if zahl.truncatingRemainder(dividingBy: 1) == 0, let ganzzahl = intAusJson(zahl) {
+                return String(ganzzahl)
+            }
+            return String(zahl)
         }
     }
-    return nil
-}
-
-private func kommazahl(_ roh: Any) -> Double? {
-    if let zahl = roh as? Double { return zahl.isFinite ? zahl : nil }
-    if let zahl = roh as? Int { return Double(zahl) }
-    if let zahl = roh as? NSNumber { return zahl.doubleValue.isFinite ? zahl.doubleValue : nil }
     return nil
 }
