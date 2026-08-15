@@ -416,7 +416,7 @@ extension NearbyAbgleich: ConnectionManagerDelegate {
                 }
                 if let url = eingehendeDateien.removeValue(forKey: payloadID) {
                     melde("Sync-Paket empfangen. Zusammenführen läuft …")
-                    model?.importiereSyncPaket(von: url)
+                    model?.importiereSyncPaket(von: url, quelle: "Funk-Abgleich")
                 }
             case .failure, .canceled:
                 raeumeSendungAuf(payloadID)
