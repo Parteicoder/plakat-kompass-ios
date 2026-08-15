@@ -119,6 +119,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Adresssuche auf der Karte | `PosterMapView.swift` |
 | Fassungsanzeige aus dem Bundle (Lizenzseite, Protokoll-Startzeile) | `Helpers.swift` (`Fassung`), `EinstellungenView.swift`, `Protokoll.swift` |
 | Standort-Knopf in der Liste, wie auf Android jede Zeile | `PosterListView.swift`, `Helpers.swift` (`Poster.hinlaufen()`) |
+| Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift` (`Teamaufnahme`, `UnterstuetzenUndGemeinschaft`) |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
