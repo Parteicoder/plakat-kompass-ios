@@ -47,6 +47,13 @@ final class Protokoll: ObservableObject {
 
     @Published private(set) var zeilen: [String] = []
 
+    /// Gegenstück zu `AppLogStore.isEnabled` auf Android. Dort abschaltbar, hier bisher nicht —
+    /// obwohl die Marke fürs Absturzerkennen (`beimStart`/`gehtInDenHintergrund`) unabhängig
+    /// davon weiterläuft: Wer das Protokoll abschaltet, will keine Mitschrift, nicht dass die
+    /// App plötzlich jeden Absturz für einen geordneten Lauf hält.
+    private static let aktivSchluessel = "protokollAktiv"
+    private var aktiv: Bool { UserDefaults.standard.object(forKey: Self.aktivSchluessel) as? Bool ?? true }
+
     private let datei: URL
     private let markeDatei: URL
     private var schreiber: Task<Void, Never>?
@@ -66,6 +73,7 @@ final class Protokoll: ObservableObject {
     // MARK: - Schreiben
 
     func schreibe(_ text: String) {
+        guard aktiv else { return }
         let zeit = Self.zeitformat.string(from: Date())
         zeilen.append("\(zeit)  \(text)")
         if zeilen.count > Self.maxZeilen { zeilen.removeFirst(zeilen.count - Self.maxZeilen) }
