@@ -1,3 +1,5 @@
+import AVFoundation
+import CoreLocation
 import PlakatKompassCore
 import SwiftUI
 import UIKit
@@ -25,6 +27,7 @@ struct EinstellungenView: View {
   /// Beim Erscheinen einmal abfragen genügt.
   @State private var cacheEintraege = 0
   @AppStorage("pausenErinnerung") private var pausenErinnerung = false
+  @AppStorage("abnahmeErinnerung") private var abnahmeErinnerung = true
   @AppStorage("pausenMinuten") private var pausenMinuten = Erinnerungen.pausenVorgabeMinuten
   @State private var meldungenErlaubt: UNAuthorizationStatus = .notDetermined
   @State private var neuerName = ""
@@ -73,6 +76,9 @@ struct EinstellungenView: View {
     .onChange(of: pausenMinuten) { _, neu in
       guard pausenErinnerung else { return }
       Task { await Erinnerungen.startePause(minuten: neu) }
+    }
+    .onChange(of: abnahmeErinnerung) { _, _ in
+      Task { await Erinnerungen.planeNeu(fuer: model.state) }
     }
   }
 
@@ -209,6 +215,7 @@ struct EinstellungenView: View {
 
   @ViewBuilder private var pausenAbschnitt: some View {
     Section {
+      Toggle("An Abnahmefristen erinnern", isOn: $abnahmeErinnerung)
       Toggle("Ans Trinken erinnern", isOn: $pausenErinnerung)
       if pausenErinnerung {
         Stepper(value: $pausenMinuten, in: Erinnerungen.pausenSpanne, step: 15) {
@@ -216,18 +223,33 @@ struct EinstellungenView: View {
         }
       }
     } header: {
-      Text("Pausen")
+      Text("Erinnerungen")
     } footer: {
       Text(
         """
         Wer im Sommer vier Stunden mit Leiter und Kabelbindern unterwegs ist, vergisst das \
-        Trinken. Die Erinnerung läuft, bis sie hier wieder ausgeschaltet wird.
+        Trinken. Beide Erinnerungen laufen, bis sie hier wieder ausgeschaltet werden.
         """)
     }
   }
 
+  /// Kamera- und Ortungsstatus sind reine Systemwerte, synchron abrufbar — anders als der
+  /// Meldungsstatus braucht es dafür kein `.task`.
+  private var kameraStatus: AVAuthorizationStatus { AVCaptureDevice.authorizationStatus(for: .video) }
+  private var ortStatus: CLAuthorizationStatus { CLLocationManager().authorizationStatus }
+
   @ViewBuilder private var berechtigungenAbschnitt: some View {
     Section {
+      LabeledContent("Kamera") {
+        Text(kameraText)
+          .foregroundStyle(kameraStatus == .authorized ? Color.secondary : Color.orange)
+      }
+      LabeledContent("Ort") {
+        Text(ortText)
+          .foregroundStyle(
+            ortStatus == .authorizedWhenInUse || ortStatus == .authorizedAlways
+              ? Color.secondary : Color.orange)
+      }
       LabeledContent("Meldungen") {
         Text(meldungenText)
           .foregroundStyle(meldungenErlaubt == .authorized ? Color.secondary : Color.orange)
@@ -245,6 +267,25 @@ struct EinstellungenView: View {
         Kamera, Ort und Meldungen verwaltet iOS. Die App kann sie nicht selbst umschalten — \
         hier geht es direkt zur richtigen Stelle.
         """)
+    }
+  }
+
+  private var kameraText: String {
+    switch kameraStatus {
+    case .authorized: return "Erlaubt"
+    case .denied, .restricted: return "Verweigert"
+    case .notDetermined: return "Noch nicht gefragt"
+    @unknown default: return "Unbekannt"
+    }
+  }
+
+  private var ortText: String {
+    switch ortStatus {
+    case .authorizedAlways: return "Immer erlaubt"
+    case .authorizedWhenInUse: return "Bei App-Nutzung"
+    case .denied, .restricted: return "Verweigert"
+    case .notDetermined: return "Noch nicht gefragt"
+    @unknown default: return "Unbekannt"
     }
   }
 

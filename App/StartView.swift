@@ -49,7 +49,11 @@ struct StartView: View {
                     }
 
                     if let treffer = naechstes {
-                        NaechstesPlakat(treffer: treffer)
+                        NaechstesPlakat(
+                            treffer: treffer,
+                            vonHier: standort.position?.coordinate,
+                            geraetePeilung: standort.peilung
+                        )
                     } else if standort.abgelehnt && !model.state.posters.isEmpty {
                         // Sonst fehlt die Karte "naechstes Plakat" einfach, ohne dass jemand
                         // erfaehrt warum - und man sucht den Fehler bei den Plakaten.
@@ -291,6 +295,7 @@ private struct Faelliges: View {
 }
 
 private struct Zahlenreihe: View {
+    @EnvironmentObject private var model: AppModel
     let zahlen: HomeStats
 
     var body: some View {
@@ -298,14 +303,19 @@ private struct Zahlenreihe: View {
         // schmal, dass dreistellige Zahlen umbrechen.
         Grid(horizontalSpacing: 12, verticalSpacing: 12) {
             GridRow {
-                Kachel(wert: zahlen.aktiv, titel: "Aktiv", farbe: Farben.blau)
-                Kachel(wert: zahlen.kontrolliert, titel: "OK", farbe: Farben.gruen)
+                Kachel(wert: zahlen.aktiv, titel: "Aktiv", farbe: Farben.blau) { springeZurListe(.aktiv) }
+                Kachel(wert: zahlen.kontrolliert, titel: "OK", farbe: Farben.gruen) { springeZurListe(.kontrolliert) }
             }
             GridRow {
-                Kachel(wert: zahlen.probleme, titel: "Probleme", farbe: Farben.rot)
-                Kachel(wert: zahlen.entfernt, titel: "Entfernt", farbe: Farben.grau)
+                Kachel(wert: zahlen.probleme, titel: "Probleme", farbe: Farben.rot) { springeZurListe(.probleme) }
+                Kachel(wert: zahlen.entfernt, titel: "Entfernt", farbe: Farben.grau) { springeZurListe(.entfernt) }
             }
         }
+    }
+
+    private func springeZurListe(_ filter: PosterFilter) {
+        model.listenFilterAnfrage = filter
+        model.reiter = "liste"
     }
 }
 
@@ -313,21 +323,25 @@ private struct Kachel: View {
     let wert: Int
     let titel: String
     let farbe: Color
+    let tippen: () -> Void
 
     var body: some View {
-        VStack(spacing: 4) {
-            Text("\(wert)")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(farbe)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            Text(titel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Button(action: tippen) {
+            VStack(spacing: 4) {
+                Text("\(wert)")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(farbe)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                Text(titel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(titel): \(wert)")
     }
@@ -336,6 +350,10 @@ private struct Kachel: View {
 private struct NaechstesPlakat: View {
     @EnvironmentObject private var model: AppModel
     let treffer: NearestPoster.Treffer
+    /// Eigener Standort im Moment der Anzeige — für die Peilung zum Plakat. `nil` nur in der
+    /// kurzen Lücke zwischen Ortungsverlust und dem Verschwinden dieser Karte.
+    let vonHier: CLLocationCoordinate2D?
+    let geraetePeilung: Double
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -356,21 +374,44 @@ private struct NaechstesPlakat: View {
                          ? treffer.poster.type.beschriftung
                          : treffer.poster.addressHint)
                         .font(.headline)
-                    Text("\(NearestPoster.distanceText(treffer.entfernungMeter)) · \(treffer.poster.status.beschriftung)")
+                    Text(naechstesUntertitel)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-            }
-
-            Button { treffer.poster.hinlaufen() } label: {
-                Label("Hinlaufen", systemImage: "figure.walk")
-                    .font(.subheadline)
+                // Kompass statt "Hinlaufen" - Tippen öffnet die Navigation, wie auf Android
+                // (CompassButton ersetzt dort denselben frueheren Knopf).
+                KompassKnopf(
+                    geraetePeilung: geraetePeilung,
+                    zielPeilung: zielPeilung,
+                    tippen: { treffer.poster.hinlaufen() }
+                )
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var zielPeilung: Double? {
+        guard let vonHier else { return nil }
+        return NearestPoster.bearingDegrees(
+            fromLat: vonHier.latitude, fromLon: vonHier.longitude,
+            toLat: treffer.poster.latitude, toLon: treffer.poster.longitude
+        )
+    }
+
+    // Entfernung und Status wie bisher, plus die Abnahmefrist wenn es eine gibt — sonst fehlt
+    // ausgerechnet auf der Karte, die zum naechsten Plakat schickt, der Hinweis, dass es eilt.
+    private var naechstesUntertitel: String {
+        var teile = [
+            NearestPoster.distanceText(treffer.entfernungMeter),
+            treffer.poster.status.beschriftung
+        ]
+        if let frist = RemovalDeadlinePolicy.removalCountdownText(treffer.poster.plannedRemovalAt) {
+            teile.append(frist)
+        }
+        return teile.joined(separator: " · ")
     }
 }
 

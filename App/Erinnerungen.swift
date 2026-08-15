@@ -30,6 +30,10 @@ enum Erinnerungen {
     /// Erst alles wegräumen, dann neu planen: Das ist kürzer als jede Einzelfallunterscheidung
     /// und kann nicht in einen Zustand geraten, in dem eine Meldung für ein längst gelöschtes
     /// Plakat übrig bleibt.
+    /// Der Schlüssel des Schalters „Abnahme-Erinnerungen" in den Einstellungen — dieselbe
+    /// `@AppStorage`, hier direkt gelesen, weil diese Funktion nicht selbst eine View ist.
+    private static let abschaltSchluessel = "abnahmeErinnerung"
+
     static func planeNeu(fuer state: LocalTeamState) async {
         let zentrale = UNUserNotificationCenter.current()
         let erlaubt = await zentrale.notificationSettings().authorizationStatus
@@ -39,6 +43,9 @@ enum Erinnerungen {
             .map(\.identifier)
             .filter { $0.hasPrefix("abnahme-") }
         zentrale.removePendingNotificationRequests(withIdentifiers: alte)
+
+        // Ausgeschaltet: Alte Meldungen sind eben weggeräumt, neue kommen keine dazu.
+        guard UserDefaults.standard.object(forKey: abschaltSchluessel) as? Bool ?? true else { return }
 
         for plakat in state.posters {
             guard let frist = plakat.plannedRemovalAt,

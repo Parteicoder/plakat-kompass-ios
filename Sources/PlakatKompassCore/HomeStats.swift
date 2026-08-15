@@ -45,6 +45,20 @@ public enum NearestPoster {
         return erdradiusMeter * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 
+    /// Richtung von Punkt A nach Punkt B in Grad (0 = Norden, 90 = Osten, … 360). Für die
+    /// Kompass-Nadel: Die Spitze zeigt entweder nach Norden oder zum nächsten Plakat.
+    public static func bearingDegrees(
+        fromLat: Double, fromLon: Double, toLat: Double, toLon: Double
+    ) -> Double {
+        let lat1 = fromLat * .pi / 180
+        let lat2 = toLat * .pi / 180
+        let dLon = (toLon - fromLon) * .pi / 180
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        let bearing = atan2(y, x) * 180 / .pi
+        return (bearing + 360).truncatingRemainder(dividingBy: 360)
+    }
+
     public static func find(_ posters: [Poster], latitude: Double, longitude: Double) -> Treffer? {
         posters
             .filter { $0.status != .REMOVED }

@@ -10,6 +10,8 @@ public enum PosterFilter: String, CaseIterable, Sendable {
     case aktiv = "Aktiv"
     case ueberfaellig = "Überfällig"
     case probleme = "Probleme"
+    case kontrolliert = "OK"
+    case entfernt = "Entfernt"
     case alle = "Alle"
 
     public var beschriftung: String { rawValue }
@@ -26,6 +28,10 @@ public enum PosterFilter: String, CaseIterable, Sendable {
             return poster.status != .REMOVED && (poster.plannedRemovalAt ?? Int64.max) < jetzt
         case .probleme:
             return poster.status == .DAMAGED || poster.status == .MISSING
+        case .kontrolliert:
+            return poster.status == .CHECKED
+        case .entfernt:
+            return poster.status == .REMOVED
         case .alle:
             return true
         }

@@ -11,6 +11,15 @@ final class AppModel: ObservableObject {
     @Published var meldung: String?
     @Published var fehler: String?
 
+    /// Welcher Reiter gerade offen ist. Lebt hier und nicht als `@State` in `RootView`, damit
+    /// andere Bildschirme — etwa eine angetippte Kachel auf der Startseite — dorthin wechseln
+    /// können, ohne einen eigenen Kanal dafür zu bauen.
+    @Published var reiter = "start"
+    /// Von der Startseite angeforderter Filter für die Liste. `PosterListView` liest ihn beim
+    /// Wechsel und räumt ihn danach weg — sonst würde ein späterer manueller Filterwechsel in
+    /// der Liste beim nächsten Kachel-Tap wieder überschrieben.
+    @Published var listenFilterAnfrage: PosterFilter?
+
     /// Solange kein Foto aufgenommen wurde, steht im Erfassen-Bereich ein Einstiegs-Hinweis.
     /// Genau wie auf Android verschwindet er dauerhaft nach dem ersten Foto.
     @AppStorage("hatFotoAufgenommen") var hatFotoAufgenommen = false
@@ -251,7 +260,7 @@ final class AppModel: ObservableObject {
     }
 
     /// Nimmt ein Paket entgegen, das über den Teilen-Dialog oder „Öffnen mit" hereinkommt.
-    func importiereSyncPaket(von url: URL) {
+    func importiereSyncPaket(von url: URL, quelle: String = "Sync-Paket") {
         let brauchtFreigabe = url.startAccessingSecurityScopedResource()
         defer { if brauchtFreigabe { url.stopAccessingSecurityScopedResource() } }
 
@@ -262,13 +271,14 @@ final class AppModel: ObservableObject {
                 local: state,
                 photoTargetURL: { [repo] name in repo.photoURL(name) }
             )
+            let vorher = state
             // Fristen direkt nach dem Zusammenführen auswerten, nicht erst beim nächsten Start:
             // Ein hereingekommenes Plakat kann längst überfällig sein.
             let zusammengefuehrt = RemovalDeadlinePolicy.applyToState(
                 try SyncMerge.merge(local: state, incoming: snapshot)
             )
             try speichere(zusammengefuehrt)
-            meldung = "Paket von \(snapshot.senderName) übernommen."
+            meldung = syncImportSummary(before: vorher, after: zusammengefuehrt, source: quelle)
         } catch {
             fehler = error.localizedDescription
         }

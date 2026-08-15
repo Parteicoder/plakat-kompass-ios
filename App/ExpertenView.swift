@@ -110,9 +110,14 @@ private struct Handywechsel: View {
 private struct Fehlerbericht: View {
     @ObservedObject private var protokoll = Protokoll.geteilt
     @Binding var protokollDatei: URL?
+    // Gegenstück zu AppLogStore.isEnabled auf Android. Derselbe Schlüssel wie in Protokoll.swift,
+    // damit der Schalter sofort greift, ohne dass die Klasse selbst eine View wird.
+    @AppStorage("protokollAktiv") private var protokollAktiv = true
 
     var body: some View {
         Section {
+            Toggle("Protokoll mitschreiben", isOn: $protokollAktiv)
+
             if protokoll.vorigerLaufBrachAb {
                 Label(
                     "Der vorige Lauf ist nicht geordnet zu Ende gegangen.",
@@ -152,6 +157,9 @@ private struct Fehlerbericht: View {
             Standorte und keinen Team-Schlüssel. Beim Teilen entscheidest du, wer es bekommt.
 
             Angezeigt sind die letzten 40 Zeilen; geteilt wird das ganze Protokoll.
+
+            Ausgeschaltet schreibt die App nichts Neues mehr mit — das Erkennen eines \
+            Absturzes beim nächsten Start läuft trotzdem weiter.
             """)
         }
     }

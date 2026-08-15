@@ -27,6 +27,20 @@ struct PosterListView: View {
                 }
             }
             .navigationTitle("Plakate")
+            // Von einer angetippten Kachel auf der Startseite angefordert. `onChange` statt
+            // `onAppear`, weil TabView diese Ansicht am Leben hält — ein zweiter Tap auf eine
+            // Kachel, während „Liste" schon offen ist, würde sonst nichts auslösen.
+            .onChange(of: model.listenFilterAnfrage) { _, angefordert in
+                guard let angefordert else { return }
+                filter = angefordert
+                model.listenFilterAnfrage = nil
+            }
+            .onAppear {
+                if let angefordert = model.listenFilterAnfrage {
+                    filter = angefordert
+                    model.listenFilterAnfrage = nil
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Picker("Filter", selection: $filter) {

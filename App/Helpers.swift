@@ -1,5 +1,6 @@
 import CoreLocation
 import MapKit
+import Network
 import PlakatKompassCore
 import SwiftUI
 import UIKit
@@ -103,6 +104,11 @@ struct KameraAufnahme: UIViewControllerRepresentable {
 final class Standort: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var position: CLLocation?
     @Published var abgelehnt = false
+    /// Blickrichtung des Geräts in Grad (0 = Norden). Gegenstück zu `rememberDeviceAzimuth` auf
+    /// Android — dort aus dem Rotationsvektor-Sensor gerechnet, hier liefert CoreLocation das
+    /// direkt. Fehlt der Sensor, bleibt der Wert 0: Die Kompassnadel zeigt dann fest nach Norden
+    /// statt zu wackeln, genau wie drüben.
+    @Published var peilung: Double = 0
 
     private let manager = CLLocationManager()
 
@@ -116,15 +122,29 @@ final class Standort: NSObject, ObservableObject, CLLocationManagerDelegate {
         switch manager.authorizationStatus {
         case .notDetermined: manager.requestWhenInUseAuthorization()
         case .denied, .restricted: abgelehnt = true
-        default: manager.startUpdatingLocation()
+        default:
+            manager.startUpdatingLocation()
+            if CLLocationManager.headingAvailable() { manager.startUpdatingHeading() }
         }
     }
 
-    func stoppe() { manager.stopUpdatingLocation() }
+    func stoppe() {
+        manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
+    }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let letzte = locations.last else { return }
         Task { @MainActor in self.position = letzte }
+    }
+
+    /// Fehlerhafte Peilungen liefert iOS mit negativer Genauigkeit — die werden übersprungen.
+    /// `trueHeading` (geografisch Nord, braucht Standort) vor `magneticHeading`, aber nur wenn
+    /// gültig: Ohne frischen GPS-Fix steht dort -1.
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        guard newHeading.headingAccuracy >= 0 else { return }
+        let grad = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+        Task { @MainActor in self.peilung = grad }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -133,12 +153,65 @@ final class Standort: NSObject, ObservableObject, CLLocationManagerDelegate {
             case .authorizedWhenInUse, .authorizedAlways:
                 self.abgelehnt = false
                 manager.startUpdatingLocation()
+                if CLLocationManager.headingAvailable() { manager.startUpdatingHeading() }
             case .denied, .restricted:
                 self.abgelehnt = true
             default:
                 break
             }
         }
+    }
+}
+
+/// 2,5D-Kompass-Knopf. Gegenstück zu `CompassButton.kt`.
+///
+/// Die dicke Spitze zeigt zum nächsten Plakat, oder nach Norden, solange keins bekannt ist —
+/// beides relativ zur Gerätehaltung. Zifferblatt und Nadel sind die echten Bilder aus der
+/// Android-Fassung (`compass_dial.png`, `compass_needle.png`), nicht nachgezeichnet.
+struct KompassKnopf: View {
+    let geraetePeilung: Double
+    let zielPeilung: Double?
+    let tippen: () -> Void
+
+    var body: some View {
+        let nadelDrehung = (zielPeilung ?? 0) - geraetePeilung
+        Button(action: tippen) {
+            ZStack {
+                Image("SymbolKompassZifferblatt")
+                    .resizable().scaledToFit()
+                    .frame(width: 56, height: 56)
+                Image("SymbolKompassNadel")
+                    .resizable().scaledToFit()
+                    .frame(width: 44, height: 44)
+                    .rotationEffect(.degrees(nadelDrehung))
+            }
+            .frame(width: 64, height: 64)
+            .background(Circle().fill(.white))
+            .shadow(radius: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Navigation zum nächsten Plakat")
+    }
+}
+
+/// Ob gerade eine Internetverbindung besteht. Gegenstück zu `istInternetVerfuegbar` auf Android.
+///
+/// Ein Singleton mit genau einem laufenden `NWPathMonitor`, nicht eins pro Bildschirm: Der
+/// Monitor läuft ohnehin unabhängig davon, wer hinschaut, mehrere Instanzen würden nur mehrfach
+/// dasselbe beobachten.
+@MainActor
+final class Netzstatus: ObservableObject {
+    static let geteilt = Netzstatus()
+
+    @Published private(set) var verfuegbar = true
+
+    private let monitor = NWPathMonitor()
+
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] pfad in
+            Task { @MainActor in self?.verfuegbar = pfad.status == .satisfied }
+        }
+        monitor.start(queue: DispatchQueue(label: "netzstatus"))
     }
 }
 

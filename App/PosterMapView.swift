@@ -4,6 +4,7 @@ import SwiftUI
 
 struct PosterMapView: View {
   @EnvironmentObject private var model: AppModel
+  @StateObject private var netzstatus = Netzstatus.geteilt
   @State private var ausschnitt: MapCameraPosition = .automatic
   @State private var ausgewaehlt: Poster?
   @StateObject private var grenze = Gemeindegrenze()
@@ -14,19 +15,24 @@ struct PosterMapView: View {
   @State private var wahldatenEingeklappt = false
   @State private var mitte: CLLocationCoordinate2D?
   @State private var flyerkarte = false
-  @State private var filter: PosterFilter = .aktiv
+  // Eigene, von PosterFilter GETRENNTE Auswahl — mit voller Absicht, wie schon auf Android
+  // (ModernMapStatusFilter dort ist ebenfalls ein zweites Enum, nicht PosterListFilter). Die
+  // Karte will eine lückenlose, überschneidungsfreie Dreiteilung für die Chips mit Live-Zahl:
+  // jedes Plakat zaehlt zu genau einem Chip. PosterFilter.aktiv dagegen ist bewusst weit
+  // ("nicht entfernt") und überschneidet sich mit .probleme — richtig für Liste/Start, falsch
+  // für einen Chip, dessen Zahlen sich zur Gesamtmenge aufaddieren sollen.
+  @State private var kartenFilter: Set<KartenStatusFilter> = []
   @State private var suchtext = ""
   @State private var suchfehler: String?
 
   /// Auf der Flyerkarte gibt es keine Plakate — dort soll allein der gelaufene Weg zu sehen
   /// sein. Sonst liegen Marker über dem Balken und man sieht die Strasse nicht mehr.
   ///
-  /// Derselbe Filter wie in der Liste, aus PosterFilter: Wer dort „Überfällig" gewählt hat und
-  /// zur Karte wechselt, erwartet dieselbe Auswahl und nicht eine zweite Bedeutung desselben
-  /// Wortes.
+  /// Keine Auswahl heißt „alles zeigen", genau wie bei den Chips auf Android.
   private var sichtbare: [Poster] {
     guard !flyerkarte else { return [] }
-    return model.state.posters.gefiltert(nach: filter, jetzt: Date.nowMillis)
+    guard !kartenFilter.isEmpty else { return model.state.posters }
+    return model.state.posters.filter { plakat in kartenFilter.contains { $0.passt(plakat) } }
   }
 
   /// Touren mit mindestens einem Wegpunkt. Die eigene gerade gestartete ist am Anfang leer und
@@ -136,15 +142,6 @@ struct PosterMapView: View {
         Text(suchfehler ?? "")
       }
       .toolbar {
-        // Auf der Flyerkarte gibt es nichts zu filtern - dort liegen keine Plakate.
-        if !flyerkarte {
-          ToolbarItem(placement: .topBarLeading) {
-            Picker("Filter", selection: $filter) {
-              ForEach(PosterFilter.allCases, id: \.self) { Text($0.beschriftung).tag($0) }
-            }
-            .pickerStyle(.menu)
-          }
-        }
         ToolbarItem(placement: .topBarTrailing) {
           Toggle(isOn: $wahldatenZeigen) {
             Label("Wahldaten", systemImage: "chart.bar")
@@ -165,13 +162,29 @@ struct PosterMapView: View {
         }
       }
       .overlay(alignment: .top) {
-        if grenzeZeigen, let name = grenze.grenze?.name {
-          Text(name)
-            .font(.footnote.weight(.medium))
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(.thinMaterial, in: Capsule())
-            .padding(.top, 8)
+        VStack(spacing: 6) {
+          // Auf der Flyerkarte gibt es nichts zu filtern - dort liegen keine Plakate.
+          if !flyerkarte {
+            StatusfilterChips(posters: model.state.posters, ausgewaehlt: $kartenFilter)
+          }
+          if grenzeZeigen, let name = grenze.grenze?.name {
+            Text(name)
+              .font(.footnote.weight(.medium))
+              .padding(.horizontal, 12).padding(.vertical, 6)
+              .background(.thinMaterial, in: Capsule())
+          }
+          // Ohne Internet kommen keine neuen Kartenkacheln - die Karte bliebe grau oder zeigte
+          // nur, was schon im Zwischenspeicher liegt, und sähe aus wie ein Fehler der App statt
+          // eines fehlenden Netzes. Ein Satz erspart die Fehlersuche an der falschen Stelle.
+          if !netzstatus.verfuegbar {
+            Text("Kein Internet: Es werden nur bereits geladene Kartenteile angezeigt.")
+              .font(.footnote.weight(.medium))
+              .padding(.horizontal, 12).padding(.vertical, 6)
+              .background(.thinMaterial, in: Capsule())
+              .foregroundStyle(.orange)
+          }
         }
+        .padding(.top, 8)
       }
       .sheet(item: $ausgewaehlt) { plakat in
         PlakatDetail(plakat: plakat)
@@ -213,7 +226,7 @@ struct PosterMapView: View {
           Text(
             model.state.posters.isEmpty
               ? "Noch keine Plakate auf der Karte."
-              : "Kein Plakat passt zum Filter „\(filter.beschriftung)\u{201C}."
+              : "Kein Plakat passt zu den gewählten Chips."
           )
           .font(.footnote)
           .padding(.horizontal, 14).padding(.vertical, 8)
@@ -310,6 +323,71 @@ final class Gemeindegrenze: ObservableObject {
     let gefunden = CommuneBoundaryQuery.parse(String(decoding: daten, as: UTF8.self))
     zwischenspeicher[schluessel] = gefunden
     grenze = gefunden
+  }
+}
+
+/// Die drei Karten-Chips. Gegenstück zu `ModernMapStatusFilter.kt` — bewusst ein eigenes Enum statt
+/// `PosterFilter`, siehe die Erklärung an `kartenFilter` in `PosterMapView`. Dieselbe Dreiteilung
+/// steht schon in `PosterStatus.farbe`, hier nur um Titel und eine Mitgliedsprüfung ergänzt.
+private enum KartenStatusFilter: CaseIterable, Hashable {
+  case aktiv, ok, probleme
+
+  var titel: String {
+    switch self {
+    case .aktiv: return "Aktiv"
+    case .ok: return "OK"
+    case .probleme: return "Probleme"
+    }
+  }
+
+  var farbe: Color {
+    switch self {
+    case .aktiv: return Farben.blau
+    case .ok: return Farben.gruen
+    case .probleme: return Farben.rot
+    }
+  }
+
+  func passt(_ plakat: Poster) -> Bool {
+    switch self {
+    case .aktiv: return plakat.status == .HANGING || plakat.status == .REPLACED
+    case .ok: return plakat.status == .CHECKED
+    case .probleme: return plakat.status == .DAMAGED || plakat.status == .MISSING
+    }
+  }
+}
+
+/// Kompakte, halbdurchsichtige Chip-Reihe mit Live-Zahl je Status. Gegenstück zu `Statusfilter` +
+/// `StatusFilterChip` aus `ModernMapOverlay.kt`. Mehrfachauswahl: keine Auswahl zeigt alles,
+/// jeder angetippte Chip schränkt weiter ein.
+private struct StatusfilterChips: View {
+  let posters: [Poster]
+  @Binding var ausgewaehlt: Set<KartenStatusFilter>
+
+  var body: some View {
+    HStack(spacing: 8) {
+      ForEach(KartenStatusFilter.allCases, id: \.self) { chip in
+        let gewaehlt = ausgewaehlt.contains(chip)
+        let anzahl = posters.filter { chip.passt($0) }.count
+        Button {
+          if gewaehlt { ausgewaehlt.remove(chip) } else { ausgewaehlt.insert(chip) }
+        } label: {
+          HStack(spacing: 6) {
+            Circle().fill(chip.farbe).frame(width: 8, height: 8)
+            Text("\(chip.titel): \(anzahl)")
+              .font(.subheadline.weight(gewaehlt ? .bold : .medium))
+          }
+          .padding(.horizontal, 12).padding(.vertical, 7)
+          .background(
+            gewaehlt ? chip.farbe.opacity(0.16) : Color(.systemBackground).opacity(0.8),
+            in: Capsule()
+          )
+          .overlay(Capsule().strokeBorder(gewaehlt ? chip.farbe : Color.secondary.opacity(0.3)))
+          .foregroundStyle(gewaehlt ? chip.farbe : .primary)
+        }
+        .buttonStyle(.plain)
+      }
+    }
   }
 }
 
