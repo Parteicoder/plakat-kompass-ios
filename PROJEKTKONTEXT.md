@@ -119,7 +119,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Adresssuche auf der Karte | `PosterMapView.swift` |
 | Fassungsanzeige aus dem Bundle (Lizenzseite, Protokoll-Startzeile) | `Helpers.swift` (`Fassung`), `EinstellungenView.swift`, `Protokoll.swift` |
 | Standort-Knopf in der Liste, wie auf Android jede Zeile | `PosterListView.swift`, `Helpers.swift` (`Poster.hinlaufen()`) |
-| Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift` (`Teamaufnahme`, `UnterstuetzenUndGemeinschaft`) |
+| Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR, Support & Community und Bewertungsaufforderung auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift`, `HomeStats.swift` (`RatingPromptPolicy`) |
 | Adresse von Hand beim Erfassen, wenn die Ortung nichts liefert | `AdresseAufloesen.swift`, `CaptureView.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
@@ -159,8 +159,9 @@ Der Abgleich Android ↔ iOS ist **funktionsweise durchgegangen**, in drei Durch
 des Kerns gegeneinander, dann die Funktionen über ihre Symbole, zuletzt die **Bildschirminhalte
 Feld für Feld**. Der dritte Durchgang war der ergiebigste — er hat mehrere Lücken gefunden, die die
 ersten beiden nicht zeigen konnten: die Adresse von Hand beim Erfassen, den Backup-Empfang auf
-dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite, den
-Standort-Knopf in der Liste. Alle vier sind inzwischen in Abschnitt 3 als fertig gelistet.
+dem Einrichtungsbildschirm, Team-QR, Support & Community und die Bewertungsaufforderung auf der
+Startseite sowie den Standort-Knopf in der Liste. Alle fünf sind inzwischen in Abschnitt 3 als
+fertig gelistet.
 
 **Eine Warnung zur Methode, weil sie zweimal in die Irre geführt hat:** Nach Android-Namen zu
 suchen findet Lücken, die es nicht gibt. `FirstCaptureHintStore` heisst auf iOS

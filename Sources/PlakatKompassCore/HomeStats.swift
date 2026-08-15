@@ -60,3 +60,21 @@ public enum NearestPoster {
         return String(format: "%.0f km", locale: Locale(identifier: "de_DE"), meter / 1000)
     }
 }
+
+/// Wann iOS nach einer Bewertung fragen darf. Die eigentliche Anzeige übernimmt StoreKit.
+public enum RatingPromptPolicy {
+    public static let wartezeit: TimeInterval = 10 * 24 * 60 * 60
+    public static let maximaleAnfragen = 3
+
+    public static func sollAnzeigen(
+        ersterStart: Date?, letzteAnfrage: Date?, anzahl: Int, jetzt: Date
+    ) -> Bool {
+        guard let ersterStart,
+              anzahl < maximaleAnfragen,
+              jetzt.timeIntervalSince(ersterStart) >= wartezeit
+        else { return false }
+
+        guard let letzteAnfrage else { return true }
+        return jetzt.timeIntervalSince(letzteAnfrage) >= wartezeit
+    }
+}
