@@ -46,7 +46,7 @@ public final class LocalRepository {
         else {
             return neuerStand()
         }
-        return RemovalDeadlinePolicy.applyToState(gelesen)
+        return DeviceKeyringPolicy.withNormalizedKeyring(RemovalDeadlinePolicy.applyToState(gelesen))
     }
 
     /// Vor dem Schreiben laufen die beiden Regeln, die den Stand gesund halten.
@@ -57,8 +57,10 @@ public final class LocalRepository {
     /// Speichern neu wandern und das Plakat gäbe sich beim Abgleich ständig als die neuere
     /// Fassung aus.
     public func save(_ state: LocalTeamState) throws {
-        let gesund = RemovalDeadlinePolicy.withCappedEvents(
-            RemovalDeadlinePolicy.applyToState(state)
+        let gesund = DeviceKeyringPolicy.withNormalizedKeyring(
+            RemovalDeadlinePolicy.withCappedEvents(
+                RemovalDeadlinePolicy.applyToState(state)
+            )
         )
         let data = try JSONSerialization.data(
             withJSONObject: stateToJson(gesund), options: [.prettyPrinted, .sortedKeys]
@@ -106,7 +108,8 @@ public final class LocalRepository {
             "posters": (try? s.posters.map(TeamStateJson.posterToJson)) ?? [],
             "deletedPosters": s.deletedPosters.map(TeamStateJson.tombstoneToJson),
             "events": s.events.map(TeamStateJson.eventToJson),
-            "flyerTours": (try? s.flyerTours.map(TeamStateJson.flyerTourToJson)) ?? []
+            "flyerTours": (try? s.flyerTours.map(TeamStateJson.flyerTourToJson)) ?? [],
+            "deviceKeyring": s.deviceKeyring.map(TeamStateJson.deviceKeyRecordToJson)
         ]
         if let role = s.role { root["role"] = role.rawValue }
         if let teamId = s.teamId { root["teamId"] = teamId }
@@ -127,7 +130,8 @@ public final class LocalRepository {
             posters: try TeamStateJson.array(root, "posters").map(TeamStateJson.posterFromJson),
             deletedPosters: try TeamStateJson.array(root, "deletedPosters").map(TeamStateJson.tombstoneFromJson),
             events: try TeamStateJson.array(root, "events").map(TeamStateJson.eventFromJson),
-            flyerTours: try TeamStateJson.array(root, "flyerTours").map(TeamStateJson.flyerTourFromJson)
+            flyerTours: try TeamStateJson.array(root, "flyerTours").map(TeamStateJson.flyerTourFromJson),
+            deviceKeyring: (try? TeamStateJson.array(root, "deviceKeyring").map(TeamStateJson.deviceKeyRecordFromJson)) ?? []
         )
     }
 

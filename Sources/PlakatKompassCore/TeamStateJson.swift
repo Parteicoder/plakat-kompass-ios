@@ -121,6 +121,35 @@ public enum TeamStateJson {
         )
     }
 
+    // MARK: - Geräte-Schlüsselbund
+    //
+    // Nur hier, nicht bei snapshotToJson/snapshotFromJson: Der Schlüsselbund ist lokaler
+    // Sicherheitszustand und verlässt das Gerät nie über ein Sync-Paket.
+
+    static func deviceKeyRecordToJson(_ eintrag: DeviceKeyRecord) -> [String: Any] {
+        [
+            "deviceId": eintrag.deviceId,
+            "displayName": eintrag.displayName,
+            "role": eintrag.role.rawValue,
+            "teamSecretHash": eintrag.teamSecretHash,
+            "keyVersion": eintrag.keyVersion,
+            "createdAt": eintrag.createdAt,
+            "active": eintrag.active
+        ]
+    }
+
+    static func deviceKeyRecordFromJson(_ o: [String: Any]) throws -> DeviceKeyRecord {
+        DeviceKeyRecord(
+            deviceId: try requiredString(o, "deviceId"),
+            displayName: try requiredString(o, "displayName"),
+            role: try requiredEnum(o, "role", MemberRole.self),
+            teamSecretHash: try requiredString(o, "teamSecretHash"),
+            keyVersion: optLong(o, "keyVersion", 1),
+            createdAt: optLong(o, "createdAt", Date.nowMillis),
+            active: o["active"] as? Bool ?? true
+        )
+    }
+
     // MARK: - Plakate
 
     static func posterToJson(_ p: Poster) throws -> [String: Any] {

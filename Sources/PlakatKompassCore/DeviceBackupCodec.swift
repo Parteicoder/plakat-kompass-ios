@@ -213,12 +213,6 @@ public enum DeviceBackupCodec {
     // MARK: - Der Stand als JSON
 
     /// Feldnamen und Reihenfolge wortgleich mit `stateToJson` auf Android.
-    ///
-    /// **`deviceKeyring` steht als leere Liste darin.** Android führt einen Schlüsselbund
-    /// gesperrter Geräte, iOS kennt das Feld nicht — der Zugang wird hier über
-    /// `DeviceRecord.blocked` geregelt, das ohnehin in `devices` mitfährt. Die leere Liste
-    /// steht trotzdem da, damit ein iPhone-Backup auf Android einliest, ohne über ein
-    /// fehlendes Feld zu stolpern.
     static func stateToJson(_ state: LocalTeamState) throws -> Data {
         let root: [String: Any] = [
             "format": "plakatradar-device-backup",
@@ -230,7 +224,7 @@ public enum DeviceBackupCodec {
             "teamName": state.teamName ?? "",
             "teamSecret": state.teamSecret ?? "",
             "devices": state.devices.map(TeamStateJson.deviceToJson),
-            "deviceKeyring": [],
+            "deviceKeyring": state.deviceKeyring.map(TeamStateJson.deviceKeyRecordToJson),
             "posters": try state.posters.map(TeamStateJson.posterToJson),
             "deletedPosters": state.deletedPosters.map(TeamStateJson.tombstoneToJson),
             "events": state.events.map(TeamStateJson.eventToJson),
@@ -263,7 +257,8 @@ public enum DeviceBackupCodec {
             posters: try TeamStateJson.array(root, "posters").map(TeamStateJson.posterFromJson),
             deletedPosters: try TeamStateJson.array(root, "deletedPosters").map(TeamStateJson.tombstoneFromJson),
             events: try TeamStateJson.array(root, "events").map(TeamStateJson.eventFromJson),
-            flyerTours: try TeamStateJson.array(root, "flyerTours").map(TeamStateJson.flyerTourFromJson)
+            flyerTours: try TeamStateJson.array(root, "flyerTours").map(TeamStateJson.flyerTourFromJson),
+            deviceKeyring: (try? TeamStateJson.array(root, "deviceKeyring").map(TeamStateJson.deviceKeyRecordFromJson)) ?? []
         )
     }
 
