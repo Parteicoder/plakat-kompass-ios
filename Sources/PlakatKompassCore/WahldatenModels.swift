@@ -154,30 +154,6 @@ public enum WahldatenUiState: Sendable, Equatable {
   case error(String)
 }
 
-/// Fasst Parteien unter zwei Prozent für die Anzeige zusammen. Die Rohdaten bleiben vollständig,
-/// damit der Schalter „Alle Parteien“ ohne neuen Netzabruf wirkt.
-public func fasseKleineZusammen(
-  _ parteien: [Parteiergebnis], schwelle: Double = 2.0
-) -> [Parteiergebnis] {
-  let sonstigeName = "Sonstige"
-  let grosse = parteien.filter {
-    $0.prozent >= schwelle && $0.partei.caseInsensitiveCompare(sonstigeName) != .orderedSame
-  }
-  let kleine = parteien.filter {
-    $0.prozent < schwelle || $0.partei.caseInsensitiveCompare(sonstigeName) == .orderedSame
-  }
-  guard !kleine.isEmpty else { return parteien }
-
-  let sortiert = grosse.sorted {
-    $0.partei.localizedCaseInsensitiveCompare($1.partei) == .orderedAscending
-  }
-  return sortiert + [
-    Parteiergebnis(
-      partei: sonstigeName, prozent: kleine.reduce(0) { $0 + $1.prozent }
-    )
-  ]
-}
-
 /// Geteilte JSON-Zahl-Konvertierung für `LandtagJsonParser.swift` und `WahldatenGeometrie.swift` —
 /// beide lasen bislang denselben Code je einmal für sich, siehe `CommuneBoundary.kommazahl` für
 /// den ursprünglichen Grund (Apples Foundation und swift-corelibs-foundation bilden eine
