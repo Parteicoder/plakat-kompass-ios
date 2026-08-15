@@ -30,7 +30,11 @@ let package = Package(
     targets: [
         .target(
             name: "PlakatKompassCore",
-            dependencies: ["ZIPFoundation"]
+            dependencies: ["ZIPFoundation"],
+            // Bundeswahlkreis-Umrisse fuer die Wahldaten-Gebietssuche. Dieselbe Datei wie im
+            // Android-Repo (app/src/main/assets/wahlkreise_btw25.geojson) - eine zweite Herleitung
+            // waere nur eine zweite Fehlerquelle.
+            resources: [.copy("Resources/wahlkreise_btw25.geojson")]
         ),
         .testTarget(
             name: "PlakatKompassCoreTests",
