@@ -32,6 +32,14 @@ struct StartView: View {
 
                     Zahlenreihe(zahlen: zahlen)
 
+                    // Nur fuer die Teamleitung, genau wie auf Android (AccessPolicy.canShowQr).
+                    // Wer keinen QR ausgeben darf, soll den Schalter gar nicht erst sehen.
+                    if AccessPolicy.canShowQr(model.state) {
+                        Teamaufnahme(nearby: model.nearby)
+                    }
+
+                    UnterstuetzenUndGemeinschaft()
+
                     if let treffer = naechstes {
                         NaechstesPlakat(treffer: treffer)
                     } else if standort.abgelehnt && !model.state.posters.isEmpty {
@@ -83,6 +91,132 @@ struct StartView: View {
             latitude: hier.coordinate.latitude,
             longitude: hier.coordinate.longitude
         )
+    }
+}
+
+/// „Support & Community" — die drei runden Knöpfe von der Android-Startseite.
+///
+/// Die Ziele sind aus `ModernHomeScreen.kt` übernommen, nicht geraten:
+/// `SUPPORT_URL`, `C3_DISCORD_URL` und `X_URL`.
+///
+/// **Die Symbole sind die echten aus der Android-Fassung**, aus deren `res/drawable` übernommen:
+/// `ic_kofi.png`, `ic_c3.png` und `ic_x_logo.xml`. Hier stand zuerst ein Ersatz aus
+/// Systemzeichen — der war nur nötig, solange ich die Dateien nicht gefunden hatte.
+///
+/// Beim X-Zeichen war das ein Glücksfall: Androids `pathData` **ist** SVG-Syntax. Der Pfad
+/// konnte wörtlich in eine SVG-Hülle übernommen werden, statt ihn nachzuzeichnen — und
+/// Xcode legt SVG als echten Vektor ab. Als Schablone eingebunden, damit das schwarze Zeichen
+/// im dunklen Erscheinungsbild nicht verschwindet; Ko-fi und C3 bleiben farbig, das sind Logos.
+///
+/// Die Beschriftungen bleiben unter den Symbolen stehen. Für VoiceOver ist ein Logo ohne Text
+/// ein leerer Knopf, und die Vorlesetexte sind wörtlich die `contentDescription` von drüben.
+private struct UnterstuetzenUndGemeinschaft: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("SUPPORT & COMMUNITY")
+                .font(.caption2.weight(.semibold))
+                .kerning(1.2)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 22) {
+                Knopf(ziel: "https://ko-fi.com/parteicoder",
+                      bild: "SymbolKofi", schablone: false,
+                      titel: "Ko-fi", vorlesen: "Ko-fi unterstützen")
+                Knopf(ziel: "https://discord.gg/6GxADmF5Re",
+                      bild: "SymbolC3", schablone: false,
+                      titel: "C3", vorlesen: "C3-Discord")
+                Knopf(ziel: "https://x.com/Plakatkompass",
+                      bild: "SymbolX", schablone: true,
+                      titel: "X", vorlesen: "X, at Plakatkompass")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
+    private struct Knopf: View {
+        let ziel: String
+        let bild: String
+        /// Nur fuer das X-Zeichen: Es ist einfarbig schwarz und muesste im dunklen
+        /// Erscheinungsbild sonst gegen einen dunklen Grund antreten. Ko-fi und C3 sind
+        /// mehrfarbige Logos und bleiben, wie sie sind.
+        let schablone: Bool
+        let titel: String
+        let vorlesen: String
+
+        var body: some View {
+            // Ein fehlerhaftes Ziel laesst hier lieber den Knopf weg, als die App mit einem
+            // erzwungenen Auspacken zu beenden. Die drei Adressen sind fest, aber ein Tippfehler
+            // beim naechsten Aendern soll niemanden etwas kosten.
+            if let url = URL(string: ziel) {
+                Link(destination: url) {
+                    VStack(spacing: 5) {
+                        Image(bild)
+                            .renderingMode(schablone ? .template : .original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                            .frame(width: 52, height: 52)
+                            .background(.thinMaterial, in: Circle())
+                            .overlay(Circle().strokeBorder(.secondary.opacity(0.25)))
+                        Text(titel).font(.caption2)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(vorlesen)
+            }
+        }
+    }
+}
+
+/// „Teamaufnahme" auf der Startseite — Gegenstück zu `ModernTeamQrCard.kt`.
+///
+/// **Der Schalter tut zwei Dinge, und das zweite ist der eigentliche Punkt:** Er zeigt den
+/// Team-QR *und* startet den Funk-Abgleich. Auf Android hängt beides an
+/// `setTeamJoinWindowActive`, und das hat einen handfesten Grund — der QR allein genügt nicht.
+/// Wer ihn scannt, hat den Team-Schlüssel, aber ohne laufenden Funk gibt es keinen Rückkanal:
+/// Das neue Gerät kann sich nicht melden, und die Teamleitung sieht es nicht in ihrer Liste.
+///
+/// Genau das war auf iOS die Lücke. `TeamQrView` lag unter „Abgleich" und zeigte brav einen
+/// rollenden Code — den Funk musste man daneben von Hand einschalten und daran denken. Wer es
+/// vergaß, hielt einen gültigen QR hin, der nichts bewirkte.
+private struct Teamaufnahme: View {
+    // Bindet direkt an nearby.laeuft, wie der bestehende Funk-Regler in SyncView.swift -
+    // statt an ein eigenes @State, das den Startwert nicht kennt: Wer den Funk schon vom
+    // Abgleich-Tab aus gestartet hatte, saehe hier trotzdem "aus" und keinen QR-Code, obwohl
+    // der Abgleich laengst lief.
+    @ObservedObject var nearby: NearbyAbgleich
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Team-QR").font(.headline)
+                Spacer()
+                Toggle("Teamaufnahme", isOn: Binding(
+                    get: { nearby.laeuft },
+                    set: { $0 ? nearby.start() : nearby.stop() }
+                ))
+                .labelsHidden()
+            }
+
+            Text(nearby.laeuft ? "Teamaufnahme aktiv" : "Teamaufnahme starten")
+                .font(.subheadline)
+                .foregroundStyle(nearby.laeuft ? .primary : .secondary)
+
+            if nearby.laeuft {
+                TeamQrView()
+            } else {
+                Text("""
+                Schaltet den Funk ein und zeigt den QR-Code. Beides zusammen — ohne Funk hat das \
+                neue Gerät zwar den Code, aber keinen Weg zurück.
+                """)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 

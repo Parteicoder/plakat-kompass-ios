@@ -31,6 +31,10 @@ struct PlakatKompassApp: App {
                 .onChange(of: phase) { _, neu in
                     if neu != .active {
                         model.nearby.stop()
+                        // Der Handywechsel ist der zweite Nearby-Nutzer und muss genauso enden.
+                        // Vergessen hiesse: Ein Umzug laeuft im Hintergrund weiter, waehrend die
+                        // Oberflaeche ihn nicht mehr zeigt - und iOS friert ihn ohnehin ein.
+                        model.handywechsel.stop()
                         // Die Marke wieder wegnehmen: Wer geordnet in den Hintergrund geht, ist
                         // nicht abgestuerzt. Steht sie beim naechsten Start noch da, war es einer.
                         Protokoll.geteilt.gehtInDenHintergrund()
