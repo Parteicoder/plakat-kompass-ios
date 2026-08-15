@@ -263,17 +263,7 @@ private struct PlakatDetail: View {
                 }
 
                 Section {
-                    // Navigation ueberlassen wir Apple Maps - eine eigene Routenfuehrung
-                    // waere Monate Arbeit fuer etwas, das jedes iPhone schon kann.
-                    Button("Navigation starten") {
-                        let ziel = MKMapItem(placemark: MKPlacemark(coordinate: .init(
-                            latitude: plakat.latitude, longitude: plakat.longitude
-                        )))
-                        ziel.name = plakat.addressHint.isEmpty ? "Plakat" : plakat.addressHint
-                        ziel.openInMaps(launchOptions: [
-                            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
-                        ])
-                    }
+                    Button("Navigation starten") { plakat.hinlaufen() }
                 }
 
                 Section("Status ändern") {
