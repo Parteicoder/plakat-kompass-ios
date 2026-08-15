@@ -120,6 +120,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Fassungsanzeige aus dem Bundle (Lizenzseite, Protokoll-Startzeile) | `Helpers.swift` (`Fassung`), `EinstellungenView.swift`, `Protokoll.swift` |
 | Standort-Knopf in der Liste, wie auf Android jede Zeile | `PosterListView.swift`, `Helpers.swift` (`Poster.hinlaufen()`) |
 | Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift` (`Teamaufnahme`, `UnterstuetzenUndGemeinschaft`) |
+| Adresse von Hand beim Erfassen, wenn die Ortung nichts liefert | `AdresseAufloesen.swift`, `CaptureView.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
@@ -156,8 +157,10 @@ eine Kampagne hinweg spürbar träge.
 
 Der Abgleich Android ↔ iOS ist **funktionsweise durchgegangen**, in drei Durchläufen: die Dateien
 des Kerns gegeneinander, dann die Funktionen über ihre Symbole, zuletzt die **Bildschirminhalte
-Feld für Feld**. Der dritte Durchgang war der ergiebigste — er hat eine Lücke gefunden, die die
-ersten beiden nicht zeigen konnten (siehe „Adresse von Hand" unten).
+Feld für Feld**. Der dritte Durchgang war der ergiebigste — er hat mehrere Lücken gefunden, die die
+ersten beiden nicht zeigen konnten: die Adresse von Hand beim Erfassen, den Backup-Empfang auf
+dem Einrichtungsbildschirm, Team-QR und Support & Community auf der Startseite, den
+Standort-Knopf in der Liste. Alle vier sind inzwischen in Abschnitt 3 als fertig gelistet.
 
 **Eine Warnung zur Methode, weil sie zweimal in die Irre geführt hat:** Nach Android-Namen zu
 suchen findet Lücken, die es nicht gibt. `FirstCaptureHintStore` heisst auf iOS
@@ -188,33 +191,14 @@ ab. Auf iOS gibt es dafür kein Gegenstück:
 - Die Marke in `Protokoll.swift` deckt die Lücke halb: Sie merkt überall, **dass** der vorige
   Lauf nicht geordnet endete — nur nicht, warum.
 
-### 5.3 Anders platziert, nicht fehlend
-
-Auf der Android-Startseite liegen **QR-Scan** und **Ko-fi**. Auf iOS gibt es beides, aber
-woanders: der QR-Scan unter „Abgleich" (`TeamView`), Ko-fi in den Einstellungen. Bewusst so —
-die iOS-Startseite ist der Bildschirm für „was steht an", nicht für Einrichtung.
-
-### 5.4 Gebaut, aber noch nicht gemergt
-
-**Adresse von Hand beim Erfassen** (PR #24). Bis dahin gilt auf iOS: ohne Ortung **kein**
-Plakat, der Speichern-Knopf bleibt grau. Android lässt die Adresse tippen und geokodiert sie.
-Trifft jeden, der in einer Häuserschlucht steht oder die Ortung einmal abgelehnt hat.
-
-**Backup empfangen auf dem Einrichtungsbildschirm, Team-QR und Support auf der Startseite**
-(PR #26). Bis dahin lag der Handywechsel-Empfang ausschließlich unter Einstellungen → Experten
-— dorthin kommt man aber erst mit eingerichtetem Team, also nicht auf dem frischen Gerät, das
-gerade umzieht. Dieselbe PR holt außerdem den Team-QR-Schalter (bisher nur unter „Abgleich") und
-die Support-&-Community-Knöpfe (Ko-fi, C3-Discord, X) auf die Startseite — auf Android stehen
-beide dort schon lange, `ModernHomeScreen.kt` ist die Vorlage.
-
-### 5.5 Kein Unterschied zu Android — beide haben es nicht
+### 5.3 Kein Unterschied zu Android — beide haben es nicht
 
 **Relay-Abgleich.** Das README liest sich, als fehle nur die iOS-Anbindung. Tatsächlich hat
 **auch Android keinen Relay-Client**; `grep -rl "relay" app/src/main/java` findet nichts. Das
 Backend-Repository existiert, ist aber an keine der beiden Apps angebunden. Wer das angeht,
 fängt auf beiden Seiten bei null an.
 
-### 5.6 Nicht offen, sondern ungeprüft — und das ist der wichtigere Punkt
+### 5.4 Nicht offen, sondern ungeprüft — und das ist der wichtigere Punkt
 
 Diese Dinge sind **gebaut und übersetzt**, aber nie in ihrer eigentlichen Funktion gelaufen. Der
 CI baut für den Simulator, und der hat weder Kamera noch Funkgegenüber:
@@ -224,6 +208,7 @@ CI baut für den Simulator, und der hat weder Kamera noch Funkgegenüber:
 | Funk-Abgleich mit Android | iPhone und Android-Gerät im selben WLAN, Abgleich in beide Richtungen mit Foto |
 | Handywechsel | zwei iPhones, auf dem alten „umziehen", auf dem neuen „übernehmen" |
 | Kamera und Foto-Verkleinerung | ein Gerät |
+| Adresse von Hand beim Erfassen | ein Gerät mit Netz, Anfrage zu einer echten deutschen Adresse |
 | Hintergrundortung der Flyer-Touren | ein Gerät, Telefon in der Tasche, eine echte Runde |
 | MetricKit-Absturzberichte | ein Gerät über TestFlight |
 
@@ -236,7 +221,7 @@ alles mit dem iCloud-Backup mitwandert". Das stimmt für den Regelfall und war t
 falsche Entscheidung — es setzt voraus, dass iCloud-Backup an ist, genug Platz hat und das alte
 Gerät noch läuft. Der Umzug ist inzwischen gebaut und ist geräteseitig unabhängig von Apple.
 
-### 5.7 Baugleich, aber mit anderen Zahlen als Android
+### 5.5 Baugleich, aber mit anderen Zahlen als Android
 
 Zwei Stellen lösen dasselbe Problem wie Android, mit einem eigenen, nicht abgeschriebenen Wert —
 das ist keine Lücke, aber wer Verhalten zwischen den Plattformen vergleicht, sollte es kennen.
@@ -249,7 +234,7 @@ das System. Der Ausreißer-Filter lässt hier bis 100 m Ungenauigkeit durch (And
 Mindestabstand steht fest bei 20 m, ohne Genauigkeits-Skalierung (`TourAufzeichnung.swift`,
 `mindestabstandMeter`/`nimmAuf`). Die maximale Dauer von 5 Stunden ist dagegen identisch
 übernommen. Ob die lockereren Werte im Feld zu unruhigeren Strecken führen als auf Android, ist
-ungeprüft — siehe 5.6, echte Hintergrundortung wurde noch auf keinem Gerät erprobt.
+ungeprüft — siehe 5.4, echte Hintergrundortung wurde noch auf keinem Gerät erprobt.
 
 **Sozialdaten-Bewegungsschwelle.** Android bricht eine laufende Zensus-Abfrage erst ab, wenn sich
 der Mittelpunkt um `SOCIAL_CENTER_MIN_MOVE_METERS = 80` Meter bewegt hat — ohne diese Schwelle
