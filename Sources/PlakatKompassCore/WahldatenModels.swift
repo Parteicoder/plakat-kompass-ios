@@ -161,7 +161,7 @@ public enum WahldatenUiState: Sendable, Equatable {
 /// unter Apples Foundation als `__NSCFBoolean`, eine private `NSNumber`-Unterklasse, die sonst
 /// unbemerkt als `1.0` durchginge (`roh as? Double` würde sonst erfolgreich sein).
 func zahlAusJson(_ roh: Any) -> Double? {
-    guard !(roh is Bool) else { return nil }
+    if let zahl = roh as? NSNumber, CFGetTypeID(zahl) == CFBooleanGetTypeID() { return nil }
     if let zahl = roh as? Double { return zahl.isFinite ? zahl : nil }
     if let zahl = roh as? Int { return Double(zahl) }
     if let zahl = roh as? NSNumber { return zahl.doubleValue.isFinite ? zahl.doubleValue : nil }

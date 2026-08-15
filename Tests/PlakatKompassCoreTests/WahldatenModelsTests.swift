@@ -40,6 +40,10 @@ final class WahldatenModelsTests: XCTestCase {
     func testZahlAusJsonAkzeptiertNormaleZahlen() {
         XCTAssertEqual(zahlAusJson(70.8), 70.8)
         XCTAssertEqual(zahlAusJson(70), 70.0)
+
+        let json = #"[0, 1, 152]"#.data(using: .utf8)!
+        let zahlen = try! JSONSerialization.jsonObject(with: json) as! [Any]
+        XCTAssertEqual(zahlen.compactMap(zahlAusJson), [0, 1, 152])
     }
 
     // MARK: - intAusJson
