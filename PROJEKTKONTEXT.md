@@ -245,6 +245,19 @@ schlechter: Die Koordinate im Abfrageschlüssel wird auf drei Nachkommastellen g
 `.task(id:)` bricht die alte Abfrage beim Schlüsselwechsel automatisch ab. Kein eigener Debounce
 nötig, aber auch keine baugleiche Zahl.
 
+### 5.6 Fehlt vollständig — geplant, aber noch nicht begonnen
+
+**Wahldaten.** Auf Android ein eigenständiges Feature (`feature/wahldaten/`, ~1450 Zeilen):
+Amtliche Wahlergebnisse — Bundestags-, Landtags-, Kreistags- und Kommunalwahl, von der
+Bundeswahlleiterin bzw. den Landeswahlleitungen — für den Wahlkreis unter der Kartenmitte, mit
+Wahlbeteiligung und Parteianteilen als eigener Chip im Kartenbildschirm (`WahldatenPanel.kt`,
+`ModernPosterMapScreen.kt`), im selben Stil wie die Sozialdaten. Auf iOS existiert davon **nichts**
+— keine Datei, kein Screen, kein Menüpunkt. Anders als die übrigen Lücken in diesem Abschnitt ist
+das kein übersehener Rest und keine Plattformgrenze, sondern ein eigener Port, der bewusst noch
+nicht begonnen wurde. Wer ihn angeht, portiert am besten von `WahldatenRepository.kt`,
+`WahldatenModels.kt` und `WahldatenGeometrie.kt` aus — dieselbe Struktur, die auch
+`SocialData.swift`/`SozialdatenView.swift` schon als Vorlage diente.
+
 ---
 
 ## 6. Prüfen
