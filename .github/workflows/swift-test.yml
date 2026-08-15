@@ -34,11 +34,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Xcode-Fassung anzeigen
         run: |
           xcodebuild -version
           swift --version
+
+      - name: Geaenderte Swift-Dateien linten
+        env:
+          BASIS: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          swift format --version
+
+          # Bestehenden Code nicht in einem riesigen Stil-Diff umschreiben. Ab jetzt muss aber
+          # jede neu angelegte oder geaenderte Swift-Datei den mit Xcode gelieferten Linter
+          # ohne Warnung passieren.
+          if [ -z "$BASIS" ] || [ "$BASIS" = "0000000000000000000000000000000000000000" ]; then
+            BASIS=HEAD^
+          fi
+
+          dateien=()
+          while IFS= read -r -d '' datei; do
+            dateien+=("$datei")
+          done < <(git diff --name-only -z --diff-filter=ACMR "$BASIS" HEAD -- '*.swift')
+
+          if [ "${#dateien[@]}" -eq 0 ]; then
+            echo "Keine geaenderten Swift-Dateien."
+          else
+            swift format lint --strict --parallel "${dateien[@]}"
+          fi
 
       - name: Kern uebersetzen
         run: swift build
