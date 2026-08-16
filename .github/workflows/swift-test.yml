@@ -83,6 +83,29 @@ jobs:
         # koennen, das weder von ihm noch von der Kotlin-Seite erzeugt wurde.
         run: swift test
 
+      - name: Farben mit Android abgleichen
+        # Tools/farben-abgleich.py prueft App/Farben.swift gegen die verbindliche Vorgabe in
+        # Androids AppColors.kt (siehe Kopf des Skripts). Das lief bisher nur von Hand.
+        #
+        # Braucht dafuer das PRIVATE Schwesterrepo Parteicoder/plakat-radar-intern zusaetzlich
+        # ausgecheckt - GITHUB_TOKEN sieht nur das eigene Repo, nicht fremde, auch nicht
+        # private im selben Konto. Ohne ANDROID_REPO_TOKEN (Secret: ein PAT mit Lesezugriff
+        # auf plakat-radar-intern) uebersprint der Schritt sich selbst, statt den Bau
+        # scheitern zu lassen - ein fehlendes Secret ist kein Fund im eigenen Code.
+        env:
+          ANDROID_REPO_TOKEN: ${{ secrets.ANDROID_REPO_TOKEN }}
+        run: |
+          if [ -z "$ANDROID_REPO_TOKEN" ]; then
+            echo "ANDROID_REPO_TOKEN fehlt - Abgleich uebersprungen."
+            echo "Secret mit Lesezugriff auf Parteicoder/plakat-radar-intern anlegen, damit"
+            echo "dieser Schritt greift."
+            exit 0
+          fi
+          git clone --depth 1 \
+            "https://x-access-token:${ANDROID_REPO_TOKEN}@github.com/Parteicoder/plakat-radar-intern.git" \
+            ../plakat-radar-intern
+          python3 Tools/farben-abgleich.py ../plakat-radar-intern
+
       - name: Jede Abhaengigkeit steht auf der Lizenzseite
         # WARUM DIESE AUFGABE EXISTIERT: Genau dieser Fehler ist passiert. Der Funk-Abgleich
         # brachte Google Nearby in die App - und die Lizenzseite nannte monatelang weiter nur

@@ -116,6 +116,7 @@ private struct LaufendeTour: View {
             HStack(spacing: 8) {
                 Image(systemName: tour.status == .ACTIVE ? "record.circle.fill" : "pause.circle.fill")
                     .foregroundStyle(tour.status == .ACTIVE ? .red : .orange)
+                    .accessibilityLabel(tour.status == .ACTIVE ? "Aufnahme läuft" : "Pausiert")
                 Text(tour.name).font(.headline)
                 Spacer()
                 Text("\(tour.points.count) Punkte")
