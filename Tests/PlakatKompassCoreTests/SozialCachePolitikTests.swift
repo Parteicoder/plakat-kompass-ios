@@ -45,4 +45,31 @@ final class SozialCachePolitikTests: XCTestCase {
     func testEintragAusDerZukunftGiltNichtAlsFrisch() {
         XCTAssertFalse(SozialCachePolitik.istFrisch(alterSekunden: -60, tage: 7))
     }
+
+    // MARK: - istCachebareAntwort
+
+    /// Der Fall, der auf Android "Zensus mal da, mal nicht" verursacht hat: HTTP 200, aber ein
+    /// Fehlerfeld im Rumpf. Genau das darf nicht in den Cache.
+    func testFehlerantwortMitStatus200IstNichtCachebar() {
+        XCTAssertFalse(SozialCachePolitik.istCachebareAntwort(
+            #"{"error":{"code":400,"message":"Ungueltige Anfrage"}}"#
+        ))
+    }
+
+    /// Eine gültige Antwort ohne Treffer ist eine echte Auskunft, keine Störung — cachebar.
+    func testLeereTrefferlisteIstCachebar() {
+        XCTAssertTrue(SozialCachePolitik.istCachebareAntwort(#"{"features":[]}"#))
+    }
+
+    func testAntwortMitDatenIstCachebar() {
+        XCTAssertTrue(SozialCachePolitik.istCachebareAntwort(
+            #"{"features":[{"attributes":{"AI0801":7.2}}]}"#
+        ))
+    }
+
+    func testLeererUndUngueltigerTextIstNichtCachebar() {
+        XCTAssertFalse(SozialCachePolitik.istCachebareAntwort(""))
+        XCTAssertFalse(SozialCachePolitik.istCachebareAntwort("   "))
+        XCTAssertFalse(SozialCachePolitik.istCachebareAntwort("kein json"))
+    }
 }
