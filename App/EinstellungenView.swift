@@ -372,8 +372,9 @@ private struct VerlaufView: View {
 ///
 /// **Hier stand lange nur ZIPFoundation.** Das war falsch, seit der Funk-Abgleich dazukam: Google
 /// Nearby Connections trägt ihn vollständig, steht unter Apache 2.0 — und zieht sechs weitere
-/// Fremdbibliotheken in die fertige App, die alle Namensnennung verlangen. Namensnennung, die
-/// fehlt, ist bei einer AGPL-App kein Schönheitsfehler, sondern ein Lizenzverstoss.
+/// Fremdbibliotheken in die fertige App, die alle Namensnennung verlangen. Die Pflicht dazu kommt
+/// aus der Apache-2.0-Lizenz der Bibliothek selbst, unabhängig von der eigenen Lizenz der App —
+/// fehlende Namensnennung ist deshalb kein Schönheitsfehler, sondern ein Lizenzverstoss.
 ///
 /// Jeder Eintrag unten ist an der festgenagelten Revision nachgesehen worden, keiner aus dem
 /// Gedächtnis: `Package.swift` und `.gitmodules` von `google/nearby` nennen die Abhängigkeiten,
@@ -385,15 +386,15 @@ private struct LizenzenView: View {
         LabeledContent("Fassung", value: Fassung.anzeige)
         Text(
           """
-          Plakat Kompass steht unter der GNU Affero General Public License, Version 3 \
-          (AGPL-3.0). Der Lizenztext liegt der Quelle als Datei LICENSE bei.
+          Plakat Kompass ist urheberrechtlich geschützt. Alle Rechte vorbehalten. Die \
+          verwendeten Bestandteile Dritter stehen unter ihren eigenen Lizenzen und sind \
+          unten aufgeführt.
           """)
       } header: {
         Text("Diese App")
       } footer: {
-        // Die AGPL verlangt, dass der Empfänger an den Quelltext SEINER Fassung kommt.
-        // Ohne Nummer weiss er nicht, welche das ist — der Anspruch stünde da und liefe
-        // ins Leere.
+        // Die Nummer bleibt auch ohne AGPL-Bezug nützlich: Ohne sie weiss der Empfänger
+        // eines Fehlerberichts nicht, welche Fassung gemeint ist.
         Text(
           "Die Nummer gehört in jeden Fehlerbericht: Ohne sie lässt sich nicht sagen, ob ein Fehler noch besteht oder längst behoben ist."
         )

@@ -76,9 +76,10 @@ jobs:
       - name: Jede Abhaengigkeit steht auf der Lizenzseite
         # WARUM DIESE AUFGABE EXISTIERT: Genau dieser Fehler ist passiert. Der Funk-Abgleich
         # brachte Google Nearby in die App - und die Lizenzseite nannte monatelang weiter nur
-        # ZIPFoundation. Namensnennung, die fehlt, ist bei einer AGPL-App kein Schoenheits-
-        # fehler, sondern ein Lizenzverstoss. Und er faellt von selbst nie auf: Die App baut,
-        # startet und laeuft einwandfrei ohne die Nennung.
+        # ZIPFoundation. Die Pflicht zur Namensnennung kommt aus der Apache-2.0-Lizenz der
+        # Bibliothek selbst, unabhaengig von der eigenen Lizenz der App - fehlende Nennung ist
+        # deshalb kein Schoenheitsfehler, sondern ein Lizenzverstoss. Und er faellt von selbst
+        # nie auf: Die App baut, startet und laeuft einwandfrei ohne die Nennung.
         #
         # Geprueft wird die schwache, aber wartungsfreie Richtung: Jedes Paket, das in
         # Package.swift oder project.yml als Abhaengigkeit steht, muss auf der Lizenzseite
