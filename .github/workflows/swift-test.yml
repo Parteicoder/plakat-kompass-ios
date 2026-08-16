@@ -48,8 +48,18 @@ jobs:
         run: |
           swift format --version
 
-          # Wie in der Android-Repo: Stilhinweise bleiben im Log sichtbar, blockieren den
-          # Build aber nicht. Uebersetzungsfehler fangen die folgenden Build- und Testschritte ab.
+          # ANDERS ALS in der Android-Repo: Dort stoppt "ktlintCheck" den Build bei
+          # Stilverstoessen. Hier bleiben sie nur im Log sichtbar, weil es dafuer aktuell
+          # zu viele gibt - mehrere hundert Fundstellen ueber Dutzende Dateien in Sources/,
+          # Tests/ und App/ (siehe CI-Logs frueherer Laeufe). Bloss den Exit-Code
+          # scharfzuschalten wuerde reihenweise unbeteiligte PRs an Alt-Code scheitern lassen.
+          #
+          # TODO: Bestand aufraeumen (z.B. "swift format format --in-place --recursive
+          # Sources Tests App" lokal anwenden und pruefen), danach hier den Exit-Code von
+          # "swift format lint" tatsaechlich auswerten statt nur zu protokollieren, damit
+          # neue Verstoesse den Build blockieren - wie bei Android.
+          #
+          # Uebersetzungsfehler fangen die folgenden Build- und Testschritte ab.
           if [ -z "$BASIS" ] || [ "$BASIS" = "0000000000000000000000000000000000000000" ]; then
             BASIS=HEAD^
           fi
