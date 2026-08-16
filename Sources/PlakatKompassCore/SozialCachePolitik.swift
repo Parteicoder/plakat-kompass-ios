@@ -39,4 +39,24 @@ public enum SozialCachePolitik {
         guard let frist = haltbarkeit(tage: tage) else { return false }
         return alterSekunden >= 0 && alterSekunden <= frist
     }
+
+    /// Darf diese Roh-Antwort in den Cache? Gegenstück zu `isCacheableSocialResponse()` in
+    /// `feature/socialdata/SocialResponseCacheability.kt`.
+    ///
+    /// Sowohl der ArcGIS-FeatureServer (Zensus) als auch der Regionalatlas melden Fehler **mit
+    /// Status 200** und einem Rumpf wie `{"error":{"code":400,"message":"..."}}`. Der HTTP-Status
+    /// allein reicht also nicht, um eine brauchbare Antwort zu erkennen. Genau das war auf
+    /// Android die Ursache des Fehlerbilds „Zensus mal da, mal nicht": Eine Fehlerantwort landete
+    /// im Cache und fror dort für die Cache-Dauer ein — der stille Wiederholungsversuch traf
+    /// danach nur noch auf den vergifteten Eintrag, nie mehr auf den Server.
+    ///
+    /// Eine gültige Antwort ohne Treffer (leere `features`) ist ausdrücklich cachebar: Dass es an
+    /// einer Stelle keine Rasterdaten gibt, ist eine echte Auskunft.
+    public static func istCachebareAntwort(_ text: String) -> Bool {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let daten = text.data(using: .utf8),
+              let wurzel = try? JSONSerialization.jsonObject(with: daten) as? [String: Any]
+        else { return false }
+        return wurzel["error"] == nil
+    }
 }

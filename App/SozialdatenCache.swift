@@ -29,8 +29,9 @@ final class SozialdatenCache {
     /// Der Schlüssel in den Voreinstellungen. Auch die Einstellungsseite benutzt ihn.
     static let tageSchluessel = "sozialCacheTage"
 
-    /// Wie Android: mehr als das wird nicht behalten, ältestes fliegt zuerst.
-    private static let maxEintraege = 300
+    /// Wie Android (`SocialResponseCache.MAX_ENTRIES`): mehr als das wird nicht behalten,
+    /// ältestes fliegt zuerst.
+    private static let maxEintraege = 2_000
     /// Nicht bei jedem Treffer auf die Platte. Eine Rasterabfrage schreibt sonst mitten im
     /// Laufen mehrere Hundert Kilobyte, und zwar genau dann, wenn es auf Tempo ankommt.
     private static let schreibVerzoegerungSekunden: UInt64 = 2
@@ -76,7 +77,13 @@ final class SozialdatenCache {
     }
 
     func merke(_ schluessel: String, _ text: String) {
-        guard SozialCachePolitik.haltbarkeit(tage: eingestellteTage) != nil else { return }
+        // ArcGIS/Regionalatlas melden Fehler mitunter mit HTTP 200 und einem "error"-Feld im
+        // Rumpf. Ungeprüft übernommen, friert das den Fehler für die ganze Cache-Dauer ein —
+        // Ursache eines "Zensus mal da, mal nicht"-Bugs auf Android. Siehe
+        // `SozialCachePolitik.istCachebareAntwort`.
+        guard SozialCachePolitik.haltbarkeit(tage: eingestellteTage) != nil,
+              SozialCachePolitik.istCachebareAntwort(text)
+        else { return }
         eintraege[schluessel] = Eintrag(zeit: Date(), text: text)
         if eintraege.count > Self.maxEintraege {
             // Aeltestes zuerst. Ohne diese Grenze wuechse die Datei ueber eine Kampagne
