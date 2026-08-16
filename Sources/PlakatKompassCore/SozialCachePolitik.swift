@@ -16,7 +16,7 @@ import Foundation
 public enum SozialCachePolitik {
 
     /// Voreinstellung und Grenzen wortgleich mit `SocialDataSettingsStore.kt`.
-    public static let vorgabeTage = 7
+    public static let vorgabeTage = 30
     public static let minTage = 0
     public static let maxTage = 90
 
