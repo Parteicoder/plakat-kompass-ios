@@ -166,4 +166,21 @@ final class HomeStatsTests: XCTestCase {
             )
         )
     }
+
+    // Gegenstueck zu RatingPromptPolicyTest.kt: einmal bewertet, nie wieder gefragt - selbst
+    // wenn Wartezeit und Zaehler laengst ein "Ja" ergeben wuerden.
+    func testKeinFensterMehrNachBereitsBewertet() {
+        let jetzt = Date(timeIntervalSince1970: 2_000_000_000)
+        let ersterStart = jetzt.addingTimeInterval(-RatingPromptPolicy.wartezeit - 1)
+
+        XCTAssertFalse(
+            RatingPromptPolicy.sollAnzeigen(
+                ersterStart: ersterStart,
+                letzteAnfrage: nil,
+                anzahl: 0,
+                bereitsBewertet: true,
+                jetzt: jetzt
+            )
+        )
+    }
 }

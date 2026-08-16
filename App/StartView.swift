@@ -17,6 +17,9 @@ struct StartView: View {
     @AppStorage("bewertungErsterStart") private var bewertungErsterStart = 0.0
     @AppStorage("bewertungLetzteAnfrage") private var bewertungLetzteAnfrage = 0.0
     @AppStorage("bewertungAnzahl") private var bewertungAnzahl = 0
+    // Gegenstück zu Androids "rated" (RatingPromptStore.kt): einmal gesetzt, fragt
+    // sollAnzeigen() nie wieder - unabhaengig vom Zaehler oben.
+    @AppStorage("bewertungBereitsBewertet") private var bewertungBereitsBewertet = false
 
     private var zahlen: HomeStats { HomeStats(posters: model.state.posters) }
 
@@ -44,7 +47,7 @@ struct StartView: View {
                     }
 
                     UnterstuetzenUndGemeinschaft {
-                        bewertungAnzahl = RatingPromptPolicy.maximaleAnfragen
+                        bewertungBereitsBewertet = true
                         bewertungAnfragen()
                     }
 
@@ -111,6 +114,7 @@ struct StartView: View {
             ersterStart: Date(timeIntervalSince1970: bewertungErsterStart),
             letzteAnfrage: letzteAnfrage,
             anzahl: bewertungAnzahl,
+            bereitsBewertet: bewertungBereitsBewertet,
             jetzt: jetzt
         ) else { return }
 
