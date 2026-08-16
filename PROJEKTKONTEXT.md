@@ -364,8 +364,7 @@ Fassungen vergleichen lassen. Kommentare und Commit-Nachrichten deutsch, und sie
 
 **Zielbranch ist `main`.** PRs werden als Draft geöffnet; **der Nutzer merged selbst**.
 
-**Lizenz: proprietär, alle Rechte vorbehalten.** Gleich wie im Android-Repo (dort seit einer
-früheren Lizenzänderung, siehe LICENSE). Frühere Fassungen standen unter der AGPL-3.0. Die
+**Lizenz: proprietär, alle Rechte vorbehalten.** Gleich wie im Android-Repo, siehe LICENSE. Die
 Nennung fremder Bestandteile steht unter
 „Einstellungen" → „Lizenzen und Dank". Auf der Karte ist keine eigene Namensnennung nötig:
 MapKit setzt seinen Hinweis selbst. Overpass (OpenStreetMap, ODbL) und die Sozialdaten

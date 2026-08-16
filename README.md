@@ -427,5 +427,4 @@ Drei Eigenheiten der CSV sind Absicht und sehen ohne Erklärung nach Fehlern aus
 
 ## Lizenz
 
-Proprietär, alle Rechte vorbehalten, siehe [LICENSE](LICENSE). Frühere Fassungen standen unter
-der AGPL-3.0.
+Proprietär, alle Rechte vorbehalten, siehe [LICENSE](LICENSE).
