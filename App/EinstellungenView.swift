@@ -47,6 +47,7 @@ struct EinstellungenView: View {
       kurzanleitungAbschnitt
       sozialdatenAbschnitt
       wahldatenAbschnitt
+      kartenCacheAbschnitt
       unterstuetzenAbschnitt
       Section {
         // Der Verlauf ist die einzige Stelle, an der nachvollziehbar wird, wer wann was
@@ -187,6 +188,27 @@ struct EinstellungenView: View {
       Text(
         "Kleine Parteien werden sonst unter „Sonstige“ zusammengefasst. Die Ergebnisdateien sind amtlich und können mehrere hundert KB groß sein."
       )
+    }
+  }
+
+  /// Gegenstück zur Karte „Offline-Karten" in `MoreActionCards.kt` — dort mit Cache-Dauer-Stepper
+  /// und „Karten-Cache leeren"-Knopf, weil osmdroid auf Android beides freigibt.
+  ///
+  /// Apple MapKit dagegen verwaltet seinen Kachel-Cache vollständig selbst und intern — es gibt
+  /// keine öffentliche API, um Dauer oder Größe einzustellen oder ihn zu leeren (kein Zugriff über
+  /// `URLCache`, das MapKit dafür nicht nutzt; keine dokumentierte Purge-Methode). Ein Nachbau der
+  /// Android-Regler wäre hier Attrappe: Schalter, die nichts täten. Statt dessen nur der Hinweis,
+  /// damit nicht der Eindruck entsteht, die Einstellung fehle aus Versehen.
+  @ViewBuilder private var kartenCacheAbschnitt: some View {
+    Section {
+      Text(
+        """
+        Zuletzt angesehene Kartenausschnitte bleiben automatisch eine Weile offline verfügbar. \
+        Das übernimmt iOS über MapKit — Apple bietet dafür keine Schnittstelle, über die die \
+        App Dauer oder Größe einstellen oder den Speicher leeren könnte.
+        """)
+    } header: {
+      Text("Offline-Karten")
     }
   }
 
