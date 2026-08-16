@@ -17,6 +17,11 @@ public enum SyncBundleCodec {
     static let maxTotalPhotoBytes = 250 * 1024 * 1024
     static let maxBundleBytes = 300 * 1024 * 1024
 
+    /// Deckel für `snapshot.json` im ZIP — Gegenstück zu `MAX_SNAPSHOT_BYTES` in
+    /// `sync/SyncBundleCodec.kt`. Ohne ihn liesse sich eine ZIP-Bombe als Snapshot-Eintrag
+    /// einschleusen: Fotos sind einzeln und zusammen gedeckelt, der Snapshot-Eintrag bislang nicht.
+    static let maxSnapshotBytes = 2 * 1024 * 1024
+
     /// Fotodateinamen dürfen keine Pfade vorgeben. Gegenstück zu `isSafeFileName`.
     static let safeFileName = try! NSRegularExpression(pattern: "^[a-zA-Z0-9._-]{1,120}$")
 
@@ -173,9 +178,13 @@ public enum SyncBundleCodec {
             throw SyncError.ungueltigesPaket("Inhalt ist kein ZIP.")
         }
 
-        // Schritt 3: nur den Snapshot.
+        // Schritt 3: nur den Snapshot. Groesse pruefen, bevor entpackt wird — sonst waere
+        // snapshot.json der eine Eintrag im Paket ohne Deckel (Zip-Bombe).
         guard let snapshotEntry = archive["snapshot.json"] else {
             throw SyncError.ungueltigesPaket("snapshot.json fehlt.")
+        }
+        guard snapshotEntry.uncompressedSize <= maxSnapshotBytes else {
+            throw SyncError.zuGross("Der Snapshot im Sync-Paket")
         }
         var snapshotBytes = Data()
         _ = try archive.extract(snapshotEntry) { teil in snapshotBytes.append(teil) }

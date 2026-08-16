@@ -112,6 +112,7 @@ prüfen, nicht erst nach dem vollständigen Entpacken.
 | Foto höchstens | 8 MiB |
 | Fotos zusammen höchstens | 250 MiB |
 | Paket höchstens | 300 MiB |
+| `snapshot.json` höchstens | 2 MiB |
 
 ### Reihenfolge beim Import — sicherheitsrelevant
 
