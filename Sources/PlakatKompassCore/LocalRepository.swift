@@ -72,6 +72,21 @@ public final class LocalRepository {
         LocalTeamState(deviceId: UUID().uuidString, deviceName: geraeteName)
     }
 
+    /// Wirft alle lokalen Team-, Plakat-, Touren- und Fotodaten weg. Gegenstück zu
+    /// `resetLocalData` auf Android — für einen bewusst gewählten Neustart (Rollenwechsel mit
+    /// Datenlöschen), nicht für den normalen Weg in ein neues Team: Der behält lokale Daten,
+    /// siehe `legeTeamAn`/`losOhneTeam`/`beigetreten` in `AppModel`/`TeamInvite.swift`.
+    ///
+    /// Die Geräte-Kennung bleibt erhalten — sie identifiziert dieses Telefon, kein Team.
+    public func setzeAllesZurueck(deviceId: String) throws -> LocalTeamState {
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: photosDir.path)) ?? [] {
+            try? FileManager.default.removeItem(at: photoURL(name))
+        }
+        let leer = LocalTeamState(deviceId: deviceId, deviceName: geraeteName)
+        try save(leer)
+        return leer
+    }
+
     // MARK: - Fotos
 
     public func photoURL(_ name: String) -> URL {

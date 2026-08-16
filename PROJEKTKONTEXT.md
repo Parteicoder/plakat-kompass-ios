@@ -121,6 +121,7 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Standort-Knopf in der Liste, wie auf Android jede Zeile | `PosterListView.swift`, `Helpers.swift` (`Poster.hinlaufen()`) |
 | Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR, Support & Community und Bewertungsaufforderung auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift`, `HomeStats.swift` (`RatingPromptPolicy`) |
 | Adresse von Hand beim Erfassen, wenn die Ortung nichts liefert | `AdresseAufloesen.swift`, `CaptureView.swift` |
+| Rolle wechseln: Weg zurück zur Team-Auswahl für ein bereits eingerichtetes Gerät, Gegenstück zu Androids `ModernRoleSwitchDialog` | `EinstellungenView.swift`, `AppModel.swift` (`setzeAllesZurueck`), `LocalRepository.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
