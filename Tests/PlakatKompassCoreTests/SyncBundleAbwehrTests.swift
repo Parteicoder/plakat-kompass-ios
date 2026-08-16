@@ -171,6 +171,33 @@ final class SyncBundleAbwehrTests: XCTestCase {
         }
     }
 
+    func testZuGrosserSnapshotWirdAbgewiesen() throws {
+        // Fotos sind einzeln und zusammen gedeckelt, der Snapshot-Eintrag im ZIP war es nicht —
+        // eine als snapshot.json getarnte Zip-Bombe waere unbegrenzt entpackt worden.
+        let archiv = try XCTUnwrap(Archive(accessMode: .create))
+        let riesig = Data(repeating: 0x41, count: SyncBundleCodec.maxSnapshotBytes + 1)
+        try archiv.addEntry(
+            with: "snapshot.json", type: .file, uncompressedSize: Int64(riesig.count),
+            provider: { pos, len in riesig.subdata(in: Int(pos)..<Int(pos) + len) }
+        )
+        let zip = try XCTUnwrap(archiv.data)
+        var iv = Data(count: SyncBundleCodec.ivBytes)
+        iv[0] = 11
+        let box = try AES.GCM.seal(
+            zip, using: Crypto.payloadKey(teamSecret: teamSecret),
+            nonce: try AES.GCM.Nonce(data: iv), authenticating: SyncBundleCodec.magic
+        )
+        let paket = SyncBundleCodec.magic + iv + box.ciphertext + box.tag
+
+        XCTAssertThrowsError(
+            try SyncBundleCodec.importVerifiedBundle(
+                data: paket, local: lokalerStand(), photoTargetURL: ziel
+            )
+        ) { fehler in
+            XCTAssertEqual(fehler as? SyncError, .zuGross("Der Snapshot im Sync-Paket"))
+        }
+    }
+
     func testWinzigesFotoGiltAlsBeschaedigt() throws {
         // Unter 1 KB ist kein echtes Foto. Der Fall faengt abgeschnittene Uebertragungen ab,
         // die sonst als leeres Bild in der Liste stehen bleiben.
