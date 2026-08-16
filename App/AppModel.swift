@@ -437,6 +437,20 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Rollenwechsel mit Datenlöschen. Gegenstück zu `openRoleSelection(deleteLocalData = true)`
+    /// auf Android — anders als [legeTeamAn]/[losOhneTeam]/`beigetreten`, die lokale Daten
+    /// bewusst NICHT anfassen (siehe deren Kommentare), ist das hier der explizite Neustart für
+    /// wer wirklich alles loswerden will. Nur über eine Rückfrage erreichbar, siehe
+    /// `EinstellungenView`.
+    func setzeAllesZurueck() {
+        do {
+            state = try repo.setzeAllesZurueck(deviceId: state.deviceId)
+            meldung = "Lokale Daten gelöscht. Bitte Rolle neu wählen."
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+
     /// Benennt dieses Gerät um — auch nachträglich.
     ///
     /// **Warum es das überhaupt braucht:** Seit iOS 16 gibt `UIDevice.current.name` ohne
