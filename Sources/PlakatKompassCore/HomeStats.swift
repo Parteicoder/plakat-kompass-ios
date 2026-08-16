@@ -76,14 +76,20 @@ public enum NearestPoster {
 }
 
 /// Wann iOS nach einer Bewertung fragen darf. Die eigentliche Anzeige übernimmt StoreKit.
+///
+/// `bereitsBewertet` ist das Gegenstück zu Androids `rated` in `RatingPromptPolicy.kt`: Wer den
+/// Bewertungsdialog schon einmal bewusst ausgelöst hat, wird nicht erneut gefragt - unabhängig
+/// davon, wie oft das automatische Fenster bislang lief. Ohne dieses Flag fragt die App bis zu
+/// dreimal weiter, selbst wenn der Nutzer längst bewertet hat.
 public enum RatingPromptPolicy {
     public static let wartezeit: TimeInterval = 10 * 24 * 60 * 60
     public static let maximaleAnfragen = 3
 
     public static func sollAnzeigen(
-        ersterStart: Date?, letzteAnfrage: Date?, anzahl: Int, jetzt: Date
+        ersterStart: Date?, letzteAnfrage: Date?, anzahl: Int, bereitsBewertet: Bool = false, jetzt: Date
     ) -> Bool {
         guard let ersterStart,
+              !bereitsBewertet,
               anzahl < maximaleAnfragen,
               jetzt.timeIntervalSince(ersterStart) >= wartezeit
         else { return false }
