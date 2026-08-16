@@ -16,6 +16,11 @@ struct CaptureView: View {
     @StateObject private var adressSuche = AdresseAufloesen()
     @State private var manuelleAdresse = ""
 
+    // Standortpruefung beim Speichern, sinngemaess wie Androids PosterPhotoLocationValidation.kt:
+    // fehlender/unbewertbarer/zu alter Fix blockiert, schlechte Genauigkeit fragt nach.
+    @State private var standortFehler: String?
+    @State private var ungenaueGenauigkeitBestaetigen = false
+
     /// Der Ort, der wirklich benutzt wird: Handeingabe schlaegt Ortung. Genau EINE Stelle, an
     /// der das entschieden wird - sonst prueft der Speichern-Knopf etwas anderes als das, was
     /// gespeichert wird, und das faellt erst auf, wenn ein Plakat am falschen Fleck steht.
@@ -78,9 +83,14 @@ struct CaptureView: View {
                             .foregroundStyle(.red)
                     } else if let position = standort.position {
                         LabeledContent("Genauigkeit", value: "ca. \(Int(position.horizontalAccuracy)) m")
-                        if position.horizontalAccuracy > 30 {
-                            Text("Ungenau. Der Marker sollte später auf der Karte geprüft werden.")
-                                .font(.footnote).foregroundStyle(.orange)
+                        // Dreistufige Rueckmeldung statt eines einzelnen 30-m-Schwellwerts -
+                        // sinngemaess PosterPhotoLocationValidation.accuracyWarning wie auf Android.
+                        if let hinweis = PosterPhotoLocationValidation.accuracyWarning(
+                            accuracyMeters: position.horizontalAccuracy >= 0 ? position.horizontalAccuracy : nil
+                        ) {
+                            Text(hinweis)
+                                .font(.footnote)
+                                .foregroundStyle(position.horizontalAccuracy > PosterPhotoLocationValidation.okAccuracyMeters ? .red : .orange)
                         }
                     } else {
                         Label("Standort wird gesucht …", systemImage: "location")
@@ -138,7 +148,7 @@ struct CaptureView: View {
                 }
 
                 Section {
-                    Button("Plakat speichern") { speichere() }
+                    Button("Plakat speichern") { pruefeStandortUndSpeichere() }
                         .disabled(foto == nil || wirksamerOrt == nil || !model.istEingerichtet)
                 }
             }
@@ -152,7 +162,48 @@ struct CaptureView: View {
             }
             .task { standort.starte() }
             .onDisappear { standort.stoppe() }
+            .alert("Standort ungültig", isPresented: .constant(standortFehler != nil)) {
+                Button("OK") { standortFehler = nil }
+            } message: {
+                Text(standortFehler ?? "")
+            }
+            .confirmationDialog(
+                standort.position.map { PosterPhotoLocationValidation.confirmationMessage(accuracyMeters: $0.horizontalAccuracy) } ?? "",
+                isPresented: $ungenaueGenauigkeitBestaetigen,
+                titleVisibility: .visible
+            ) {
+                Button("Trotzdem übernehmen") { speichere() }
+                Button("Abbrechen", role: .cancel) {}
+            }
         }
+    }
+
+    /// Blockiert bei fehlendem, unbewertbarem oder zu altem GPS-Fix (sinngemaess Androids
+    /// `validatePosterPhotoLocation`) und fragt bei schlechter Genauigkeit erst nach
+    /// (`shouldConfirmInaccurateLocation`), bevor tatsaechlich gespeichert wird. Die
+    /// Handeingabe-Adresse hat kein GPS-Alter und keine GPS-Genauigkeit - dafuer greift die
+    /// Pruefung nicht, genau wie sie auf Android fuer diesen Weg gar nicht existiert.
+    private func pruefeStandortUndSpeichere() {
+        guard adressSuche.treffer == nil, let position = standort.position else {
+            speichere()
+            return
+        }
+
+        let accuracyMeters: Double? = position.horizontalAccuracy >= 0 ? position.horizontalAccuracy : nil
+        let timestampMs = Int64(position.timestamp.timeIntervalSince1970 * 1000)
+
+        let ergebnis = PosterPhotoLocationValidation.validate(accuracyMeters: accuracyMeters, timestampMs: timestampMs)
+        guard ergebnis.isValid else {
+            standortFehler = ergebnis.errorMessage
+            return
+        }
+
+        if PosterPhotoLocationValidation.shouldConfirmInaccurateLocation(accuracyMeters: accuracyMeters, timestampMs: timestampMs) {
+            ungenaueGenauigkeitBestaetigen = true
+            return
+        }
+
+        speichere()
     }
 
     private func speichere() {
