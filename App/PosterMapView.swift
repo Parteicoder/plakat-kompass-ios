@@ -289,11 +289,18 @@ final class Gemeindegrenze: ObservableObject {
   @Published private(set) var grenze: CommuneBoundary?
 
   private var zwischenspeicher: [String: CommuneBoundary?] = [:]
+  // Reihenfolge der Schluessel nach letzter Benutzung, aeltester zuerst. Zusammen mit der
+  // Obergrenze unten ein simples LRU: kein Dictionary waechst unbegrenzt, wenn in einer langen
+  // Sitzung viel geschwenkt wird. Gegenstueck zu MAX_CACHE_ENTRIES auf Android
+  // (z.B. CommuneBoundaryClient.kt).
+  private var zwischenspeicherReihenfolge: [String] = []
+  private let zwischenspeicherObergrenze = 64
 
   func hole(latitude: Double, longitude: Double) async {
     let schluessel = String(format: "%.2f,%.2f", latitude, longitude)
     if let vorhanden = zwischenspeicher[schluessel] {
       grenze = vorhanden
+      alsZuletztBenutztMarkieren(schluessel)
       return
     }
 
@@ -307,7 +314,18 @@ final class Gemeindegrenze: ObservableObject {
     }
 
     zwischenspeicher[schluessel] = gefunden
+    alsZuletztBenutztMarkieren(schluessel)
     grenze = gefunden
+  }
+
+  /// Merkt `schluessel` als zuletzt benutzt vor und wirft bei Ueberschreiten der Obergrenze den
+  /// am laengsten unbenutzten Eintrag raus.
+  private func alsZuletztBenutztMarkieren(_ schluessel: String) {
+    zwischenspeicherReihenfolge.removeAll { $0 == schluessel }
+    zwischenspeicherReihenfolge.append(schluessel)
+    guard zwischenspeicherReihenfolge.count > zwischenspeicherObergrenze else { return }
+    let aeltester = zwischenspeicherReihenfolge.removeFirst()
+    zwischenspeicher.removeValue(forKey: aeltester)
   }
 
   /// Ein einzelner Overpass-Abruf fuer eine `admin_level`-Ebene. `nil` bei jedem Fehlschlag -
