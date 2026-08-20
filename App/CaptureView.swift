@@ -20,6 +20,9 @@ struct CaptureView: View {
     // fehlender/unbewertbarer/zu alter Fix blockiert, schlechte Genauigkeit fragt nach.
     @State private var standortFehler: String?
     @State private var ungenaueGenauigkeitBestaetigen = false
+    // Gegenstück zu BswHelpDialog "Foto & Standort" (PosterPhotoCaptureSection.kt) - erklärt
+    // die Genauigkeitsstufen, bevor jemand ratlos vor "über 10 m" steht.
+    @State private var hilfeOffen = false
 
     /// Der Ort, der wirklich benutzt wird: Handeingabe schlaegt Ortung. Genau EINE Stelle, an
     /// der das entschieden wird - sonst prueft der Speichern-Knopf etwas anderes als das, was
@@ -52,6 +55,16 @@ struct CaptureView: View {
                             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.mint, lineWidth: 1.5))
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button {
+                            hilfeOffen = true
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                        }
+                        .accessibilityLabel("Hilfe zu Foto & Standort")
                     }
 
                     HStack {
@@ -166,6 +179,16 @@ struct CaptureView: View {
                 Button("OK") { standortFehler = nil }
             } message: {
                 Text(standortFehler ?? "")
+            }
+            .alert("Foto & Standort", isPresented: $hilfeOffen) {
+                Button("Fertig") {}
+            } message: {
+                Text("""
+                Die App versucht beim Foto automatisch, den Standort zu ermitteln. \
+                Ideal sind 3 bis 5 m Genauigkeit. Bis 10 m wird der Standort direkt \
+                übernommen. Über 10 m fragt die App nach, ob du den Standort trotzdem \
+                übernehmen willst. Alternativ kannst du die Adresse manuell eingeben.
+                """)
             }
             .confirmationDialog(
                 standort.position.map { PosterPhotoLocationValidation.confirmationMessage(accuracyMeters: $0.horizontalAccuracy) } ?? "",
