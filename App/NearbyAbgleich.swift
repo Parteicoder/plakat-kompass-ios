@@ -60,6 +60,11 @@ final class NearbyAbgleich: ObservableObject {
     private var bestaetigtUns: Set<EndpointID> = []
     /// Zuletzt bestätigt gesendeter Stand je Endpunkt — verhindert das Hin und Her.
     private var letzterStand: [EndpointID: LocalTeamState] = [:]
+    /// Riegel gegen `sendeStand`, solange für diesen Endpunkt schon gepackt wird. Ohne ihn
+    /// starten Handschlag (`AUTH_RESPONSE`/`AUTH_OK`) und ein `zustandGeaendert()` währenddessen
+    /// mehrere hundert-MB-ZIPs parallel für denselben Endpunkt — `letzterStand` wird erst NACH
+    /// erfolgreichem Versand aktualisiert, blockt einen zweiten Start also nicht früh genug.
+    private var packtGerade: Set<EndpointID> = []
     /// Endpunkt → Geräte-ID, aus `senderDeviceId` im Handschlag. Erlaubt [verstosseGeraet], gezielt
     /// **ein** Gerät zu trennen statt mit [stop] alle Verbindungen zu kappen.
     private var endpunktGeraeteId: [EndpointID: String] = [:]
@@ -255,23 +260,37 @@ final class NearbyAbgleich: ObservableObject {
 
     /// `erzeugeSyncPaket()` läuft seit dem Off-Main-Fix (Android-Vorbild, Issue #155) async — ein
     /// `Task` bringt sie hierher, weil `sendeStand` selbst über `MainActor.assumeIsolated`
-    /// (synchron, kein `await` möglich) aus einem Nearby-Rückruf aufgerufen wird. Die Bedingungen
-    /// werden danach erneut geprüft: Der Stand kann sich während des Packens geändert haben, dann
-    /// soll das veraltete Paket nicht mehr rausgehen.
+    /// (synchron, kein `await` möglich) aus einem Nearby-Rückruf aufgerufen wird.
+    ///
+    /// Drei Dinge, die in genau diesem Async-Fenster schiefgehen können und deshalb hier
+    /// gesondert abgefangen werden (Zweitprüfung durch Grok fand alle drei, siehe PR-Review):
+    /// - **Welcher Stand im Paket steckt**: `erzeugeSyncPaket()` packt den Stand von JETZT, vor
+    ///   dem `await`. Würde `Sendung.stand` erst danach aus `model.state` gelesen, geriete dort
+    ///   ein inzwischen neuerer (noch ungepackter) Stand hinein — der gälte dann fälschlich als
+    ///   bereits gesendet und ginge nie mehr raus.
+    /// - **`manager` kann während des Wartens verschwinden**: `stop()` setzt ihn auf `nil`. Vor
+    ///   dem `await` gebunden, würde trotzdem noch auf dem toten Objekt gesendet.
+    /// - **Kein zweiter Start für denselben Endpunkt**, solange schon gepackt wird — `packtGerade`
+    ///   übernimmt das, weil `letzterStand` erst nach erfolgreichem Versand aktualisiert wird und
+    ///   allein daher zwei parallele Aufrufe (Handschlag + `zustandGeaendert()`) nicht verhindert.
     private func sendeStand(an endpunkt: EndpointID) {
         guard geprueft.contains(endpunkt), bestaetigtUns.contains(endpunkt),
+              !packtGerade.contains(endpunkt),
               let model, letzterStand[endpunkt] != model.state
         else { return }
 
+        packtGerade.insert(endpunkt)
+        let standZumPacken = model.state
+
         Task { @MainActor [weak self] in
-            guard let self, let manager = self.manager, let model = self.model,
-                  let datei = await model.erzeugeSyncPaket(),
-                  self.geprueft.contains(endpunkt), self.bestaetigtUns.contains(endpunkt),
-                  self.letzterStand[endpunkt] != model.state
+            defer { self?.packtGerade.remove(endpunkt) }
+            guard let self, let datei = await model.erzeugeSyncPaket(),
+                  let manager = self.manager,
+                  self.geprueft.contains(endpunkt), self.bestaetigtUns.contains(endpunkt)
             else { return }
 
             let sendung = PayloadID.unique()
-            self.eigeneSendungen[sendung] = Sendung(endpunkt: endpunkt, datei: datei, stand: model.state)
+            self.eigeneSendungen[sendung] = Sendung(endpunkt: endpunkt, datei: datei, stand: standZumPacken)
             _ = manager.sendResource(
                 at: datei, withName: datei.lastPathComponent, to: [endpunkt], id: sendung
             ) { fehler in

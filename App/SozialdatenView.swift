@@ -243,21 +243,27 @@ final class Sozialdatenabruf: ObservableObject {
     /// jährlich; eine Woche alte Werte sind exakt so gültig wie frisch geholte.
     private let zwischenspeicher = SozialdatenCache.geteilt
 
-    /// Lädt die bevorzugte Quelle; liefert sie nichts (weder Wert noch Netzfehler — reines
-    /// „hier gibt es dazu nichts"), wird einmal die andere Quelle versucht, bevor „leer" gilt.
-    /// Vorbild: `loadSocialData` in Android, `ModernPosterMapScreen.kt`.
+    /// Lädt die bevorzugte Quelle; liefert sie nichts, aber auch keinen Netzfehler — reines „hier
+    /// gibt es dazu nichts" —, wird einmal die andere Quelle versucht, bevor „leer" gilt. Ein
+    /// Netzfehler bei der bevorzugten Quelle löst dagegen KEINEN Rückfall aus: Sonst wartet man
+    /// bei einer down liegenden Quelle erst die volle Zensus-Zeitspanne (rund 15 Sekunden) ab,
+    /// bevor die Fehlermeldung überhaupt erscheint. Vorbild: `loadSocialData` in Android,
+    /// `ModernPosterMapScreen.kt` — dort fällt es auch bei einem Netzfehler zurück, das ist hier
+    /// bewusst strenger.
     ///
-    /// Vorige Werte bleiben beim Nachladen sichtbar (Issue #141 in Android, hier nachgezogen):
-    /// Nur der allererste Aufruf für einen Standort zeigt den Ladezustand, ein Quellen- oder
-    /// Standortwechsel während bereits Werte da sind lädt still im Hintergrund. Anders als in
-    /// Android bewusst OHNE stillen Wiederholungsversuch bei Netzfehlern und ohne Prüfung, ob
-    /// der Standort noch „in der Nähe" des letzten Erfolgs liegt — beides sind reale Verfeinerungen
-    /// dort, aber für den ersten Nachzug hier nicht nötig, um den Blitz-Effekt zu beheben.
+    /// Vorige Werte bleiben beim Nachladen sichtbar (Issue #141 in Android, hier nachgezogen) —
+    /// aber NUR, wenn dieselbe Quelle erneut angefragt wird: Wechselt die Auswahl selbst, bliebe
+    /// sonst eine mit `genutzteQuelle` falsch beschriftete alte Anzeige stehen (der Fallback-
+    /// Hinweis würde einen Rückfall behaupten, der gar nicht stattgefunden hat). Anders als in
+    /// Android bewusst OHNE stillen Wiederholungsversuch bei Netzfehlern und ohne Prüfung, ob der
+    /// Standort noch „in der Nähe" des letzten Erfolgs liegt — beides reale Verfeinerungen dort,
+    /// aber für den ersten Nachzug hier nicht nötig, um den Blitz-Effekt zu beheben.
     func lade(bevorzugt: SozialdatenView.Quelle, latitude: Double, longitude: Double) async {
-        if case .werte = zustand {
+        if case .werte = zustand, genutzteQuelle == bevorzugt {
             // bleibt sichtbar, siehe Dok oben
         } else {
             zustand = .laedt
+            genutzteQuelle = nil
         }
 
         let erste = await ladeQuelle(bevorzugt, latitude: latitude, longitude: longitude)
@@ -265,6 +271,11 @@ final class Sozialdatenabruf: ObservableObject {
         if !erste.werte.isEmpty {
             genutzteQuelle = bevorzugt
             zustand = .werte(erste.werte)
+            return
+        }
+        if erste.netzfehler {
+            genutzteQuelle = nil
+            zustand = .fehler("Die Sozialdaten sind gerade nicht erreichbar. Ohne Netz geht es nicht.")
             return
         }
 
@@ -279,11 +290,9 @@ final class Sozialdatenabruf: ObservableObject {
         }
 
         genutzteQuelle = nil
-        if erste.netzfehler || andere.netzfehler {
-            zustand = .fehler("Die Sozialdaten sind gerade nicht erreichbar. Ohne Netz geht es nicht.")
-        } else {
-            zustand = .leer
-        }
+        zustand = andere.netzfehler
+            ? .fehler("Die Sozialdaten sind gerade nicht erreichbar. Ohne Netz geht es nicht.")
+            : .leer
     }
 
     private struct Quellenergebnis {

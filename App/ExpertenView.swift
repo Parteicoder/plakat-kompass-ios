@@ -60,6 +60,13 @@ private struct Handywechsel: View {
                     Label("Von einem alten Gerät übernehmen", systemImage: "square.and.arrow.down")
                 }
 
+            case .paketWirdErstellt:
+                HStack {
+                    ProgressView()
+                    Text("Backup wird gepackt …").padding(.leading, 8)
+                }
+                Button("Abbrechen", role: .cancel) { umzug.stop() }
+
             case .sucht(let rolle):
                 HStack {
                     ProgressView()

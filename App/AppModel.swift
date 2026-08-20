@@ -191,11 +191,17 @@ final class AppModel: ObservableObject {
 
     /// Baut ein Sync-Paket und legt es als Datei ab, die der Teilen-Dialog verschicken kann.
     ///
-    /// Läuft seit dem Nachzug gegen Android (dortiger Fix vom 19.7., Commit `ccc13bf`, Issue
-    /// #155) auf einer eigenen Aufgabe statt im Knopf-Callback: Das ZIP samt aller Fotos kann bei
-    /// einer großen Kampagne mehrere hundert MB groß werden, auf dem Hauptthread fror dabei die
-    /// Oberfläche bis zum Systemabbruch ein. `[repo]`/`state` gehen als Kopie mit — `LocalRepository`
-    /// hält keinen veränderlichen Zustand, `LocalTeamState` ist ein `Sendable`-Wert.
+    /// Läuft seit dem Nachzug gegen Android (dortiger Fix vom 19.7., Issue #155) auf einer
+    /// eigenen Aufgabe statt im Knopf-Callback: Das ZIP samt aller Fotos kann bei einer großen
+    /// Kampagne mehrere hundert MB groß werden, auf dem Hauptthread fror dabei die Oberfläche bis
+    /// zum Systemabbruch ein. `state` geht als Kopie mit, `LocalTeamState` ist `Sendable`.
+    ///
+    /// `repo` dagegen ist eine Klasse, kein Wert — die Aufgabe liest darüber Fotodateien, während
+    /// auf dem Hauptthread parallel `repo.save(...)` oder eine verwaiste-Fotos-Aufräumung laufen
+    /// könnte. Beides fasst unterschiedliche Dateien an (Zustandsdatei bzw. Foto-Ordner) und ist
+    /// deshalb in der Praxis unkritisch, aber ein Foto, das GENAU in diesem Fenster als verwaist
+    /// aufgeräumt wird, könnte die Aufgabe hier nicht mehr lesen. Vor diesem Umbau gab es dieses
+    /// Fenster nicht — alles lief synchron auf dem Hauptthread.
     func erzeugeSyncPaket() async -> URL? {
         guard let teamSecret = state.teamSecret else {
             fehler = "Ohne Team-Schlüssel lässt sich kein Paket erzeugen."
