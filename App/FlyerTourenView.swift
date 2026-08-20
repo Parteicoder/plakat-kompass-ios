@@ -51,7 +51,8 @@ struct FlyerTourenView: View {
                 if model.offeneTour == nil {
                     Text("""
                     Der zurückgelegte Weg wird aufgezeichnet, damit das Team sieht, welche Straßen \
-                    schon versorgt sind. Ein Wegpunkt alle 20 Meter, höchstens fünf Stunden am Stück.
+                    schon versorgt sind. Wegpunkte nur bei Ortung besser als 25 m, mindestens 20 m \
+                    auseinander, höchstens fünf Stunden am Stück.
                     """)
                 }
             }
