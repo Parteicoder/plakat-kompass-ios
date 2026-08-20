@@ -10,6 +10,10 @@ struct SyncView: View {
     @State private var importDialogOffen = false
     @State private var teamDialogOffen = false
     @State private var erneuernBestaetigen = false
+    /// Sperrt den „Sync-Paket teilen"-Knopf, solange schon gepackt wird — seit dem Off-Main-Fix
+    /// (ZIP in `Task.detached`) blockiert ein laufender Aufruf den Knopf nicht mehr von selbst,
+    /// ein zweiter Tipp würde sonst ein zweites Riesen-ZIP parallel bauen.
+    @State private var syncPaketWirdErstellt = false
 
     var body: some View {
         NavigationStack {
@@ -49,10 +53,19 @@ struct SyncView: View {
 
                         Section {
                             Button {
-                                Task { teilenDatei = await model.erzeugeSyncPaket() }
+                                syncPaketWirdErstellt = true
+                                Task {
+                                    teilenDatei = await model.erzeugeSyncPaket()
+                                    syncPaketWirdErstellt = false
+                                }
                             } label: {
-                                Label("Sync-Paket teilen", systemImage: "square.and.arrow.up")
+                                if syncPaketWirdErstellt {
+                                    HStack { ProgressView(); Text("Wird gepackt …") }
+                                } else {
+                                    Label("Sync-Paket teilen", systemImage: "square.and.arrow.up")
+                                }
                             }
+                            .disabled(syncPaketWirdErstellt)
                             Button {
                                 importDialogOffen = true
                             } label: {
@@ -320,17 +333,28 @@ private struct VerwaltungsExport: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage("kommune") private var kommune = ""
     @Binding var teilenDatei: URL?
+    /// Siehe `syncPaketWirdErstellt` in `SyncView`: derselbe Riegel gegen einen zweiten Tipp,
+    /// während schon ein ZIP gepackt wird.
+    @State private var wirdErstellt = false
 
     var body: some View {
         Section {
             TextField("Kommune", text: $kommune)
                 .textInputAutocapitalization(.words)
             Button {
-                Task { teilenDatei = await model.erzeugeVerwaltungsExport(kommune: kommune) }
+                wirdErstellt = true
+                Task {
+                    teilenDatei = await model.erzeugeVerwaltungsExport(kommune: kommune)
+                    wirdErstellt = false
+                }
             } label: {
-                Label("Liste für die Verwaltung", systemImage: "doc.text")
+                if wirdErstellt {
+                    HStack { ProgressView(); Text("Wird gepackt …") }
+                } else {
+                    Label("Liste für die Verwaltung", systemImage: "doc.text")
+                }
             }
-            .disabled(model.state.posters.isEmpty)
+            .disabled(model.state.posters.isEmpty || wirdErstellt)
         } header: {
             Text("Amtlicher Export")
         } footer: {
