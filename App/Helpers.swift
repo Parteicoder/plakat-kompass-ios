@@ -25,6 +25,16 @@ enum Fassung {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unbekannt"
 }
 
+extension Binding where Value == String {
+    /// Deckel schon beim Setzen, damit Tippen und Einfügen dieselbe Grenze haben.
+    func begrenzt(auf maximum: Int) -> Binding<String> {
+        Binding(
+            get: { wrappedValue },
+            set: { wrappedValue = EingabeGrenzen.kappe($0, auf: maximum) }
+        )
+    }
+}
+
 extension Poster {
     /// Der Fußweg zu diesem Plakat, in Apple Karten.
     ///

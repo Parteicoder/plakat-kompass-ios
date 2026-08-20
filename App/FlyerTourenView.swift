@@ -37,13 +37,13 @@ struct FlyerTourenView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                    TextField("Name der Tour", text: $neuerName)
+                    TextField("Name der Tour", text: $neuerName.begrenzt(auf: EingabeGrenzen.einzeiler))
                     Button {
                         starte()
                     } label: {
                         Label("Tour starten", systemImage: "record.circle")
                     }
-                    .disabled(!model.istEingerichtet)
+                    .disabled(!model.istEingerichtet || EingabeGrenzen.istLeererName(neuerName))
                 }
             } header: {
                 Text("Aufzeichnen")
@@ -98,6 +98,7 @@ struct FlyerTourenView: View {
     }
 
     private func starte() {
+        guard !EingabeGrenzen.istLeererName(neuerName) else { return }
         guard let tour = model.starteTour(name: neuerName) else { return }
         neuerName = ""
         aufzeichnung.starte(tourId: tour.id) { breite, laenge in

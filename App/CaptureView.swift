@@ -107,7 +107,7 @@ struct CaptureView: View {
                 // Immer sichtbar waere er eine zweite Art, dasselbe zu tun, und die schlechtere.
                 if standort.position == nil && adressSuche.treffer == nil {
                     Section {
-                        TextField("Straße Hausnummer, PLZ Stadt", text: $manuelleAdresse)
+                        TextField("Straße Hausnummer, PLZ Stadt", text: $manuelleAdresse.begrenzt(auf: EingabeGrenzen.adresse))
                             .textContentType(.fullStreetAddress)
                             .autocorrectionDisabled()
                         Button {
@@ -138,13 +138,13 @@ struct CaptureView: View {
                 }
 
                 Section("Angaben") {
-                    TextField("Standort-Hinweis, etwa Bahnhofstraße 1", text: $adresse)
+                    TextField("Standort-Hinweis, etwa Bahnhofstraße 1", text: $adresse.begrenzt(auf: EingabeGrenzen.adresse))
                     Picker("Art", selection: $typ) {
                         ForEach(PosterType.allCases, id: \.self) { Text($0.beschriftung).tag($0) }
                     }
                     Stepper("Abnahme in \(abnahmeInTagen) Tagen", value: $abnahmeInTagen, in: 1...180)
-                    TextField("Bemerkung für die Verwaltung", text: $amtlicheBemerkung, axis: .vertical)
-                    TextField("Interne Bemerkung", text: $interneBemerkung, axis: .vertical)
+                    TextField("Bemerkung für die Verwaltung", text: $amtlicheBemerkung.begrenzt(auf: EingabeGrenzen.bemerkung), axis: .vertical)
+                    TextField("Interne Bemerkung", text: $interneBemerkung.begrenzt(auf: EingabeGrenzen.bemerkung), axis: .vertical)
                 }
 
                 Section {
