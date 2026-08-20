@@ -9,10 +9,15 @@ struct PosterMapView: View {
   @State private var ausgewaehlt: Poster?
   @StateObject private var grenze = Gemeindegrenze()
   @StateObject private var wahldaten = WahldatenAnzeige()
+  @StateObject private var sozialdaten = Sozialdatenabruf()
   @AppStorage("grenzeZeigen") private var grenzeZeigen = false
   @AppStorage("wahldatenZeigen") private var wahldatenZeigen = false
   @AppStorage("wahldatenWahlart") private var wahlartRoh = Wahlart.bundestag.rawValue
+  @AppStorage("sozialdatenZeigen") private var sozialdatenZeigen = false
+  @AppStorage("sozialQuelle") private var sozialQuelleRoh = SozialdatenView.Quelle.regionalatlas.rawValue
+  @AppStorage("sozialIndikator") private var sozialKennung = SocialIndicator.standard.id
   @State private var wahldatenEingeklappt = false
+  @State private var sozialdatenEingeklappt = false
   @State private var mitte: CLLocationCoordinate2D?
   @State private var flyerkarte = false
   // Eigene, von PosterFilter GETRENNTE Auswahl — mit voller Absicht, wie schon auf Android
@@ -57,6 +62,11 @@ struct PosterMapView: View {
             )
             .stroke(Color(red: 0.39, green: 0.40, blue: 0.95).opacity(0.75), lineWidth: 3)
           }
+        }
+        if sozialdatenAktiv, zensusKreisSichtbar, let punkt = mitte {
+          MapCircle(center: punkt, radius: Double(ZensusRaster.radiusMeter))
+            .foregroundStyle(Self.mint.opacity(0.14))
+            .stroke(Self.mint.opacity(0.75), lineWidth: 2)
         }
         if wahldatenAktiv,
           case .success(_, _, let flaeche?) = wahldaten.zustand
@@ -130,6 +140,14 @@ struct PosterMapView: View {
           longitude: punkt.longitude, latitude: punkt.latitude, wahlart: wahlart
         )
       }
+      .task(id: sozialdatenSchluessel) {
+        guard sozialdatenAktiv, let punkt = mitte else { return }
+        await sozialdaten.lade(
+          bevorzugt: sozialQuelle,
+          latitude: punkt.latitude,
+          longitude: punkt.longitude
+        )
+      }
       .navigationTitle("Karte")
       .navigationBarTitleDisplayMode(.inline)
       // Adresssuche ueber CLGeocoder - Apple kann das, eine eigene Suche waere Aufwand
@@ -142,6 +160,12 @@ struct PosterMapView: View {
         Text(suchfehler ?? "")
       }
       .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Toggle(isOn: $sozialdatenZeigen) {
+            Label("Sozialdaten", systemImage: "person.3")
+          }
+          .toggleStyle(.button)
+        }
         ToolbarItem(placement: .topBarTrailing) {
           Toggle(isOn: $wahldatenZeigen) {
             Label("Wahldaten", systemImage: "chart.bar")
@@ -191,27 +215,47 @@ struct PosterMapView: View {
           .presentationDetents([.medium])
       }
       .overlay(alignment: .bottom) {
-        if wahldatenAktiv {
-          WahldatenPanel(
-            zustand: wahldaten.zustand,
-            wahlart: wahlart,
-            eingeklappt: wahldatenEingeklappt,
-            onWahlart: {
-              wahlartRoh = $0.rawValue
-              wahldatenEingeklappt = false
-            },
-            onErneut: {
-              guard let punkt = mitte else { return }
-              Task {
-                await wahldaten.lade(
-                  longitude: punkt.longitude, latitude: punkt.latitude,
-                  wahlart: wahlart, erzwingen: true
-                )
-              }
-            },
-            onEinklappen: { wahldatenEingeklappt.toggle() },
-            onSchliessen: { wahldatenZeigen = false }
-          )
+        if sozialdatenAktiv || wahldatenAktiv {
+          VStack(spacing: 8) {
+            if sozialdatenAktiv {
+              SozialdatenPanel(
+                zustand: sozialdaten.zustand,
+                gewaehlteQuelle: sozialQuelle,
+                genutzteQuelle: sozialdaten.genutzteQuelle,
+                gewaehlteKennung: sozialKennung,
+                eingeklappt: sozialdatenEingeklappt,
+                onQuelle: {
+                  sozialQuelleRoh = $0.rawValue
+                  sozialdatenEingeklappt = false
+                },
+                onKennung: { sozialKennung = $0 },
+                onEinklappen: { sozialdatenEingeklappt.toggle() },
+                onSchliessen: { sozialdatenZeigen = false }
+              )
+            }
+            if wahldatenAktiv {
+              WahldatenPanel(
+                zustand: wahldaten.zustand,
+                wahlart: wahlart,
+                eingeklappt: wahldatenEingeklappt,
+                onWahlart: {
+                  wahlartRoh = $0.rawValue
+                  wahldatenEingeklappt = false
+                },
+                onErneut: {
+                  guard let punkt = mitte else { return }
+                  Task {
+                    await wahldaten.lade(
+                      longitude: punkt.longitude, latitude: punkt.latitude,
+                      wahlart: wahlart, erzwingen: true
+                    )
+                  }
+                },
+                onEinklappen: { wahldatenEingeklappt.toggle() },
+                onSchliessen: { wahldatenZeigen = false }
+              )
+            }
+          }
           .padding(.horizontal, 12).padding(.bottom, 8)
         } else if flyerkarte && touren.isEmpty {
           Text(
@@ -272,10 +316,23 @@ extension PosterMapView {
 
   fileprivate var wahlart: Wahlart { Wahlart(rawValue: wahlartRoh) ?? .bundestag }
   fileprivate var wahldatenAktiv: Bool { wahldatenZeigen && !flyerkarte }
+  fileprivate var sozialQuelle: SozialdatenView.Quelle {
+    SozialdatenView.Quelle(rawValue: sozialQuelleRoh) ?? .regionalatlas
+  }
+  fileprivate var sozialdatenAktiv: Bool { sozialdatenZeigen && !flyerkarte }
+  /// Kreis nur, wenn wirklich Zensus-Werte angezeigt werden — nicht schon bei der Auswahl.
+  fileprivate var zensusKreisSichtbar: Bool { sozialdaten.genutzteQuelle == .zensus }
 
   fileprivate var wahldatenSchluessel: String {
     guard wahldatenAktiv, let punkt = mitte else { return "aus" }
     return String(format: "%@|%.2f|%.2f", wahlart.rawValue, punkt.latitude, punkt.longitude)
+  }
+
+  /// Drei Nachkommastellen wie der Vollbildschirm (~100 m). Android bricht erst bei 80 m ab;
+  /// die Rundung ist dieselbe Idee ohne eigenen Debounce.
+  fileprivate var sozialdatenSchluessel: String {
+    guard sozialdatenAktiv, let punkt = mitte else { return "aus" }
+    return String(format: "%@|%.3f|%.3f", sozialQuelle.rawValue, punkt.latitude, punkt.longitude)
   }
 }
 

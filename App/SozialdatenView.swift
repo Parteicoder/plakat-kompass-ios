@@ -177,7 +177,7 @@ struct OrtungAbgelehnt: View {
 /// dort, wo Werte aus Datenschutzgründen unterdrückt sind. Ohne diesen Hinweis wirkt es wie ein
 /// Fehler der App, wenn die Werte beim Quellenwechsel plötzlich aus der anderen Quelle kommen.
 /// Vorbild: `FallbackHinweis` in Android, `SocialDataPanel.kt`.
-private struct FallbackHinweis: View {
+struct FallbackHinweis: View {
     let genutzt: SozialdatenView.Quelle
 
     var body: some View {
@@ -194,13 +194,17 @@ private struct FallbackHinweis: View {
     }
 }
 
-private struct Ergebnis: View {
+struct Ergebnis: View {
     let wert: SocialValue
+    /// Auf der Karte ist Größe 40 zu hoch — der Vollbildschirm behält sie.
+    var kompakt: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(wert.formatted)
-                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .font(kompakt
+                      ? .title.bold()
+                      : .system(size: 40, weight: .bold, design: .rounded))
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(wert.indicator.label)
