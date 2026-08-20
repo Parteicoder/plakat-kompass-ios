@@ -619,6 +619,18 @@ extension PosterStatus {
         case .REMOVED: return Farben.grau
         }
     }
+
+    /// Eigene Palette für Kartenmarker und Karten-Filterchips, aus `ModernMapMarkers.kt` /
+    /// `ModernMapOverlay.kt` — Android benutzt dort andere Töne als für die Status-Ampel in
+    /// Liste und Bearbeiten. Siehe `Farben.kartenIndigo` für die Begründung.
+    var kartenFarbe: Color {
+        switch self {
+        case .HANGING, .REPLACED: return Farben.kartenIndigo
+        case .CHECKED: return Farben.kartenSmaragd
+        case .DAMAGED, .MISSING: return Farben.kartenRot
+        case .REMOVED: return Farben.kartenGrau
+        }
+    }
 }
 
 extension PosterType {

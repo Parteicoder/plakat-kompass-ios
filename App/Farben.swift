@@ -34,6 +34,18 @@ enum Farben {
     static let bernstein = paar(hell: 0xD97706, dunkel: 0xFBBF24)
     static let grau = paar(hell: 0x64748B, dunkel: 0xA99C90)
 
+    // MARK: - Kartenmarker
+    //
+    // Android führt für Kartenmarker und Karten-Filterchips eine zweite, eigene Palette
+    // (`ModernMapMarkers.kt`, `ModernMapOverlay.kt`) statt der Status-Ampel oben — statisch,
+    // ohne Dunkelmodus-Variante. Wer beide Karten nebeneinander legt, soll dieselben
+    // Markerfarben sehen, nicht die Listen-Ampel in Kartenform.
+
+    static let kartenIndigo = Color(hex: 0x6366F1)
+    static let kartenSmaragd = Color(hex: 0x10B981)
+    static let kartenRot = Color(hex: 0xDC2626)
+    static let kartenGrau = Color(hex: 0x64748B)
+
     /// Der Seitenhintergrund: fast weiss mit einem Stich ins Warme, im Dunkeln warmes Anthrazit.
     ///
     /// Android legt darüber einen dreistufigen Verlauf. Hier ist es eine Fläche: Unter einer

@@ -104,7 +104,7 @@ struct PosterMapView: View {
               ausgewaehlt = plakat
             } label: {
               Circle()
-                .fill(plakat.status.farbe)
+                .fill(plakat.status.kartenFarbe)
                 .frame(width: 22, height: 22)
                 .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
                 .shadow(radius: 2)
@@ -363,7 +363,7 @@ final class Gemeindegrenze: ObservableObject {
 
 /// Die drei Karten-Chips. Gegenstück zu `ModernMapStatusFilter.kt` — bewusst ein eigenes Enum statt
 /// `PosterFilter`, siehe die Erklärung an `kartenFilter` in `PosterMapView`. Dieselbe Dreiteilung
-/// steht schon in `PosterStatus.farbe`, hier nur um Titel und eine Mitgliedsprüfung ergänzt.
+/// steht schon in `PosterStatus.kartenFarbe`, hier nur um Titel und eine Mitgliedsprüfung ergänzt.
 private enum KartenStatusFilter: CaseIterable, Hashable {
   case aktiv, ok, probleme
 
@@ -377,9 +377,9 @@ private enum KartenStatusFilter: CaseIterable, Hashable {
 
   var farbe: Color {
     switch self {
-    case .aktiv: return Farben.blau
-    case .ok: return Farben.gruen
-    case .probleme: return Farben.rot
+    case .aktiv: return Farben.kartenIndigo
+    case .ok: return Farben.kartenSmaragd
+    case .probleme: return Farben.kartenRot
     }
   }
 
