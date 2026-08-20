@@ -142,6 +142,12 @@ struct BswKopfkarte: View {
                     .foregroundStyle(Farben.verlauf[1])
                     .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(.white.opacity(0.94), in: Capsule())
+            } else {
+                Label("Alle Abnahmen im Plan.", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Farben.verlauf[1])
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(.white.opacity(0.94), in: Capsule())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
