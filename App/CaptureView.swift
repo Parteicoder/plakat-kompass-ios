@@ -1,6 +1,7 @@
 import CoreLocation
 import PlakatKompassCore
 import SwiftUI
+import UIKit
 
 struct CaptureView: View {
     @EnvironmentObject private var model: AppModel
@@ -20,6 +21,11 @@ struct CaptureView: View {
     // fehlender/unbewertbarer/zu alter Fix blockiert, schlechte Genauigkeit fragt nach.
     @State private var standortFehler: String?
     @State private var ungenaueGenauigkeitBestaetigen = false
+
+    /// Aus dem GPS-Punkt reverse-geokodierte Adresse - Gegenstück zu Androids automatischem
+    /// `reverseGeocodeAddress` nach der Fotoaufnahme. Nur zur Anzeige und als Speichern-Fallback,
+    /// solange keine manuelle Adresse gesucht wurde.
+    @State private var automatischeAdresse: String?
     // Gegenstück zu BswHelpDialog "Foto & Standort" (PosterPhotoCaptureSection.kt) - erklärt
     // die Genauigkeitsstufen, bevor jemand ratlos vor "über 10 m" steht.
     @State private var hilfeOffen = false
@@ -60,16 +66,6 @@ struct CaptureView: View {
                     HStack {
                         Spacer()
                         Button {
-                            hilfeOffen = true
-                        } label: {
-                            Image(systemName: "questionmark.circle")
-                        }
-                        .accessibilityLabel("Hilfe zu Foto & Standort")
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button {
                             kameraOffen = true
                         } label: {
                             Image(systemName: foto == nil ? "camera.fill" : "checkmark.circle.fill")
@@ -94,20 +90,56 @@ struct CaptureView: View {
                     } else if standort.abgelehnt {
                         Label("Ortung ist abgelehnt.", systemImage: "location.slash")
                             .foregroundStyle(.red)
-                    } else if let position = standort.position {
-                        LabeledContent("Genauigkeit", value: "ca. \(Int(position.horizontalAccuracy)) m")
-                        // Dreistufige Rueckmeldung statt eines einzelnen 30-m-Schwellwerts -
-                        // sinngemaess PosterPhotoLocationValidation.accuracyWarning wie auf Android.
-                        if let hinweis = PosterPhotoLocationValidation.accuracyWarning(
-                            accuracyMeters: position.horizontalAccuracy >= 0 ? position.horizontalAccuracy : nil
-                        ) {
-                            Text(hinweis)
-                                .font(.footnote)
-                                .foregroundStyle(position.horizontalAccuracy > PosterPhotoLocationValidation.okAccuracyMeters ? .red : .orange)
-                        }
                     } else {
-                        Label("Standort wird gesucht …", systemImage: "location")
-                            .foregroundStyle(.secondary)
+                        // Nur ungefaehrer Standort erlaubt - Gegenstueck zum Android-Dialog bei
+                        // hasApproximateOnlyLocationPermission. iOS oeffnet die Kamera immer
+                        // sofort (kein Gate vor der Aufnahme), deshalb hier als Hinweis statt als
+                        // Dialog: der Nutzer kann "trotzdem versuchen", indem er einfach
+                        // weitermacht - wie beim Android-Dialog-Knopf "Trotzdem versuchen".
+                        if standort.reduzierteGenauigkeit {
+                            Label("Nur ungefährer Standort erlaubt.", systemImage: "location.slash")
+                                .foregroundStyle(.orange)
+                            Text("""
+                            Für Plakate und Flyerwege bitte in den Einstellungen „Genauen \
+                            Standort verwenden“ aktivieren.
+                            """)
+                            .font(.footnote).foregroundStyle(.secondary)
+                            Button("Einstellungen öffnen") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.footnote)
+                        }
+                        if let position = standort.position {
+                            LabeledContent("Genauigkeit", value: "ca. \(Int(position.horizontalAccuracy)) m")
+                            // Dreistufige Rueckmeldung statt eines einzelnen 30-m-Schwellwerts -
+                            // sinngemaess PosterPhotoLocationValidation.accuracyWarning wie auf Android.
+                            if let hinweis = PosterPhotoLocationValidation.accuracyWarning(
+                                accuracyMeters: position.horizontalAccuracy >= 0 ? position.horizontalAccuracy : nil
+                            ) {
+                                Text(hinweis)
+                                    .font(.footnote)
+                                    .foregroundStyle(position.horizontalAccuracy > PosterPhotoLocationValidation.okAccuracyMeters ? .red : .orange)
+                            }
+                            // Automatische Adresse zum GPS-Punkt - sinngemaess Androids
+                            // PosterPhotoCaptureSection-Kartentext (inkl. Offline-Hinweis, wenn
+                            // der Geocoder ohne Netz nichts liefern kann).
+                            if let adr = automatischeAdresse {
+                                Text(adr)
+                            } else if Netzstatus.geteilt.verfuegbar {
+                                Text("Adresse wird aus GPS übernommen …").foregroundStyle(.secondary)
+                            } else {
+                                Text("""
+                                Ohne Internet lässt sich zu diesen Koordinaten keine Adresse \
+                                ermitteln. Das Plakat wird trotzdem am richtigen Punkt gespeichert.
+                                """)
+                                .font(.footnote).foregroundStyle(.orange)
+                            }
+                        } else {
+                            Label("Standort wird gesucht …", systemImage: "location")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -166,6 +198,24 @@ struct CaptureView: View {
                 }
             }
             .navigationTitle("Erfassen")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { hilfeOffen = true } label: { Image(systemName: "questionmark.circle") }
+                        .accessibilityLabel("Hilfe zu Foto & Standort")
+                }
+            }
+            // Gegenstück zu BswHelpDialog auf Android (PosterPhotoCaptureSection.kt) - derselbe
+            // Erklärtext, hier als natives Alert statt eigener Dialog-Komponente.
+            .alert("Foto & Standort", isPresented: $hilfeOffen) {
+                Button("OK") {}
+            } message: {
+                Text("""
+                Die App versucht beim Foto automatisch, den Standort zu ermitteln. Ideal sind \
+                3 bis 5 m Genauigkeit. Bis 10 m wird der Standort direkt übernommen. Über 10 m \
+                fragt die App nach, ob du den Standort trotzdem übernehmen willst. Alternativ \
+                kannst du die Adresse manuell eingeben.
+                """)
+            }
             .fullScreenCover(isPresented: $kameraOffen) {
                 KameraAufnahme { aufgenommen in
                     if let aufgenommen { foto = aufgenommen }
@@ -174,21 +224,16 @@ struct CaptureView: View {
                 .ignoresSafeArea()
             }
             .task { standort.starte() }
+            // CLLocation ist nicht Equatable - der Zeitstempel aendert sich mit jedem Fix und
+            // dient als Ausloeser.
+            .onChange(of: standort.position?.timestamp) { _, _ in
+                loeseAutomatischeAdresseAuf(standort.position)
+            }
             .onDisappear { standort.stoppe() }
             .alert("Standort ungültig", isPresented: .constant(standortFehler != nil)) {
                 Button("OK") { standortFehler = nil }
             } message: {
                 Text(standortFehler ?? "")
-            }
-            .alert("Foto & Standort", isPresented: $hilfeOffen) {
-                Button("Fertig") {}
-            } message: {
-                Text("""
-                Die App versucht beim Foto automatisch, den Standort zu ermitteln. \
-                Ideal sind 3 bis 5 m Genauigkeit. Bis 10 m wird der Standort direkt \
-                übernommen. Über 10 m fragt die App nach, ob du den Standort trotzdem \
-                übernehmen willst. Alternativ kannst du die Adresse manuell eingeben.
-                """)
             }
             .confirmationDialog(
                 standort.position.map { PosterPhotoLocationValidation.confirmationMessage(accuracyMeters: $0.horizontalAccuracy) } ?? "",
@@ -229,13 +274,30 @@ struct CaptureView: View {
         speichere()
     }
 
+    /// Reverse-Geocoding des GPS-Punkts, sinngemaess Androids `reverseGeocodeAddress` nach der
+    /// Fotoaufnahme. Nur EIN Versuch pro Standort-Session (nicht bei jedem Fix neu), sonst
+    /// haemmert jede GPS-Aktualisierung gegen Apples Geocoder-Ratenlimit - genau wie Android
+    /// erst ab ausreichender Genauigkeit reverse-geokodiert statt bei jedem Zwischenwert.
+    private func loeseAutomatischeAdresseAuf(_ position: CLLocation?) {
+        guard adressSuche.treffer == nil, automatischeAdresse == nil,
+              let position, position.horizontalAccuracy >= 0,
+              position.horizontalAccuracy <= PosterPhotoLocationValidation.okAccuracyMeters,
+              Netzstatus.geteilt.verfuegbar
+        else { return }
+        CLGeocoder().reverseGeocodeLocation(position) { plaetze, _ in
+            guard let platz = plaetze?.first, let beschriftung = AdresseAufloesen.beschriftung(platz)
+            else { return }
+            Task { @MainActor in automatischeAdresse = beschriftung }
+        }
+    }
+
     private func speichere() {
         guard let foto, let ort = wirksamerOrt else { return }
 
-        // Wer die Adresse von Hand gesucht hat und das Hinweisfeld leer liess, bekommt Apples
-        // saubere Schreibweise als Hinweis. Eigene Eingabe hat aber Vorrang - sie steht oft
-        // genauer da ("Laterne gegenueber Nr. 12").
-        let hinweis = adresse.isEmpty ? (adressSuche.treffer?.beschriftung ?? "") : adresse
+        // Wer die Adresse von Hand gesucht oder automatisch aus GPS aufgeloest bekommen hat und
+        // das Hinweisfeld leer liess, bekommt Apples saubere Schreibweise als Hinweis. Eigene
+        // Eingabe hat aber Vorrang - sie steht oft genauer da ("Laterne gegenueber Nr. 12").
+        let hinweis = adresse.isEmpty ? (adressSuche.treffer?.beschriftung ?? automatischeAdresse ?? "") : adresse
 
         let geklappt = model.erfassePlakat(
             foto: foto,
@@ -260,6 +322,7 @@ struct CaptureView: View {
         // stehengebliebene Adresse waere der sicherste Weg zu zwei Plakaten auf einem Punkt.
         manuelleAdresse = ""
         adressSuche.verwirf()
+        automatischeAdresse = nil
         amtlicheBemerkung = ""
         interneBemerkung = ""
         // Art und Abnahmefrist bleiben stehen: Das nächste Plakat ist meistens dasselbe an der

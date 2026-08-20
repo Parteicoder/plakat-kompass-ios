@@ -58,7 +58,10 @@ final class AdresseAufloesen: ObservableObject {
     }
 
     /// Strasse mit Hausnummer und Ort, sofern Apple beides liefert. Sonst, was da ist.
-    private static func beschriftung(_ platz: CLPlacemark) -> String? {
+    ///
+    /// Nicht mehr `private`: `CaptureView` braucht dieselbe Formatierung fürs automatische
+    /// Reverse-Geocoding des GPS-Punkts (Gegenstück zu Androids `reverseGeocodeAddress`).
+    static func beschriftung(_ platz: CLPlacemark) -> String? {
         let strasse = [platz.thoroughfare, platz.subThoroughfare]
             .compactMap { $0 }.joined(separator: " ")
         let ort = platz.locality ?? platz.subAdministrativeArea

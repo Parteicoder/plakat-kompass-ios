@@ -104,6 +104,9 @@ struct KameraAufnahme: UIViewControllerRepresentable {
 final class Standort: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var position: CLLocation?
     @Published var abgelehnt = false
+    /// Nur ungefährer Standort erlaubt — Gegenstück zu Androids Prüfung auf die
+    /// Coarse-Location-Berechtigung, hier aus `accuracyAuthorization` gelesen.
+    @Published var reduzierteGenauigkeit = false
     /// Blickrichtung des Geräts in Grad (0 = Norden). Gegenstück zu `rememberDeviceAzimuth` auf
     /// Android — dort aus dem Rotationsvektor-Sensor gerechnet, hier liefert CoreLocation das
     /// direkt. Fehlt der Sensor, bleibt der Wert 0: Die Kompassnadel zeigt dann fest nach Norden
@@ -119,6 +122,7 @@ final class Standort: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func starte() {
+        reduzierteGenauigkeit = manager.accuracyAuthorization == .reducedAccuracy
         switch manager.authorizationStatus {
         case .notDetermined: manager.requestWhenInUseAuthorization()
         case .denied, .restricted: abgelehnt = true
@@ -149,6 +153,7 @@ final class Standort: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
+            self.reduzierteGenauigkeit = manager.accuracyAuthorization == .reducedAccuracy
             switch manager.authorizationStatus {
             case .authorizedWhenInUse, .authorizedAlways:
                 self.abgelehnt = false
