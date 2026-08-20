@@ -261,6 +261,16 @@ private struct UmzugBeimEinrichten: View {
                     Label("Backup empfangen", systemImage: "iphone.and.arrow.forward")
                 }
 
+            // Unerreichbar über diesen Knopf (der ruft nur empfange() auf), aber der Zustand
+            // gehört derselben HandywechselNearby-Instanz wie der Sende-Weg — der switch muss
+            // ihn trotzdem kennen.
+            case .paketWirdErstellt:
+                HStack {
+                    ProgressView()
+                    Text("Backup wird gepackt …").padding(.leading, 8)
+                }
+                Button("Abbrechen", role: .cancel) { umzug.stop() }
+
             case .sucht:
                 HStack {
                     ProgressView()

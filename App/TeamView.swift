@@ -235,7 +235,10 @@ struct TeamQrView: View {
         }
     }
 
-    private static func qrBild(_ text: String) -> UIImage? {
+    /// `nonisolated`, nicht nur `static`: Ohne das leitet der Compiler MainActor-Isolation aus
+    /// der `View`-Konformität her (CI-Fund) — dann liefe die Erzeugung trotz `Task.detached`
+    /// weiterhin auf dem Hauptthread und der ganze Umbau in `erneuere()` wäre wirkungslos.
+    private nonisolated static func qrBild(_ text: String) -> UIImage? {
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(text.utf8)
         // H: hoechste Fehlerkorrektur. Der Code wird oft von einem Bildschirm abfotografiert,
