@@ -20,6 +20,9 @@ struct StartView: View {
     // Gegenstück zu Androids "rated" (RatingPromptStore.kt): einmal gesetzt, fragt
     // sollAnzeigen() nie wieder - unabhaengig vom Zaehler oben.
     @AppStorage("bewertungBereitsBewertet") private var bewertungBereitsBewertet = false
+    // Gegenstück zu ModernActionCard "Offline-Team beitreten" (ModernHomeScreen.kt) - Android
+    // zeigt den QR-Beitritt direkt auf der Startseite, nicht nur unter "Abgleich"/"Team".
+    @State private var teamDialogOffen = false
 
     private var zahlen: HomeStats { HomeStats(posters: model.state.posters) }
 
@@ -33,23 +36,6 @@ struct StartView: View {
                         plakate: model.state.posters.count,
                         ueberfaellig: model.faelligeAbnahmen
                     )
-
-                    if model.faelligeAbnahmen > 0 {
-                        Faelliges(anzahl: model.faelligeAbnahmen)
-                    }
-
-                    Zahlenreihe(zahlen: zahlen)
-
-                    // Nur fuer die Teamleitung, genau wie auf Android (AccessPolicy.canShowQr).
-                    // Wer keinen QR ausgeben darf, soll den Schalter gar nicht erst sehen.
-                    if AccessPolicy.canShowQr(model.state) {
-                        Teamaufnahme(nearby: model.nearby)
-                    }
-
-                    UnterstuetzenUndGemeinschaft {
-                        bewertungBereitsBewertet = true
-                        bewertungAnfragen()
-                    }
 
                     if let treffer = naechstes {
                         NaechstesPlakat(
@@ -69,6 +55,31 @@ struct StartView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.top, 8)
+                    }
+
+                    if !model.kannAbgleichen {
+                        Button {
+                            teamDialogOffen = true
+                        } label: {
+                            Label("Einem Team beitreten", systemImage: "person.2.badge.plus")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(14)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    Zahlenreihe(zahlen: zahlen)
+
+                    // Nur fuer die Teamleitung, genau wie auf Android (AccessPolicy.canShowQr).
+                    // Wer keinen QR ausgeben darf, soll den Schalter gar nicht erst sehen.
+                    if AccessPolicy.canShowQr(model.state) {
+                        Teamaufnahme(nearby: model.nearby)
+                    }
+
+                    UnterstuetzenUndGemeinschaft {
+                        bewertungBereitsBewertet = true
+                        bewertungAnfragen()
                     }
                 }
                 .padding(16)
@@ -94,6 +105,7 @@ struct StartView: View {
                     }
                 }
             }
+            .sheet(isPresented: $teamDialogOffen) { TeamBeitrittView() }
             .onAppear { standort.starte() }
             .onDisappear { standort.stoppe() }
             .task { pruefeBewertungsfenster() }
@@ -277,27 +289,6 @@ private struct Teamaufnahme: View {
 
 /// Der einzige Hinweis, der auffallen muss. Alles andere auf dieser Seite ist Information,
 /// das hier ist eine Frist.
-private struct Faelliges: View {
-    let anzahl: Int
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(anzahl == 1 ? "1 Plakat abnehmen" : "\(anzahl) Plakate abnehmen")
-                    .font(.headline)
-                Text("Die Abnahmefrist ist erreicht.")
-                    .font(.caption)
-            }
-            Spacer()
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .background(Farben.rot, in: RoundedRectangle(cornerRadius: 14))
-    }
-}
-
 private struct Zahlenreihe: View {
     @EnvironmentObject private var model: AppModel
     let zahlen: HomeStats
