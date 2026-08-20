@@ -139,6 +139,13 @@ struct TeamQrView: View {
     @State private var code: String?
     @State private var folge: Int64 = 0
     @State private var restSekunden = Int(RollingTeamInvite.ttlSekunden)
+    /// Zum `code` gehöriges Bild. Getrennt vom Code gehalten und off-Main erzeugt (siehe
+    /// `erneuere()`), statt `qrBild(code)` bei jedem Sekundentakt erneut synchron im Body
+    /// aufzurufen: Der Code wechselt nur alle ~55 Sekunden, das Bild wurde bis hierher aber
+    /// jede Sekunde neu berechnet — derselbe wiederholte Kostenpunkt, den Android am 25.7.
+    /// behoben hat (Commit `162fe36`, `ModernTeamQrCard.kt`, dort über `produceState` auf
+    /// `Dispatchers.Default`).
+    @State private var bild: UIImage?
 
     /// Der Takt der Anzeige. Der Code selbst wird kurz VOR Ablauf erneuert, nicht danach —
     /// sonst hielte die Teamleitung für einen Moment einen bereits ungültigen Code hin, und der
@@ -149,7 +156,7 @@ struct TeamQrView: View {
         Group {
             if model.einladungFuerQr() != nil {
                 VStack(spacing: 14) {
-                    if codeSichtbar, let code, let bild = qrBild(code) {
+                    if codeSichtbar, let bild {
                         Image(uiImage: bild)
                             .interpolation(.none)
                             .resizable()
@@ -201,8 +208,20 @@ struct TeamQrView: View {
 
     private func erneuere() {
         folge += 1
-        code = model.einladungFuerQr(folge: folge)
+        let neuerCode = model.einladungFuerQr(folge: folge)
+        code = neuerCode
         restSekunden = Int(RollingTeamInvite.ttlSekunden)
+        bild = nil
+        guard let neuerCode else { return }
+        Task.detached(priority: .userInitiated) {
+            let erzeugt = Self.qrBild(neuerCode)
+            await MainActor.run {
+                // Inzwischen kann schon der naechste Code faellig geworden sein — dann nicht
+                // mehr das (bereits veraltete) Bild von diesem Durchlauf einsetzen.
+                guard neuerCode == code else { return }
+                bild = erzeugt
+            }
+        }
     }
 
     private func ticke() {
@@ -216,7 +235,7 @@ struct TeamQrView: View {
         }
     }
 
-    private func qrBild(_ text: String) -> UIImage? {
+    private static func qrBild(_ text: String) -> UIImage? {
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(text.utf8)
         // H: hoechste Fehlerkorrektur. Der Code wird oft von einem Bildschirm abfotografiert,

@@ -55,6 +55,11 @@ final class HandywechselNearby: ObservableObject {
     private var eingehende: [PayloadID: URL] = [:]
     private var abbruchUhr: Task<Void, Never>?
 
+    /// Eigener Riegel statt `laeuft`: `zustand` wechselt erst NACH dem Packen des Backups auf
+    /// `.sucht(...)`, seit `sende()` async ist (Off-Main-Fix gegen UI-Einfrieren bei vielen
+    /// Fotos) läge dazwischen sonst ein Zeitfenster für einen zweiten Tipp auf denselben Knopf.
+    private var paketWirdErstellt = false
+
     /// So lange wird gesucht, bevor abgebrochen wird. Grosszügig, weil beim Umzug niemand
     /// nebenher etwas anderes tut — aber nicht endlos, sonst funkt ein vergessener Bildschirm
     /// den ganzen Nachmittag.
@@ -75,13 +80,15 @@ final class HandywechselNearby: ObservableObject {
 
     /// Das **alte** Gerät. Packt sofort das Backup — vor dem Funk, damit ein Fehler beim Packen
     /// auffällt, solange noch niemand wartet.
-    func sende() {
-        guard !laeuft else { return }
+    func sende() async {
+        guard !laeuft, !paketWirdErstellt else { return }
         guard let model, model.istEingerichtet else {
             zustand = .fehler("Auf diesem Gerät ist nichts eingerichtet, was umziehen könnte.")
             return
         }
-        guard let paket = model.erzeugeHandywechselBackup() else {
+        paketWirdErstellt = true
+        defer { paketWirdErstellt = false }
+        guard let paket = await model.erzeugeHandywechselBackup() else {
             zustand = .fehler("Das Backup liess sich nicht packen.")
             return
         }

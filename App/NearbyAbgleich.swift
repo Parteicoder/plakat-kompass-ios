@@ -253,26 +253,35 @@ final class NearbyAbgleich: ObservableObject {
 
     // MARK: - Senden
 
+    /// `erzeugeSyncPaket()` läuft seit dem Off-Main-Fix (Android-Vorbild, Issue #155) async — ein
+    /// `Task` bringt sie hierher, weil `sendeStand` selbst über `MainActor.assumeIsolated`
+    /// (synchron, kein `await` möglich) aus einem Nearby-Rückruf aufgerufen wird. Die Bedingungen
+    /// werden danach erneut geprüft: Der Stand kann sich während des Packens geändert haben, dann
+    /// soll das veraltete Paket nicht mehr rausgehen.
     private func sendeStand(an endpunkt: EndpointID) {
-        guard let manager, let model,
-              geprueft.contains(endpunkt), bestaetigtUns.contains(endpunkt) else { return }
-        // Gleicher Inhalt wie zuletzt: nichts tun. Ohne diese Prüfung schaukeln sich zwei Geräte
-        // gegenseitig hoch — jedes empfangene Paket ändert den Stand und löste ein neues aus.
-        guard letzterStand[endpunkt] != model.state, let datei = model.erzeugeSyncPaket() else {
-            return
-        }
+        guard geprueft.contains(endpunkt), bestaetigtUns.contains(endpunkt),
+              let model, letzterStand[endpunkt] != model.state
+        else { return }
 
-        let sendung = PayloadID.unique()
-        eigeneSendungen[sendung] = Sendung(endpunkt: endpunkt, datei: datei, stand: model.state)
-        _ = manager.sendResource(
-            at: datei, withName: datei.lastPathComponent, to: [endpunkt], id: sendung
-        ) { fehler in
-            guard let fehler else { return }
-            Task { @MainActor [weak self] in
-                // Nicht abgeschickt: Stand **nicht** als gesendet merken, damit es erneut
-                // versucht wird, statt denselben Stand für immer zu überspringen.
-                self?.raeumeSendungAuf(sendung)
-                self?.melde("Senden fehlgeschlagen: \(NearbyFehlertext.fuer(fehler))")
+        Task { @MainActor [weak self] in
+            guard let self, let manager = self.manager, let model = self.model,
+                  let datei = await model.erzeugeSyncPaket(),
+                  self.geprueft.contains(endpunkt), self.bestaetigtUns.contains(endpunkt),
+                  self.letzterStand[endpunkt] != model.state
+            else { return }
+
+            let sendung = PayloadID.unique()
+            self.eigeneSendungen[sendung] = Sendung(endpunkt: endpunkt, datei: datei, stand: model.state)
+            _ = manager.sendResource(
+                at: datei, withName: datei.lastPathComponent, to: [endpunkt], id: sendung
+            ) { fehler in
+                guard let fehler else { return }
+                Task { @MainActor [weak self] in
+                    // Nicht abgeschickt: Stand **nicht** als gesendet merken, damit es erneut
+                    // versucht wird, statt denselben Stand für immer zu überspringen.
+                    self?.raeumeSendungAuf(sendung)
+                    self?.melde("Senden fehlgeschlagen: \(NearbyFehlertext.fuer(fehler))")
+                }
             }
         }
     }

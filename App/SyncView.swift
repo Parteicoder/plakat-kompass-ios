@@ -49,7 +49,7 @@ struct SyncView: View {
 
                         Section {
                             Button {
-                                teilenDatei = model.erzeugeSyncPaket()
+                                Task { teilenDatei = await model.erzeugeSyncPaket() }
                             } label: {
                                 Label("Sync-Paket teilen", systemImage: "square.and.arrow.up")
                             }
@@ -326,7 +326,7 @@ private struct VerwaltungsExport: View {
             TextField("Kommune", text: $kommune)
                 .textInputAutocapitalization(.words)
             Button {
-                teilenDatei = model.erzeugeVerwaltungsExport(kommune: kommune)
+                Task { teilenDatei = await model.erzeugeVerwaltungsExport(kommune: kommune) }
             } label: {
                 Label("Liste für die Verwaltung", systemImage: "doc.text")
             }
