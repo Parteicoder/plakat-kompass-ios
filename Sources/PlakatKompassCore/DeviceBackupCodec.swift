@@ -34,7 +34,9 @@ public enum DeviceBackupCodec {
     static let minValidPhotoBytes = 1024
     static let maxSinglePhotoBytes = 8 * 1024 * 1024
     static let maxTotalPhotoBytes = 250 * 1024 * 1024
-    static let maxBackupBytes = 300 * 1024 * 1024
+    /// `public`, aus demselben Grund wie `SyncBundleCodec.maxBundleBytes`: `App/AppModel.swift`
+    /// muss die Dateigröße vor dem Laden prüfen können.
+    public static let maxBackupBytes = 300 * 1024 * 1024
 
     /// Der Schlüssel wird aus dem Transfer-Geheimnis abgeleitet, nicht aus dem Team-Schlüssel.
     ///
@@ -179,11 +181,19 @@ public enum DeviceBackupCodec {
         guard let eintrag = archive["device_state.json"] else {
             throw SyncError.ungueltigesPaket("device_state.json fehlt.")
         }
+        // `uncompressedSize` ist nur die deklarierte ZIP-Metadatengröße, kein verlässlicher Deckel
+        // (dieselbe Lücke, dieselbe Begründung wie in `SyncBundleCodec.importVerifiedBundle`) —
+        // deshalb hier zusätzlich waehrend des Streamens zaehlen statt nur vorher zu schaetzen.
         guard eintrag.uncompressedSize <= maxStateBytes else {
             throw SyncError.zuGross("Der Gerätestand im Backup")
         }
         var stateBytes = Data()
-        _ = try archive.extract(eintrag) { teil in stateBytes.append(teil) }
+        _ = try archive.extract(eintrag) { teil in
+            stateBytes.append(teil)
+            guard stateBytes.count <= maxStateBytes else {
+                throw SyncError.zuGross("Der Gerätestand im Backup")
+            }
+        }
         let state = try stateFromJson(stateBytes)
 
         // Erst jetzt auf die Platte, und nur, was der Stand auch nennt.
@@ -195,12 +205,20 @@ public enum DeviceBackupCodec {
             guard entry.uncompressedSize <= maxSinglePhotoBytes else {
                 throw SyncError.zuGross("Ein Foto im Backup")
             }
-            gesamt += Int(entry.uncompressedSize)
-            guard gesamt <= maxTotalPhotoBytes else {
+            guard gesamt + Int(entry.uncompressedSize) <= maxTotalPhotoBytes else {
                 throw SyncError.zuGross("Die Fotos im Backup zusammen")
             }
             var foto = Data()
-            _ = try archive.extract(entry) { teil in foto.append(teil) }
+            _ = try archive.extract(entry) { teil in
+                foto.append(teil)
+                guard foto.count <= maxSinglePhotoBytes else {
+                    throw SyncError.zuGross("Ein Foto im Backup")
+                }
+                guard gesamt + foto.count <= maxTotalPhotoBytes else {
+                    throw SyncError.zuGross("Die Fotos im Backup zusammen")
+                }
+            }
+            gesamt += foto.count
             guard foto.count >= minValidPhotoBytes else {
                 throw SyncError.ungueltigesPaket("Ein Foto im Backup ist leer oder beschädigt: \(name)")
             }

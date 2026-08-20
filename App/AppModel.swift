@@ -259,6 +259,18 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Prüft die Dateigröße auf der Platte, BEVOR `Data(contentsOf:)` die ganze Datei in den
+    /// Speicher lädt. Ohne diesen Schritt käme der Größendeckel in `openBundle`/`restoreBackup`
+    /// immer zu spät: Eine über „Öffnen mit" hereingereichte, absichtlich riesige Datei würde
+    /// erst vollständig gepuffert und könnte die App per Speicherdruck abschießen, bevor der
+    /// Deckel überhaupt geprüft wird. `attributesOfItem` liest nur die Metadaten, nicht die Datei.
+    private func pruefeDateigroesseVorLaden(_ url: URL, deckel: Int, was: String) throws {
+        let groesse = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int
+        if let groesse, groesse > deckel {
+            throw SyncError.zuGross(was)
+        }
+    }
+
     /// Übernimmt ein Backup auf dem **neuen** Gerät und **ersetzt** damit alles Bisherige.
     ///
     /// Das ist keine Zusammenführung wie beim Abgleich, sondern ein Überschreiben — mitsamt
@@ -266,6 +278,7 @@ final class AppModel: ObservableObject {
     /// Rückfrage passieren; die stellt der Experten-Bildschirm, nicht diese Methode.
     func uebernimmHandywechselBackup(von url: URL, geheimnis: String) {
         do {
+            try pruefeDateigroesseVorLaden(url, deckel: DeviceBackupCodec.maxBackupBytes, was: "Das Handywechsel-Backup")
             let daten = try Data(contentsOf: url)
             let neu = try DeviceBackupCodec.restoreBackup(
                 daten,
@@ -286,6 +299,7 @@ final class AppModel: ObservableObject {
         defer { if brauchtFreigabe { url.stopAccessingSecurityScopedResource() } }
 
         do {
+            try pruefeDateigroesseVorLaden(url, deckel: SyncBundleCodec.maxBundleBytes, was: "Das Sync-Paket")
             let data = try Data(contentsOf: url)
             let snapshot = try SyncBundleCodec.importVerifiedBundle(
                 data: data,
