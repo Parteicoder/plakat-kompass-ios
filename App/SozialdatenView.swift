@@ -51,7 +51,10 @@ struct SozialdatenView: View {
             }
 
             // Beim Raster gibt es keine Auswahl: Eine Abfrage liefert ohnehin alle Kennzahlen.
-            if gewaehlteQuelle == .regionalatlas {
+            // An der GENUTZTEN Quelle haengen, nicht an der gewaehlten: Faellt Zensus auf den
+            // Regionalatlas zurueck, muessen die zehn Kennzahlen waehlbar sein — sonst steht
+            // nur "fuer diese Kennzahl liegt kein Wert vor", obwohl die Werte da sind.
+            if (abruf.genutzteQuelle ?? gewaehlteQuelle) == .regionalatlas {
                 Section {
                     Picker("Kennzahl", selection: $gewaehlteKennung) {
                         ForEach(SocialIndicator.alle) { i in
