@@ -32,7 +32,6 @@ struct SozialdatenView: View {
     }
 
     private var gewaehlteQuelle: Quelle { Quelle(rawValue: quelle) ?? .regionalatlas }
-    private var indikator: SocialIndicator { .mitId(gewaehlteKennung) }
 
     var body: some View {
         List {
@@ -75,6 +74,11 @@ struct SozialdatenView: View {
                         text: "Ohne Standort lassen sich keine Sozialdaten zum Gebiet abrufen."
                     )
                 } else {
+                    // Genutzte Quelle statt gewählter: Bei einem Rückfall (siehe Sozialdatenabruf)
+                    // zeigen wir Zensus- oder Regionalatlas-Werte, obwohl der Schalter oben etwas
+                    // anderes sagt — Hinweis und Quellenangabe müssen dem folgen, sonst wirkt es
+                    // wie ein Fehler der App.
+                    let quelleGenutzt = abruf.genutzteQuelle ?? gewaehlteQuelle
                     switch abruf.zustand {
                     case .ruhe:
                         Text("Warte auf den Standort …").foregroundStyle(.secondary)
@@ -84,11 +88,18 @@ struct SozialdatenView: View {
                         Text("Für diesen Bereich liegen keine Werte vor.").foregroundStyle(.secondary)
                     case .fehler(let text):
                         Text(text).foregroundStyle(.orange)
-                    case .wert(let wert):
-                        Ergebnis(wert: wert)
                     case .werte(let werte):
-                        ForEach(werte, id: \.indicator.id) { wert in
-                            LabeledContent(wert.indicator.label, value: wert.formatted)
+                        if quelleGenutzt != gewaehlteQuelle {
+                            FallbackHinweis(genutzt: quelleGenutzt)
+                        }
+                        if quelleGenutzt == .zensus {
+                            ForEach(werte, id: \.indicator.id) { wert in
+                                LabeledContent(wert.indicator.label, value: wert.formatted)
+                            }
+                        } else if let treffer = werte.first(where: { $0.indicator.id == gewaehlteKennung }) {
+                            Ergebnis(wert: treffer)
+                        } else {
+                            Text("Für diese Kennzahl liegt kein Wert vor.").foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -96,7 +107,7 @@ struct SozialdatenView: View {
                 Text("Ergebnis")
             } footer: {
                 Text("""
-                Quelle: \(gewaehlteQuelle == .zensus ? ZensusRaster.quellenangabe : RegionalAtlas.quellenangabe). \
+                Quelle: \((abruf.genutzteQuelle ?? gewaehlteQuelle) == .zensus ? ZensusRaster.quellenangabe : RegionalAtlas.quellenangabe). \
                 Alle Werte sind gebietsbezogen und aggregiert — es werden keine personenbezogenen \
                 Daten erhoben oder gespeichert.
                 """)
@@ -109,34 +120,25 @@ struct SozialdatenView: View {
         .task(id: aufrufSchluessel) { await hole() }
     }
 
-    /// Wechselt der Standort oder die Kennzahl, läuft die Abfrage neu. Die Koordinate wird auf
-    /// drei Nachkommastellen gerundet — sonst löst jedes Zittern der Ortung eine neue Abfrage
-    /// aus, und rund 100 Meter ändern am Gebiet ohnehin nichts.
+    /// Wechselt der Standort oder die Quelle, läuft die Abfrage neu. Die Koordinate wird auf drei
+    /// Nachkommastellen gerundet — sonst löst jedes Zittern der Ortung eine neue Abfrage aus, und
+    /// rund 100 Meter ändern am Gebiet ohnehin nichts.
+    ///
+    /// Die Kennzahl steht bewusst NICHT mehr im Schlüssel: Der Regionalatlas-Abruf holt seit der
+    /// Umstellung auf `regionalatlasAlle` ohnehin alle Kennzahlen auf einmal, ein Wechsel der
+    /// Auswahl blättert nur noch im schon vorliegenden Ergebnis um, ohne erneut zu laden.
     private var aufrufSchluessel: String {
         guard let ort = standort.position else { return "kein-ort" }
-        // Beim Raster ist die Kennzahl egal - eine Abfrage liefert alle. Sie trotzdem in den
-        // Schluessel zu nehmen hiesse, bei jedem Wechsel fuenfzehn Sekunden neu zu warten.
-        let kennung = gewaehlteQuelle == .zensus ? "raster" : gewaehlteKennung
-        return String(
-            format: "%@|%@|%.3f|%.3f",
-            quelle, kennung, ort.coordinate.latitude, ort.coordinate.longitude
-        )
+        return String(format: "%@|%.3f|%.3f", quelle, ort.coordinate.latitude, ort.coordinate.longitude)
     }
 
     private func hole() async {
         guard let ort = standort.position else { return }
-        if gewaehlteQuelle == .zensus {
-            await abruf.holeRaster(
-                latitude: ort.coordinate.latitude,
-                longitude: ort.coordinate.longitude
-            )
-        } else {
-            await abruf.hole(
-                indikator: indikator,
-                latitude: ort.coordinate.latitude,
-                longitude: ort.coordinate.longitude
-            )
-        }
+        await abruf.lade(
+            bevorzugt: gewaehlteQuelle,
+            latitude: ort.coordinate.latitude,
+            longitude: ort.coordinate.longitude
+        )
     }
 }
 
@@ -163,6 +165,29 @@ struct OrtungAbgelehnt: View {
             .font(.footnote)
         }
         .padding(.vertical, 4)
+    }
+}
+
+/// Erklärt in einem Satz, warum gerade etwas anderes zu sehen ist als angetippt.
+///
+/// Das 100-m-Raster des Zensus hat echte Lücken: auf dem Land, in Gewerbegebieten und überall
+/// dort, wo Werte aus Datenschutzgründen unterdrückt sind. Ohne diesen Hinweis wirkt es wie ein
+/// Fehler der App, wenn die Werte beim Quellenwechsel plötzlich aus der anderen Quelle kommen.
+/// Vorbild: `FallbackHinweis` in Android, `SocialDataPanel.kt`.
+private struct FallbackHinweis: View {
+    let genutzt: SozialdatenView.Quelle
+
+    var body: some View {
+        Text(
+            genutzt == .regionalatlas
+                ? "Für diesen Punkt liegen keine Zensus-Werte vor. Angezeigt werden Werte aus dem Regionalatlas für das umgebende Gebiet."
+                : "Für diesen Punkt liegen keine Regionalatlas-Werte vor. Angezeigt werden Werte aus dem Zensus 2022 für den näheren Umkreis."
+        )
+        .font(.caption)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.orange.opacity(0.5)))
     }
 }
 
@@ -194,14 +219,19 @@ final class Sozialdatenabruf: ObservableObject {
 
     enum Zustand {
         case ruhe, laedt, leer
-        case wert(SocialValue)
-        /// Das Raster liefert alle Kennzahlen aus EINER Abfrage. Sie einzeln zu holen hiesse,
-        /// fuer jede Zahl fuenfzehn Sekunden zu warten.
+        /// Trägt sowohl das Zensus-Raster (eine Abfrage liefert alle Kennzahlen auf einmal) als
+        /// auch den Regionalatlas (seit dem parallelen Vorladen ebenfalls alle zehn Kennzahlen
+        /// auf einmal) — welche der beiden gemeint ist, sagt `genutzteQuelle`.
         case werte([SocialValue])
         case fehler(String)
     }
 
     @Published private(set) var zustand: Zustand = .ruhe
+
+    /// Welche Quelle tatsächlich in `zustand` steckt. Weicht von der Auswahl der Nutzerin ab,
+    /// wenn ein Rückfall lief (siehe `lade(bevorzugt:...)`) — die Anzeige braucht das, um den
+    /// Fallback-Hinweis und die Quellenangabe korrekt zu zeigen.
+    @Published private(set) var genutzteQuelle: SozialdatenView.Quelle?
 
     /// **Hier stand ein Wörterbuch im Arbeitsspeicher mit einer Viertelstunde Haltbarkeit.**
     /// Es war bei jedem App-Start weg — wer die App zwischendurch schliesst, holte dieselben
@@ -213,49 +243,118 @@ final class Sozialdatenabruf: ObservableObject {
     /// jährlich; eine Woche alte Werte sind exakt so gültig wie frisch geholte.
     private let zwischenspeicher = SozialdatenCache.geteilt
 
+    /// Lädt die bevorzugte Quelle; liefert sie nichts (weder Wert noch Netzfehler — reines
+    /// „hier gibt es dazu nichts"), wird einmal die andere Quelle versucht, bevor „leer" gilt.
+    /// Vorbild: `loadSocialData` in Android, `ModernPosterMapScreen.kt`.
+    ///
+    /// Vorige Werte bleiben beim Nachladen sichtbar (Issue #141 in Android, hier nachgezogen):
+    /// Nur der allererste Aufruf für einen Standort zeigt den Ladezustand, ein Quellen- oder
+    /// Standortwechsel während bereits Werte da sind lädt still im Hintergrund. Anders als in
+    /// Android bewusst OHNE stillen Wiederholungsversuch bei Netzfehlern und ohne Prüfung, ob
+    /// der Standort noch „in der Nähe" des letzten Erfolgs liegt — beides sind reale Verfeinerungen
+    /// dort, aber für den ersten Nachzug hier nicht nötig, um den Blitz-Effekt zu beheben.
+    func lade(bevorzugt: SozialdatenView.Quelle, latitude: Double, longitude: Double) async {
+        if case .werte = zustand {
+            // bleibt sichtbar, siehe Dok oben
+        } else {
+            zustand = .laedt
+        }
+
+        let erste = await ladeQuelle(bevorzugt, latitude: latitude, longitude: longitude)
+        guard !Task.isCancelled else { return }
+        if !erste.werte.isEmpty {
+            genutzteQuelle = bevorzugt
+            zustand = .werte(erste.werte)
+            return
+        }
+
+        let andere: Quellenergebnis = bevorzugt == .zensus
+            ? await regionalatlasAlle(latitude: latitude, longitude: longitude)
+            : await zensusRaster(latitude: latitude, longitude: longitude)
+        guard !Task.isCancelled else { return }
+        if !andere.werte.isEmpty {
+            genutzteQuelle = bevorzugt == .zensus ? .regionalatlas : .zensus
+            zustand = .werte(andere.werte)
+            return
+        }
+
+        genutzteQuelle = nil
+        if erste.netzfehler || andere.netzfehler {
+            zustand = .fehler("Die Sozialdaten sind gerade nicht erreichbar. Ohne Netz geht es nicht.")
+        } else {
+            zustand = .leer
+        }
+    }
+
+    private struct Quellenergebnis {
+        var werte: [SocialValue] = []
+        var netzfehler = false
+    }
+
+    private func ladeQuelle(
+        _ quelle: SozialdatenView.Quelle, latitude: Double, longitude: Double
+    ) async -> Quellenergebnis {
+        quelle == .zensus
+            ? await zensusRaster(latitude: latitude, longitude: longitude)
+            : await regionalatlasAlle(latitude: latitude, longitude: longitude)
+    }
+
     /// Das Zensus-Gitter: eine Abfrage ueber 49 Zellen, alle Kennzahlen auf einmal.
-    func holeRaster(latitude: Double, longitude: Double) async {
-        zustand = .laedt
+    private func zensusRaster(latitude: Double, longitude: Double) async -> Quellenergebnis {
         do {
             let roh = try await lade(
                 ZensusRaster.baueUrl(longitude: longitude, latitude: latitude),
                 zeitgrenze: 25
             )
-            let werte = ZensusRaster.auswerten(roh)
-            zustand = werte.isEmpty ? .leer : .werte(werte)
+            return Quellenergebnis(werte: ZensusRaster.auswerten(roh))
         } catch is CancellationError {
-            return
+            return Quellenergebnis()
         } catch {
-            zustand = .fehler("Die Rasterdaten sind gerade nicht erreichbar. Ohne Netz geht es nicht.")
+            return Quellenergebnis(netzfehler: true)
         }
     }
 
-    func hole(indikator: SocialIndicator, latitude: Double, longitude: Double) async {
-        zustand = .laedt
-
-        // Erst die Gemeinde, dann der Kreis. Viele Kennzahlen gibt es nur gröber — dann steht
-        // beim Ergebnis eben „Kreis", statt dass gar nichts kommt.
-        let ebenen: [RegionLevel] = indikator.availableAtGemeinde ? [.GEMEINDE, .KREIS] : [.KREIS]
-
-        for ebene in ebenen {
-            do {
-                let roh = try await lade(
-                    RegionalAtlas.buildUrl(
-                        indicator: indikator, level: ebene, longitude: longitude, latitude: latitude
-                    )
-                )
-                if let wert = RegionalAtlas.parseResponse(roh, indicator: indikator, level: ebene) {
-                    zustand = .wert(wert)
-                    return
+    /// Alle zehn Regionalatlas-Kennzahlen parallel, statt nacheinander bei jedem Wechsel der
+    /// Auswahl im Kennzahl-Picker neu zu laden. Ein Netzfehler bei einer einzelnen Kennzahl lässt
+    /// die übrigen neun nicht scheitern — nur wenn KEINE einzige einen Wert liefert, zählt das
+    /// Ergebnis als Fehlschlag. Vorbild: `SocialDataRepository.fetchFresh` in Android, dort mit
+    /// `async {}.awaitAll()`.
+    private func regionalatlasAlle(latitude: Double, longitude: Double) async -> Quellenergebnis {
+        await withTaskGroup(of: (SocialValue?, Bool).self) { gruppe in
+            for indikator in SocialIndicator.alle {
+                gruppe.addTask {
+                    // Erst die Gemeinde, dann der Kreis. Viele Kennzahlen gibt es nur gröber —
+                    // dann steht beim Ergebnis eben „Kreis", statt dass gar nichts kommt.
+                    let ebenen: [RegionLevel] =
+                        indikator.availableAtGemeinde ? [.GEMEINDE, .KREIS] : [.KREIS]
+                    var netzfehler = false
+                    for ebene in ebenen {
+                        do {
+                            let roh = try await self.lade(
+                                RegionalAtlas.buildUrl(
+                                    indicator: indikator, level: ebene,
+                                    longitude: longitude, latitude: latitude
+                                )
+                            )
+                            if let wert = RegionalAtlas.parseResponse(roh, indicator: indikator, level: ebene) {
+                                return (wert, false)
+                            }
+                        } catch is CancellationError {
+                            return (nil, false)
+                        } catch {
+                            netzfehler = true
+                        }
+                    }
+                    return (nil, netzfehler)
                 }
-            } catch is CancellationError {
-                return
-            } catch {
-                zustand = .fehler("Die Sozialdaten sind gerade nicht erreichbar. Ohne Netz geht es nicht.")
-                return
             }
+            var ergebnis = Quellenergebnis()
+            for await (wert, netzfehler) in gruppe {
+                if let wert { ergebnis.werte.append(wert) }
+                if netzfehler { ergebnis.netzfehler = true }
+            }
+            return ergebnis
         }
-        zustand = .leer
     }
 
     /// `zeitgrenze` ist ein Parameter, weil die beiden Quellen sich stark unterscheiden: Der

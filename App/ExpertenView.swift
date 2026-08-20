@@ -48,7 +48,7 @@ private struct Handywechsel: View {
             switch umzug.zustand {
             case .aus:
                 Button {
-                    umzug.sende()
+                    Task { await umzug.sende() }
                 } label: {
                     Label("Auf ein neues Gerät umziehen", systemImage: "iphone.and.arrow.forward")
                 }

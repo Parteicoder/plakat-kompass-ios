@@ -190,22 +190,31 @@ final class AppModel: ObservableObject {
     // MARK: - Abgleich über den Teilen-Dialog
 
     /// Baut ein Sync-Paket und legt es als Datei ab, die der Teilen-Dialog verschicken kann.
-    func erzeugeSyncPaket() -> URL? {
+    ///
+    /// Läuft seit dem Nachzug gegen Android (dortiger Fix vom 19.7., Commit `ccc13bf`, Issue
+    /// #155) auf einer eigenen Aufgabe statt im Knopf-Callback: Das ZIP samt aller Fotos kann bei
+    /// einer großen Kampagne mehrere hundert MB groß werden, auf dem Hauptthread fror dabei die
+    /// Oberfläche bis zum Systemabbruch ein. `[repo]`/`state` gehen als Kopie mit — `LocalRepository`
+    /// hält keinen veränderlichen Zustand, `LocalTeamState` ist ein `Sendable`-Wert.
+    func erzeugeSyncPaket() async -> URL? {
         guard let teamSecret = state.teamSecret else {
             fehler = "Ohne Team-Schlüssel lässt sich kein Paket erzeugen."
             return nil
         }
+        let zustand = state
         do {
-            let snapshot = try repo.toSnapshot(state)
-            let paket = try SyncBundleCodec.createBundle(
-                snapshot: snapshot,
-                teamSecret: teamSecret,
-                photoURL: { [repo] name in repo.photoURL(name) }
-            )
-            let ziel = FileManager.default.temporaryDirectory
-                .appendingPathComponent("plakatkompass-sync-\(Date.nowMillis).prsync")
-            try paket.write(to: ziel, options: .atomic)
-            return ziel
+            return try await Task.detached(priority: .utility) { [repo] in
+                let snapshot = try repo.toSnapshot(zustand)
+                let paket = try SyncBundleCodec.createBundle(
+                    snapshot: snapshot,
+                    teamSecret: teamSecret,
+                    photoURL: { name in repo.photoURL(name) }
+                )
+                let ziel = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("plakatkompass-sync-\(Date.nowMillis).prsync")
+                try paket.write(to: ziel, options: .atomic)
+                return ziel
+            }.value
         } catch {
             fehler = error.localizedDescription
             return nil
@@ -220,17 +229,23 @@ final class AppModel: ObservableObject {
     /// nie trennen: Das Geheimnis wird nirgends gespeichert, sondern gleich über Funk an das
     /// neue Gerät gegeben. Wer die Datei ohne das Geheimnis findet, hat verschlüsselten Müll —
     /// und genau das ist der Zweck.
-    func erzeugeHandywechselBackup() -> (datei: URL, geheimnis: String)? {
+    /// Läuft off-Main aus demselben Grund wie `erzeugeSyncPaket()`: Ein vollständiges
+    /// Geräte-Backup samt aller Fotos ist mindestens so groß wie ein Sync-Paket.
+    func erzeugeHandywechselBackup() async -> (datei: URL, geheimnis: String)? {
         let geheimnis = DeviceBackupCodec.neuesTransferGeheimnis()
+        let zustand = state
         do {
-            let paket = try DeviceBackupCodec.createBackup(
-                state: state,
-                transferSecret: geheimnis,
-                photoURL: { [repo] name in repo.photoURL(name) }
-            )
-            let ziel = FileManager.default.temporaryDirectory
-                .appendingPathComponent("plakatkompass-device-backup-\(Date.nowMillis).prbackup")
-            try paket.write(to: ziel, options: .atomic)
+            let ziel = try await Task.detached(priority: .utility) { [repo] in
+                let paket = try DeviceBackupCodec.createBackup(
+                    state: zustand,
+                    transferSecret: geheimnis,
+                    photoURL: { name in repo.photoURL(name) }
+                )
+                let ziel = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("plakatkompass-device-backup-\(Date.nowMillis).prbackup")
+                try paket.write(to: ziel, options: .atomic)
+                return ziel
+            }.value
             return (ziel, geheimnis)
         } catch {
             fehler = error.localizedDescription
@@ -338,17 +353,23 @@ final class AppModel: ObservableObject {
     /// Anders als ein Sync-Paket ist das **unverschlüsselt** — es geht an die Stadtverwaltung,
     /// nicht an ein Teamgerät. Der Team-Schlüssel und die internen Bemerkungen sind deshalb auch
     /// nicht darin: `OfficialExport` schreibt nur die Spalten, die im Rathaus etwas zu suchen haben.
-    func erzeugeVerwaltungsExport(kommune: String) -> URL? {
+    /// Läuft off-Main aus demselben Grund wie `erzeugeSyncPaket()` — dasselbe ZIP-mit-allen-Fotos-
+    /// Muster, hier speziell das Muster hinter dem Android-Fix aus Issue #155.
+    func erzeugeVerwaltungsExport(kommune: String) async -> URL? {
+        let zustand = state
         do {
-            let daten = try OfficialExport.zipData(
-                state: state,
-                municipality: kommune.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "Kommune" : kommune,
-                photoURL: { [repo] name in repo.photoURL(name) }
-            )
-            let ziel = FileManager.default.temporaryDirectory
-                .appendingPathComponent(ExportNames.authorityZipName(municipality: kommune))
-            try daten.write(to: ziel, options: .atomic)
+            let ziel = try await Task.detached(priority: .utility) { [repo] in
+                let daten = try OfficialExport.zipData(
+                    state: zustand,
+                    municipality: kommune.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? "Kommune" : kommune,
+                    photoURL: { name in repo.photoURL(name) }
+                )
+                let ziel = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(ExportNames.authorityZipName(municipality: kommune))
+                try daten.write(to: ziel, options: .atomic)
+                return ziel
+            }.value
             return ziel
         } catch {
             fehler = error.localizedDescription

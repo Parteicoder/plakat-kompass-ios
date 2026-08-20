@@ -474,6 +474,52 @@ private struct LizenzenView: View {
           Länder. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).
           """)
       }
+      // Getrennt nach herausgebender Stelle, nicht nach Wahl: Die Namensnennung schuldet man
+      // der Stelle, und die ist bei Landtagswahlen eine andere als beim Bund. Entspricht
+      // Android, ModernMoreScreen.kt.
+      Section("Wahlergebnisse Bund und Europa") {
+        Text(
+          """
+          Bundestagswahl 2025 und Europawahl 2024: Die Bundeswahlleiterin, Wiesbaden. \
+          Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).
+          """)
+      }
+      Section {
+        Text(
+          """
+          Landtags- und Gemeinderatswahl für alle sechzehn Länder, Kreistagswahl für die \
+          dreizehn Länder mit Landkreisen – alle abgerufen über einen eigenen Quellenserver. \
+          Je nach Land entweder GERDA – German Election Database (Creative Commons \
+          Namensnennung 4.0 International, CC BY 4.0) oder die amtliche Landeswahlleitung \
+          (Datenlizenz Deutschland – Namensnennung – Version 2.0, dl-de/by-2-0). Welche Quelle \
+          und Lizenz gerade gilt, steht unter den Zahlen im Wahldaten-Chip.
+          """)
+      } header: {
+        Text("Wahlergebnisse Landtags-, Kreistags- und Gemeinderatswahlen")
+      }
+      // Die Wahlkreisgrenzen liegen als Datei in der App und nicht nur als Abruf. Damit gilt
+      // die Namensnennung hier und nicht erst im Panel – und deshalb steht hier auch, dass sie
+      // sich gerade nicht sauber aussprechen lässt. Ein erfundener Urheber wäre schlimmer als
+      // eine offene Lücke.
+      Section("Wahlkreisgrenzen") {
+        Text(
+          """
+          Die App bringt eine generalisierte Geometrie der 299 Bundestagswahlkreise 2025 mit. \
+          Ihre Herkunft ließ sich nicht feststellen – sie stammt nicht aus einem amtlichen \
+          Download, und wer sie aufbereitet hat, ist unbekannt. Geprüft ist ihr Inhalt gegen \
+          die amtliche Wahlkreiseinteilung, nicht ihre Herkunft. Die amtliche Einteilung selbst \
+          gibt Die Bundeswahlleiterin heraus, auf geometrischer Grundlage des Bundesamtes für \
+          Kartographie und Geodäsie (Geobasis-DE / BKG).
+          """)
+      }
+      Section("Adresssuche") {
+        Text(
+          """
+          Die Suche über die Adresszeile nutzt den Geocoder von iOS (CLGeocoder). Wer die \
+          Anfrage beantwortet, liegt bei Apple; die App bringt dafür keinen eigenen Dienst und \
+          keinen Zugangsschlüssel mit.
+          """)
+      }
       Section("Karte") {
         Text("Apple MapKit. Den Kartenhinweis setzt iOS selbst in die Karte.")
       }
