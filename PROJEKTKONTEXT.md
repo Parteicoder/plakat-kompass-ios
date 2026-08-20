@@ -12,7 +12,49 @@ ein.
 Der Schwesterrepo `Parteicoder/plakat-radar-intern` enthält die Android-Fassung — die ältere,
 größere und funktional führende — und ein eigenes `PROJEKTKONTEXT.md`.
 
-Stand dieses Dokuments: 15. August 2026, Basis `main` bei Commit `18d3b63`.
+Stand dieses Dokuments: 20. August 2026, Basis `main` bei Commit `bbc62ae`.
+
+---
+
+## 0. Laufende Session (20. August 2026)
+
+Vierter Recherche-Durchgang abgeschlossen (siehe Abschnitt 5, dort war er als nächster Schritt
+notiert): Verlauf, Lizenzen, amtlicher Export, Team-QR und Sozial-/Wahldaten-Bildschirme Feld für
+Feld gegen Android geprüft. Ergebnis in zwei PRs:
+
+- **#54**: Lizenzenseite ergänzt (Namensnennung für Wahlergebnisse Bund/Europa/Land/Kreis/
+  Gemeinde, Wahlkreisgrenzen, Adresssuche — fehlte komplett, siehe `EinstellungenView.swift`).
+  `erzeugeSyncPaket`/`erzeugeVerwaltungsExport`/`erzeugeHandywechselBackup` (`AppModel.swift`)
+  liefen bislang synchron auf dem Hauptthread — bei vielen Fotos fror die UI ein, Android hatte
+  denselben Fehler am 19.7. behoben (Issue #155), jetzt per `Task.detached` nachgezogen.
+  `TeamQrView` (`TeamView.swift`) erzeugte das QR-Bild bislang bei jedem Sekundentakt neu statt es
+  zu cachen. `SozialdatenView`/`Sozialdatenabruf` haben jetzt einen Quellen-Fallback
+  (Regionalatlas↔Zensus), zeigen alte Werte beim Nachladen statt eines Ladeblitzes, und laden alle
+  zehn Regionalatlas-Kennzahlen parallel statt einzeln bei jedem Picker-Wechsel.
+- **#55**: Unabhängiger Grok-Review von #54 fand vier reale Bugs in den neuen Async-Fenstern, alle
+  behoben — `NearbyAbgleich.sendeStand()` hängte den Stand *nach* statt *vor* dem Packen an die
+  Sendung (ein währenddessen neu gespeicherter Stand galt sonst fälschlich als schon gesendet),
+  `manager` konnte durch ein zwischenzeitliches `stop()` schon `nil` sein, es fehlte eine Sperre
+  gegen paralleles Packen desselben Endpunkts. `HandywechselNearby.sende()` zeigte das Packen in
+  `zustand` nicht an (neuer Zwischenzustand `.paketWirdErstellt`). Zusätzlich ein CI-Fund: ein
+  zweiter `switch` über `HandywechselNearby.Zustand` (in `SyncView.UmzugBeimEinrichten`) kannte den
+  neuen Fall nicht — Build brach, gefixt. Und: `TeamQrView.qrBild` war trotz `static func` laut
+  Xcode über die `View`-Konformität MainActor-isoliert — `nonisolated` ergänzt, sonst hätte die
+  Erzeugung trotz `Task.detached` weiter auf dem Hauptthread gelaufen.
+
+**Ungeprüfte Breitenrecherche:** Kein Android-Bildschirm ohne iOS-Gegenstück gefunden (Abgleich
+aller `ui/screens/*`/`feature/*` gegen `App/*.swift`). Android selbst hat seit dem 14.8. keine
+neuen Commits (`new-alpha` @ `38ae198`) — kein bewegliches Ziel mehr. Der Port ist damit inhaltlich
+vollständig; offen ist ausschließlich die reale Geräteprobe (siehe Abschnitt 5.4) — Android
+bestätigt in seinem eigenen `PROJEKTKONTEXT.md` wörtlich: *"Both apps have never actually been
+synced with each other."*
+
+Zwei kleinere, bewusst zurückgestellte Punkte aus dem #55-Review: der Kennzahl-Picker in
+`SozialdatenView` hängt an `gewaehlteQuelle` statt `genutzteQuelle` (bei einem Zensus→Regionalatlas-
+Rückfall fehlt die Auswahl zwischen den zehn Kennzahlen), und `erzeugeSyncPaket` hat ein
+theoretisches, sehr schmales Zeitfenster zwischen ZIP-Lesen (`Task.detached`) und einer parallelen
+Foto-Aufräumung auf dem Hauptthread (siehe Kommentar dort). Beides nur bei spürbarer Auswirkung in
+der echten Geräteprobe angehen.
 
 ---
 
@@ -122,6 +164,10 @@ Vollständig, übersetzt, mit Tests und grüner CI:
 | Backup-Empfang auf dem Einrichtungsbildschirm, Team-QR, Support & Community und Bewertungsaufforderung auf der Startseite | `SyncView.swift` (`UmzugBeimEinrichten`), `StartView.swift`, `HomeStats.swift` (`RatingPromptPolicy`) |
 | Adresse von Hand beim Erfassen, wenn die Ortung nichts liefert | `AdresseAufloesen.swift`, `CaptureView.swift` |
 | Rolle wechseln: Weg zurück zur Team-Auswahl für ein bereits eingerichtetes Gerät, Gegenstück zu Androids `ModernRoleSwitchDialog` | `EinstellungenView.swift`, `AppModel.swift` (`setzeAllesZurueck`), `LocalRepository.swift` |
+| Lizenzenseite: Namensnennung Wahlergebnisse/Wahlkreisgrenzen/Adresssuche | `EinstellungenView.swift` |
+| Export/Sync/Handywechsel-Backup off-Main statt Hauptthread-Blockade | `AppModel.swift`, `NearbyAbgleich.swift`, `HandywechselNearby.swift`, `SyncView.swift` |
+| Team-QR-Bild gecacht statt pro Sekundentakt neu erzeugt | `TeamView.swift` |
+| Sozialdaten: Quellen-Fallback, Stale-while-loading, paralleles Kennzahlen-Laden | `SozialdatenView.swift` |
 
 **Auf einem echten iPhone ist nichts davon gelaufen.** Die CI baut für den Simulator und ohne
 Signierung. Kamera, Standort, Hintergrundortung und der Teilen-Dialog sind übersetzt, aber nicht
