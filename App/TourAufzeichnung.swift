@@ -21,10 +21,8 @@ import SwiftUI
 @MainActor
 final class TourAufzeichnung: NSObject, ObservableObject, CLLocationManagerDelegate {
 
-    /// Wie auf Android: näher als 20 Meter ist kein neuer Wegpunkt. Ohne diese Schwelle füllt
-    /// das Rauschen der Ortung die Tour mit hunderten Punkten auf derselben Stelle — und jeder
-    /// davon wandert in jedes Sync-Paket.
-    private static let mindestabstandMeter: CLLocationDistance = 20
+    /// Untergrenze für den Manager. Der eigentliche Filter steht in `FlyerTourFilter` und kann
+    /// bei schlechterer Genauigkeit strenger sein — der Manager darf nicht lockerer sein.
 
     /// Nach fünf Stunden ist Schluss, ebenfalls wie drüben. Eine vergessene Tour, die über Nacht
     /// weiterläuft, kostet Akku und zeichnet den Heimweg auf.
@@ -43,7 +41,7 @@ final class TourAufzeichnung: NSObject, ObservableObject, CLLocationManagerDeleg
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-        manager.distanceFilter = Self.mindestabstandMeter
+        manager.distanceFilter = FlyerTourFilter.mindestabstandMeter
         manager.activityType = .fitness
     }
 
@@ -98,10 +96,11 @@ final class TourAufzeichnung: NSObject, ObservableObject, CLLocationManagerDeleg
             stoppe()
             return
         }
-        // Ausreisser aussortieren: Eine Position mit 200 Metern Ungenauigkeit verzerrt die
-        // Strecke mehr, als sie sie beschreibt.
-        guard ort.horizontalAccuracy > 0, ort.horizontalAccuracy < 100 else { return }
-        if let vorher = letzterPunkt, vorher.distance(from: ort) < Self.mindestabstandMeter { return }
+        let abstand = letzterPunkt.map { $0.distance(from: ort) }
+        guard FlyerTourFilter.sollAufnehmen(
+            genauigkeitMeter: ort.horizontalAccuracy,
+            abstandZumVorgaengerMeter: abstand
+        ) else { return }
 
         letzterPunkt = ort
         punktAufnehmen?(ort.coordinate.latitude, ort.coordinate.longitude)
